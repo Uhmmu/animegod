@@ -1,0 +1,7 @@
+.DS_Store
+.build/
+DerivedData/
+AnimeGod.xcodeproj/
+*.xcuserstate
+xcuserdata/
+
