@@ -32,7 +32,7 @@ remembers the user's subtitle selection.
 
 ### Metadata
 - Match with **Bangumi** (v0 API: search, posters, synopsis, ratings, studio
-  credits; legacy community topics/blogs) and **AniList** (GraphQL: search,
+  credits; subject shoutbox, community topics/blogs) and **AniList** (GraphQL: search,
   metadata, MAL cross-identifiers, reviews, main studios).
 - **Find Metadata** links every unlinked title with its most likely result;
   clearly dubious candidates wait in **Review Matches** for a quick human pass.

@@ -141,6 +141,7 @@ public struct AnimeMetadata: Identifiable, Codable, Hashable, Sendable {
 }
 
 public enum CommunityPostKind: String, Codable, CaseIterable, Sendable {
+    case shoutbox
     case discussion
     case review
 }
@@ -156,6 +157,7 @@ public struct CommunityPost: Identifiable, Codable, Hashable, Sendable {
     public let author: String
     public let replyCount: Int
     public let publishedAt: Date?
+    public let rating: Double?
     public let body: String?
     public let originalLanguage: String?
     public var translatedTitle: String?
@@ -173,6 +175,7 @@ public struct CommunityPost: Identifiable, Codable, Hashable, Sendable {
         author: String,
         replyCount: Int,
         publishedAt: Date?,
+        rating: Double? = nil,
         body: String? = nil,
         originalLanguage: String? = nil,
         translatedTitle: String? = nil,
@@ -188,6 +191,7 @@ public struct CommunityPost: Identifiable, Codable, Hashable, Sendable {
         self.author = author
         self.replyCount = replyCount
         self.publishedAt = publishedAt
+        self.rating = rating
         self.body = body
         self.originalLanguage = originalLanguage
         self.translatedTitle = translatedTitle

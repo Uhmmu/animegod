@@ -38,6 +38,9 @@ final class AppModel: ObservableObject {
     ]
     private let metadataMatcher = MetadataMatcher()
     private var cancellables: Set<AnyCancellable> = []
+    /// Older caches predate Bangumi shoutbox support. Attempt one transparent
+    /// upgrade per title and app run without repeatedly hitting empty subjects.
+    private var shoutboxUpgradeAttempts: Set<UUID> = []
 
     init() {
         // Republish translation and danmaku preference state so views
@@ -241,7 +244,11 @@ final class AppModel: ObservableObject {
                 let cached = try await database.communityPosts(animeID: anime.id)
                 if !cached.isEmpty {
                     communityByAnimeID[anime.id] = cached
-                    return
+                    let hasBangumiSource = (metadataSourcesByAnimeID[anime.id] ?? []).contains { $0.provider == .bangumi }
+                    let needsShoutboxUpgrade = hasBangumiSource
+                        && !cached.contains { $0.provider == .bangumi && $0.kind == .shoutbox }
+                        && shoutboxUpgradeAttempts.insert(anime.id).inserted
+                    if !needsShoutboxUpgrade { return }
                 }
             }
             let sources = metadataSourcesByAnimeID[anime.id] ?? []

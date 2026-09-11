@@ -7,7 +7,7 @@ struct AnimeDetailView: View {
     @State private var episodes: [EpisodeMedia] = []
     @State private var showingMatch = false
     @State private var showingProfile = false
-    @State private var communityKind: CommunityPostKind = .review
+    @State private var communityKind: CommunityPostKind = .shoutbox
     @State private var communityProvider: MetadataProviderID = .bangumi
     @State private var expandedCategories: Set<EpisodeCategory> = [.main]
 
@@ -24,6 +24,9 @@ struct AnimeDetailView: View {
         (model.communityByAnimeID[anime.id] ?? []).filter {
             $0.kind == communityKind && $0.provider == communityProvider
         }
+    }
+    private var communityKinds: [CommunityPostKind] {
+        communityProvider == .bangumi ? [.shoutbox, .review, .discussion] : [.review]
     }
 
     var body: some View {
@@ -287,11 +290,12 @@ struct AnimeDetailView: View {
                 Text("Community").font(.title2.bold())
                 Spacer()
                 Picker("Community section", selection: $communityKind) {
-                    Text("Reviews").tag(CommunityPostKind.review)
-                    Text("Discussions").tag(CommunityPostKind.discussion)
+                    ForEach(communityKinds, id: \.self) { kind in
+                        Text(communityLabel(for: kind)).tag(kind)
+                    }
                 }
                 .pickerStyle(.segmented)
-                .frame(width: 250)
+                .frame(width: communityProvider == .bangumi ? 330 : 120)
                 if communityProviders.count > 1 {
                     Picker("Source", selection: $communityProvider) {
                         ForEach(communityProviders, id: \.self) { provider in
@@ -311,7 +315,7 @@ struct AnimeDetailView: View {
                         }
                     }
                     .disabled(model.translation.isTranslating)
-                    .help("Translate these \(communityKind == .review ? "reviews" : "discussions") with the configured translation service")
+                    .help("Translate these \(communityLabel(for: communityKind).lowercased()) with the configured translation service")
                 }
                 Button { Task { await model.loadCommunity(for: anime, provider: communityProvider, refresh: true) } } label: {
                     Image(systemName: "arrow.clockwise")
@@ -327,7 +331,7 @@ struct AnimeDetailView: View {
 
             if communityPosts.isEmpty {
                 ContentUnavailableView(
-                    communityKind == .review ? "No Reviews" : "No Discussions",
+                    emptyCommunityLabel(for: communityKind),
                     systemImage: "bubble.left.and.bubble.right"
                 )
                 .frame(maxWidth: .infinity)
@@ -342,6 +346,27 @@ struct AnimeDetailView: View {
                 communityProvider = first
             }
         }
+        .onChange(of: communityProvider) { _, _ in
+            if !communityKinds.contains(communityKind) {
+                communityKind = communityKinds.first ?? .review
+            }
+        }
+    }
+
+    private func communityLabel(for kind: CommunityPostKind) -> String {
+        switch kind {
+        case .shoutbox: "Shoutbox"
+        case .review: "Reviews"
+        case .discussion: "Discussions"
+        }
+    }
+
+    private func emptyCommunityLabel(for kind: CommunityPostKind) -> String {
+        switch kind {
+        case .shoutbox: "No Shouts"
+        case .review: "No Reviews"
+        case .discussion: "No Discussions"
+        }
     }
 
     private var canTranslateCommunity: Bool {
@@ -354,9 +379,19 @@ struct AnimeDetailView: View {
         HStack(alignment: .top, spacing: 8) {
             Link(destination: post.url) {
                 VStack(alignment: .leading, spacing: 7) {
-                    HStack(alignment: .firstTextBaseline) {
-                        Text(post.title).font(.headline).foregroundStyle(.primary)
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        if post.kind == .shoutbox {
+                            Text(post.author).font(.headline).foregroundStyle(.primary)
+                        } else if !post.title.isEmpty {
+                            Text(post.title).font(.headline).foregroundStyle(.primary)
+                        }
                         Spacer()
+                        if let rating = post.rating {
+                            Label(String(format: "%.0f", rating), systemImage: "star.fill")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.orange)
+                                .accessibilityLabel("Rating \(rating.formatted()) out of 10")
+                        }
                         if post.replyCount > 0 {
                             Label("\(post.replyCount)", systemImage: "bubble.left")
                                 .font(.caption)
@@ -372,6 +407,13 @@ struct AnimeDetailView: View {
                             .foregroundStyle(.secondary)
                             .lineLimit(3)
                     }
+                    if post.kind == .shoutbox, let body = post.body, !body.isEmpty {
+                        Text(body)
+                            .font(.callout)
+                            .foregroundStyle(.primary)
+                            .lineLimit(8)
+                            .textSelection(.enabled)
+                    }
                     if let translated = post.translatedBody, !translated.isEmpty {
                         Text(translated)
                             .font(.callout)
@@ -379,9 +421,15 @@ struct AnimeDetailView: View {
                             .padding(.top, 2)
                     }
                     HStack {
-                        Text(post.author)
-                        Text("·")
+                        if post.kind != .shoutbox {
+                            Text(post.author)
+                            Text("·")
+                        }
                         Text(post.provider.displayName)
+                        if let publishedAt = post.publishedAt {
+                            Text("·")
+                            Text(publishedAt, style: .relative)
+                        }
                         if post.translatedBody != nil { Text("· Translated") }
                     }
                     .font(.caption)

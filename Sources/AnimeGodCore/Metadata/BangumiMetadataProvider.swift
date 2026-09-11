@@ -18,15 +18,18 @@ public struct BangumiMetadataProvider: MetadataProvider {
     public let id: MetadataProviderID = .bangumi
     private let session: URLSession
     private let baseURL: URL
+    private let commentsBaseURL: URL
     private let userAgent: String
 
     public init(
         session: URLSession = .shared,
         baseURL: URL = URL(string: "https://api.bgm.tv")!,
+        commentsBaseURL: URL = URL(string: "https://next.bgm.tv")!,
         userAgent: String = "AnimeGod/0.2 (https://github.com/Uhmmu/animegod)"
     ) {
         self.session = session
         self.baseURL = baseURL
+        self.commentsBaseURL = commentsBaseURL
         self.userAgent = userAgent
     }
 
@@ -99,9 +102,27 @@ public struct BangumiMetadataProvider: MetadataProvider {
         let blogs = (subject.blog ?? []).compactMap { post in
             post.communityPost(provider: id, externalID: externalID, kind: .review)
         }
-        return (topics + blogs).sorted {
+        // Bangumi's current web client exposes the subject shoutbox through
+        // its read-only p1 endpoint. Keep it best-effort because p1 is not
+        // part of the stable v0 API and must never hide cached discussions or
+        // reviews when it is temporarily unavailable.
+        let shoutbox = (try? await shoutboxPosts(externalID: externalID)) ?? []
+        return (shoutbox + topics + blogs).sorted {
             ($0.publishedAt ?? .distantPast) > ($1.publishedAt ?? .distantPast)
         }
+    }
+
+    private func shoutboxPosts(externalID: String) async throws -> [CommunityPost] {
+        var components = URLComponents(
+            url: commentsBaseURL.appending(path: "p1/subjects/\(externalID)/comments"),
+            resolvingAgainstBaseURL: false
+        )!
+        components.queryItems = [
+            URLQueryItem(name: "limit", value: "20"),
+            URLQueryItem(name: "offset", value: "0")
+        ]
+        let response: ShoutboxResponse = try await load(request(url: components.url!))
+        return response.data.compactMap { $0.communityPost(externalID: externalID) }
     }
 
     private func request(url: URL) -> URLRequest {
@@ -268,4 +289,37 @@ private struct LegacyPost: Decodable {
 private struct LegacyUser: Decodable {
     let username: String?
     let nickname: String?
+}
+
+private struct ShoutboxResponse: Decodable {
+    let data: [ShoutboxComment]
+}
+
+private struct ShoutboxComment: Decodable {
+    let id: Int
+    let user: LegacyUser?
+    let rate: Int?
+    let comment: String?
+    let updatedAt: TimeInterval?
+
+    func communityPost(externalID: String) -> CommunityPost? {
+        guard let body = comment?.trimmingCharacters(in: .whitespacesAndNewlines), !body.isEmpty else { return nil }
+        var components = URLComponents(string: "https://bgm.tv/subject/\(externalID)/comments")!
+        components.fragment = "likes_grid_\(id)"
+        guard let url = components.url else { return nil }
+        return CommunityPost(
+            provider: .bangumi,
+            externalID: externalID,
+            postID: String(id),
+            kind: .shoutbox,
+            title: "",
+            summary: nil,
+            url: url,
+            author: user?.nickname ?? user?.username ?? "Bangumi user",
+            replyCount: 0,
+            publishedAt: updatedAt.map(Date.init(timeIntervalSince1970:)),
+            rating: rate.map(Double.init),
+            body: body
+        )
+    }
 }
