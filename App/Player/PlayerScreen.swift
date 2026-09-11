@@ -438,6 +438,7 @@ struct PlayerScreen: View {
     @State private var controlsVisible = true
     @State private var hideTask: Task<Void, Never>?
     @State private var isHoveringControls = false
+    @State private var cursorHiddenByPlayer = false
     @State private var isSwitching = false
     @State private var showDiagnostics = false
 
@@ -522,6 +523,7 @@ struct PlayerScreen: View {
         }
         .onDisappear {
             hideTask?.cancel()
+            showCursor()
             guard let session = state.endSession() else { return }
             Task {
                 await model.finishPlaybackSession(
@@ -532,6 +534,26 @@ struct PlayerScreen: View {
                     duration: session.duration
                 )
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { notification in
+            guard notification.object as? NSWindow === state.controller?.view.window else { return }
+            revealControls()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didExitFullScreenNotification)) { notification in
+            guard notification.object as? NSWindow === state.controller?.view.window else { return }
+            showCursor()
+            revealControls()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
+            showCursor()
+        }
+        .onChange(of: state.isLoading) { _, isLoading in
+            if !isLoading, state.errorMessage == nil {
+                revealControls()
+            }
+        }
+        .onChange(of: state.paused) { _, _ in
+            revealControls()
         }
         .task {
             while !Task.isCancelled {
@@ -828,17 +850,34 @@ struct PlayerScreen: View {
                 try? await Task.sleep(for: .seconds(2))
             }
             capture("/tmp/ag_windowed.png")
-            Self.printSmokeState("windowed", state: state)
+            Self.printSmokeState(
+                "windowed",
+                state: state,
+                controlsVisible: controlsVisible,
+                cursorHiddenByPlayer: cursorHiddenByPlayer
+            )
             toggleFullscreen()
-            try? await Task.sleep(for: .seconds(3))
+            // Fullscreen rebuilds the mpv renderer. Allow that brief loading
+            // cycle to finish, then cover the fresh 2.8-second idle timeout.
+            try? await Task.sleep(for: .seconds(6))
             capture("/tmp/ag_fullscreen.png")
-            Self.printSmokeState("fullscreen", state: state)
+            Self.printSmokeState(
+                "fullscreen",
+                state: state,
+                controlsVisible: controlsVisible,
+                cursorHiddenByPlayer: cursorHiddenByPlayer
+            )
             try? await Task.sleep(for: .seconds(1))
             NSApp.terminate(nil)
         }
     }
 
-    private static func printSmokeState(_ label: String, state: PlayerState) {
+    private static func printSmokeState(
+        _ label: String,
+        state: PlayerState,
+        controlsVisible: Bool,
+        cursorHiddenByPlayer: Bool
+    ) {
         let controller = state.controller
         let windowFrame = controller?.view.window?.frame ?? .zero
         let viewBounds = controller?.view.bounds ?? .zero
@@ -846,10 +885,11 @@ struct PlayerScreen: View {
         let rendered = controller?.renderedOutputSize
         let renderedText = rendered.map { "\(Int($0.width))x\(Int($0.height))" } ?? "nil"
         let fullscreen = controller?.view.window?.styleMask.contains(.fullScreen) ?? false
-        print("SMOKE \(label): window=\(Int(windowFrame.width))x\(Int(windowFrame.height)) fs=\(fullscreen) view=\(Int(viewBounds.width))x\(Int(viewBounds.height)) drawable=\(Int(drawable.width))x\(Int(drawable.height)) surface=\(renderedText) pos=\(Int(state.position))/\(Int(state.duration))")
+        print("SMOKE \(label): window=\(Int(windowFrame.width))x\(Int(windowFrame.height)) fs=\(fullscreen) view=\(Int(viewBounds.width))x\(Int(viewBounds.height)) drawable=\(Int(drawable.width))x\(Int(drawable.height)) surface=\(renderedText) pos=\(Int(state.position))/\(Int(state.duration)) controls=\(controlsVisible) cursorHidden=\(cursorHiddenByPlayer)")
     }
 
     private func revealControls() {
+        showCursor()
         controlsVisible = true
         hideTask?.cancel()
         hideTask = Task { @MainActor in
@@ -858,6 +898,7 @@ struct PlayerScreen: View {
             // Keep controls available while paused, loading, broken, or hovered.
             if !state.paused, !state.isLoading, state.errorMessage == nil, !isHoveringControls {
                 withAnimation { controlsVisible = false }
+                hideCursorIfFullscreen()
             }
         }
     }
@@ -866,9 +907,23 @@ struct PlayerScreen: View {
         if controlsVisible {
             hideTask?.cancel()
             withAnimation { controlsVisible = false }
+            hideCursorIfFullscreen()
         } else {
             revealControls()
         }
+    }
+
+    private func hideCursorIfFullscreen() {
+        guard state.controller?.view.window?.styleMask.contains(.fullScreen) == true,
+              !cursorHiddenByPlayer else { return }
+        NSCursor.hide()
+        cursorHiddenByPlayer = true
+    }
+
+    private func showCursor() {
+        guard cursorHiddenByPlayer else { return }
+        NSCursor.unhide()
+        cursorHiddenByPlayer = false
     }
 
     /// Fullscreen must target THIS window — with the library window also

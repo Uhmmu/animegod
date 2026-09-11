@@ -14,6 +14,9 @@ all native SwiftUI on macOS.
   MKV Profile 8 and Profile 7 use an honestly labelled HDR10-base fallback.
 - MKV playback starts in mpv immediately; its bounded container probe now runs
   in the background so large SDR files and external disks cannot stall loading.
+- Fullscreen playback restarts its idle timer after renderer reloads and hides
+  both controls and the pointer; moving the mouse or leaving fullscreen
+  restores them.
 - Diagnostics report the exact HDR mode, RPU evidence, layer format,
   tone-mapping mode, EDR headroom, pipeline, and Profile 7 limitation.
 
