@@ -4,6 +4,17 @@ The complete vertical slice of the product plan: a local-first anime library
 and player, metadata aggregation, personal tracking, and yearly statistics —
 all native SwiftUI on macOS.
 
+## HDR and Dolby Vision playback
+
+- Constant-format 16-bit-float BT.2020 EDR output for HDR10 and HLG, with
+  automatic SDR fallback and a user Forced SDR control.
+- Real `dvvC`/`dvcC` and mpv RPU-side-data detection; filenames no longer
+  classify Dolby Vision.
+- Eligible Dolby Vision Profile 8.4 `hvc1` MP4/MOV files use AVFoundation;
+  MKV Profile 8 and Profile 7 use an honestly labelled HDR10-base fallback.
+- Diagnostics report the exact HDR mode, RPU evidence, layer format,
+  tone-mapping mode, EDR headroom, pipeline, and Profile 7 limitation.
+
 ## Highlights
 
 **Player (M5)**
@@ -44,7 +55,7 @@ all native SwiftUI on macOS.
 
 ## Known limitations
 
-- HDR10/HLG tone-maps to SDR; the EDR pipeline and native Dolby Vision are
-  planned ([roadmap](docs/HDR_DOLBY_PLAYBACK_PLAN.md)).
+- Dolby Vision Profile 7 FEL/MEL enhancement layers are not supported; the
+  HDR10-compatible base layer is used instead.
 - Direct MyAnimeList integration needs an official client ID (not bundled).
 - First launch of an unsigned build may require right-click → Open.

@@ -85,6 +85,20 @@ struct RootView: View {
             guard model.playerRequest != nil else { return }
             openWindow(id: "player")
         }
+        .task {
+            // The library window owns openWindow, so smoke mode must initiate
+            // playback here before the standalone player window can exist.
+            guard ProcessInfo.processInfo.arguments.contains("-smokePlayerTest"),
+                  model.playerRequest == nil else { return }
+            var waited = 0
+            while model.library.isEmpty && waited < 20 {
+                try? await Task.sleep(for: .milliseconds(500))
+                waited += 1
+            }
+            guard let anime = model.library.first?.anime else { return }
+            let episodes = await model.episodes(for: anime)
+            if let episode = episodes.first { await model.play(episode) }
+        }
         .alert("AnimeGod", isPresented: Binding(
             get: { model.errorMessage != nil },
             set: { if !$0 { model.errorMessage = nil } }

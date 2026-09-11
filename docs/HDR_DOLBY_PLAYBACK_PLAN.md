@@ -1,7 +1,7 @@
-# HDR / Dolby Vision Playback Plan (Deferred Work)
+# HDR / Dolby Vision Playback Plan
 
-Status: Phase 0 complete. Phases 1–4 pending.
-Owner: TBD (handoff-ready for Codex or a future session).
+Status: **Complete (Phases 0–4)** — implemented 2026-09-11.
+Owner: AnimeGod.
 
 ## Current state (as of this plan)
 
@@ -10,31 +10,32 @@ Rendering architecture: **libmpv embedded via `wid` = CAMetalLayer pointer**,
 
 Already implemented:
 
-- HDR detection from **decoded signal metadata** (mpv `video-params`), never from
-  filenames: `Sources/AnimeGodCore/Player/VideoColorProfile.swift` — SDR/HDR10/HLG/
-  DolbyVision classification requires BT.2020 **and** PQ/HLG together; a "DoVi"
-  release label only upgrades a wide-gamut PQ signal.
+- HDR detection from **decoded signal metadata** (mpv `video-params`) and real
+  `dvvC`/`dvcC` configuration records, never from filenames:
+  `VideoColorProfile.swift` and `DolbyVisionContainerProbe.swift`.
 - Diagnostics overlay in the player (**⌘⇧D**): codec, pixel format, bit depth,
   primaries/transfer/matrix, HDR format, signal peak, hardware decoder,
   display name / EDR headroom / potential headroom, pipeline mode.
-  **⌘H⇧** toggles the experimental EDR pipeline (see Phase 1 gate).
-- Version policy: alternative encodes of one episode merge into a single
-  episode; **SDR version preferred by default** (macOS players cannot render
-  Dolby Vision metadata); switchable via the version menu in the player.
+  **⌘⇧H** forces/unforces SDR without changing the live layer format.
+- Version policy: alternative encodes merge into one episode; EDR displays
+  prefer a detected DV Profile 8 version with a compatible base layer, while
+  SDR displays retain the SDR-first default. The version menu remains available.
 - HDR content on SDR displays tone maps via mpv/libplacebo.
 
 Known current limitations (why the plan exists):
 
-1. **Runtime resizes do not reconfigure the MoltenVK swapchain.** The mpv
-   `wid`+MoltenVK path freezes the rendered output at the size the VO was
-   created with. Current workaround: after a resize settles (300 ms debounce)
-   the player cycles `wid` through 0 → layer pointer, forcing mpv to rebuild
-   the whole VO. This produces a ~0.3 s black flash on every resize/fullscreen
-   transition. Verified by the headless smoke test
-   (`AnimeGod -smokePlayerTest`, prints window/view/drawable sizes and
-   auto-screenshots via `screencapture`).
-2. **HDR plays through HDR→SDR tone mapping** (mpv default target). No EDR
-   output yet — HDR looks washed out ("发灰") on the XDR display.
+1. **MoltenVK swapchains do not resize in place.** Cycling `wid` through
+   `0 → layer pointer` was removed because it could interrupt playback after
+   the first frame. After a fullscreen transition completes, the player now
+   rebuilds the mpv renderer against the final drawable size and restores the
+   playback position, pause state, speed, volume, delays, and track selection.
+   Validate windowed and fullscreen playback with the headless smoke test
+   (`AnimeGod -smokePlayerTest`, which prints window/view/drawable sizes and
+   captures screenshots).
+2. The renderer starts with a constant 16-bit-float linear BT.2020 EDR layer.
+   HDR10/HLG use EDR on capable displays; SDR displays and Forced SDR use
+   explicit BT.709/BT.1886/100-nit targets. Initialization failure retries once
+   with the BGRA8 SDR pipeline and reports that fallback.
 3. `dwidth/dheight` report the source-derived display size, **not** the VO
    output size — do not use them to verify swapchain size again.
 
@@ -59,6 +60,10 @@ Known current limitations (why the plan exists):
 
 ## Phase 1 — Correct HDR10 / HLG end-to-end (first priority)
 
+Completion: **done**. Metal EDR is configured before mpv initialization;
+HLG/HDR10 metadata changes rebuild between renderer sessions; headroom refreshes
+live; diagnostics expose layer format, tone mapping, pipeline, and Forced SDR.
+
 Goal: HDR10 and HLG play with EDR brightness and correct colors on HDR-capable
 displays; correct HDR→SDR tone mapping on SDR displays. Priority: correct color
 reproduction > hardware decoding > performance > feature completeness.
@@ -77,10 +82,9 @@ reproduction > hardware decoding > performance > feature completeness.
    - Fallback validation: if MoltenVK cannot negotiate an rgba16Float
      swapchain, fall back to the current SDR path automatically and report
      it in the diagnostics panel.
-2. **Eliminate (or keep behind a flag) the wid-cycle resize hack** once the
-   constant-format layer is in place — verify whether MoltenVK now honors
-   `VK_ERROR_OUT_OF_DATE_KHR` on resize; if not, keep the cycle as the
-   fallback.
+2. **Replace the fullscreen-only renderer rebuild with in-place resizing** if
+   a future MPVKit/MoltenVK release reliably honors
+   `VK_ERROR_OUT_OF_DATE_KHR`; do not reintroduce a runtime `wid` cycle.
 3. **HDR output decision logic** (already drafted in
    `PlayerState.reconfigureColorOutput`): signal is HDR ∧ display has EDR
    headroom ∧ not user-forced-SDR. Re-evaluate on screen change and
@@ -104,6 +108,10 @@ metalLayer.edrMetadata = CAEDRMetadata(minLuminance: 0.5,
 
 ## Phase 2 — Apple-native Dolby Vision
 
+Completion: **done**. MP4/MOV uses AVFoundation only when a real `dvvC` record,
+Profile 8.4, `hvc1`, Main10, a single video track, and BT.2020/HLG compatibility
+agree. Other DV assets stay on mpv with an explicit HDR10-fallback mode.
+
 Goal: when macOS can play a Dolby Vision file natively, let it.
 
 1. Detect DV properly (not from filenames): inspect the container — MKV/MP4
@@ -120,6 +128,10 @@ Goal: when macOS can play a Dolby Vision file natively, let it.
 
 ## Phase 3 — MKV Dolby Vision Profile 8 with fallback policy
 
+Completion: **done**. mpv's decoded `dolby-vision-profile` and level properties
+are runtime RPU evidence. MKV P8 remains on libplacebo/mpv; EDR displays prefer
+a container-detected P8 compatible-base version; mode labels are exact.
+
 1. Parse DV RPU availability from MPV (libplacebo processes P8 RPUs when the
    build supports it; verify at runtime, report honestly in diagnostics).
 2. Update the version-default policy: when the display is EDR-capable and a
@@ -130,6 +142,8 @@ Goal: when macOS can play a Dolby Vision file natively, let it.
 
 ## Phase 4 — Profile 7 / MEL / FEL (explicitly last, likely never)
 
+Completion: **done by explicit non-support policy**.
+
 - Blu-ray Profile 7 FEL requires reference-decoder-grade handling. Decision:
   **not supported**; fall back to the HDR10 base layer and say so in the
   diagnostics panel. Revisit only with a concrete user need.
@@ -137,7 +151,8 @@ Goal: when macOS can play a Dolby Vision file natively, let it.
 ## Regression gates (run after every phase)
 
 - `swift test` — includes `VideoColorProfileTests` (classification rules,
-  bit-depth mapping) and the rest of the 61-test suite.
+  bit-depth mapping, dvcC/dvvC parsing, native eligibility) and the rest of the
+  64-test suite.
 - Headless smoke: `AnimeGod.app/Contents/MacOS/AnimeGod -smokePlayerTest`
   prints window/view/drawable sizes and captures windowed/fullscreen
   screenshots to `/tmp/ag_windowed.png` and `/tmp/ag_fullscreen.png`.
@@ -145,3 +160,16 @@ Goal: when macOS can play a Dolby Vision file natively, let it.
   Swift 6 strict concurrency.
 - Deploy target: copy the built app to `/Applications` — **the user launches
   that copy**; stale duplicate installs have burned us before.
+
+## Completion evidence (2026-09-11)
+
+- `swift test`: 64 tests passed.
+- `xcodegen generate`: succeeded.
+- Swift 6 arm64 Debug build with MPVKit 1.0.0: succeeded.
+- The headless windowed/fullscreen smoke writes `/tmp/ag_windowed.png` and
+  `/tmp/ag_fullscreen.png`; it uses the drawable size, not `dwidth`/`dheight`,
+  as host-surface evidence. Latest run preserved live playback at 1092/5649 s
+  while resizing 2460×1628 → 3024×1898 pixels.
+- Deterministic tests cover classification, box parsing, eligibility, and
+  fallback policy. Final visual color judgment still requires the six mastered
+  validation clips on the target SDR/XDR displays.

@@ -1,9 +1,8 @@
 import Foundation
 
 /// The HDR flavour actually carried by the decoded video, derived from real
-/// color metadata — never from the filename alone. The filename only ever
-/// upgrades a bt.2020+PQ/HLG signal to "Dolby Vision" when an RPU-capable
-/// release label is present.
+/// color metadata plus a real Dolby Vision configuration/RPU signal. A
+/// filename never upgrades a signal to Dolby Vision.
 public enum HDRFormat: String, Sendable, Equatable {
     case sdr
     case hdr10
@@ -22,6 +21,99 @@ public enum HDRFormat: String, Sendable, Equatable {
     }
 }
 
+public enum DolbyVisionConfigurationKind: String, Sendable, Equatable {
+    case dvvC
+    case dvcC
+    case mpvSideData
+}
+
+/// Parsed Dolby Vision decoder configuration. Unlike a release-name token,
+/// this is evidence carried by the container or decoded frame side data.
+public struct DolbyVisionMetadata: Sendable, Equatable {
+    public let profile: Int
+    public let level: Int?
+    public let rpuPresent: Bool
+    public let enhancementLayerPresent: Bool
+    public let baseLayerPresent: Bool
+    public let compatibilityID: Int?
+    public let configurationKind: DolbyVisionConfigurationKind
+
+    public init(
+        profile: Int,
+        level: Int? = nil,
+        rpuPresent: Bool,
+        enhancementLayerPresent: Bool = false,
+        baseLayerPresent: Bool = true,
+        compatibilityID: Int? = nil,
+        configurationKind: DolbyVisionConfigurationKind
+    ) {
+        self.profile = profile
+        self.level = level
+        self.rpuPresent = rpuPresent
+        self.enhancementLayerPresent = enhancementLayerPresent
+        self.baseLayerPresent = baseLayerPresent
+        self.compatibilityID = compatibilityID
+        self.configurationKind = configurationKind
+    }
+
+    public var profileLabel: String {
+        compatibilityID.map { "Profile \(profile).\($0)" } ?? "Profile \(profile)"
+    }
+
+    /// Apple's native Dolby Vision 8.4 path is HLG-compatible, single-track
+    /// HEVC in an hvc1 sample entry with a dvvC configuration record.
+    public func isAppleNativeEligible(
+        codecTag: String?, bitDepth: Int?, videoTrackCount: Int,
+        primaries: String?, transfer: String?
+    ) -> Bool {
+        let primaries = (primaries ?? "").lowercased()
+        let transfer = (transfer ?? "").lowercased()
+        return profile == 8 && compatibilityID == 4
+            && configurationKind == .dvvC
+            && codecTag?.lowercased() == "hvc1"
+            && bitDepth == 10 && videoTrackCount == 1
+            && primaries.contains("2020")
+            && (transfer.contains("hlg") || transfer.contains("arib"))
+    }
+
+    public var hasHDR10CompatibleBaseLayer: Bool {
+        baseLayerPresent && (profile == 7 || (profile == 8 && compatibilityID != 4))
+    }
+}
+
+public enum DolbyVisionConfigurationParser {
+    /// Parses the first five bytes of an ISO/IEC 14496-15 dvcC/dvvC record.
+    public static func parse(_ data: Data, kind: DolbyVisionConfigurationKind) -> DolbyVisionMetadata? {
+        guard data.count >= 5 else { return nil }
+        let bytes = [UInt8](data.prefix(5))
+        let profile = Int(bytes[2] >> 1)
+        guard profile > 0 else { return nil }
+        let level = Int((bytes[2] & 1) << 5 | bytes[3] >> 3)
+        return DolbyVisionMetadata(
+            profile: profile,
+            level: level,
+            rpuPresent: bytes[3] & 0x04 != 0,
+            enhancementLayerPresent: bytes[3] & 0x02 != 0,
+            baseLayerPresent: bytes[3] & 0x01 != 0,
+            compatibilityID: Int(bytes[4] >> 4),
+            configurationKind: kind
+        )
+    }
+}
+
+public enum HDRRenderDecision: Sendable, Equatable {
+    case sdr
+    case edr
+    case toneMapToSDR
+
+    public static func decide(
+        profile: VideoColorProfile?, potentialHeadroom: Double, forcedSDR: Bool
+    ) -> HDRRenderDecision {
+        guard profile?.isHDR == true else { return .sdr }
+        return potentialHeadroom > 1 && !forcedSDR ? .edr : .toneMapToSDR
+    }
+}
+
 /// Color-relevant signal properties read from the playback engine
 /// (mpv `video-params/*`), kept verbatim so the diagnostics panel can prove
 /// metadata survived demux → decode → render.
@@ -34,9 +126,12 @@ public struct VideoColorProfile: Sendable, Equatable {
     public let matrix: String?
     public let signalPeak: Double?
     public let hardwareDecoder: String?
-    /// Release-label hint only ("DoVi", "DV", "P8"); never used alone to
-    /// classify a file as HDR.
+    /// Human-readable label derived from detected container/side-data metadata;
+    /// never used by itself to classify a file as HDR.
     public let releaseHint: String?
+    public let dolbyVision: DolbyVisionMetadata?
+    public let codecTag: String?
+    public let videoTrackCount: Int
 
     public init(
         codec: String?,
@@ -47,7 +142,10 @@ public struct VideoColorProfile: Sendable, Equatable {
         matrix: String?,
         signalPeak: Double?,
         hardwareDecoder: String?,
-        releaseHint: String? = nil
+        releaseHint: String? = nil,
+        dolbyVision: DolbyVisionMetadata? = nil,
+        codecTag: String? = nil,
+        videoTrackCount: Int = 1
     ) {
         self.codec = codec
         self.pixelFormat = pixelFormat
@@ -58,6 +156,9 @@ public struct VideoColorProfile: Sendable, Equatable {
         self.signalPeak = signalPeak
         self.hardwareDecoder = hardwareDecoder
         self.releaseHint = releaseHint
+        self.dolbyVision = dolbyVision
+        self.codecTag = codecTag
+        self.videoTrackCount = videoTrackCount
     }
 
     public var isHDR: Bool { hdrFormat == .hdr10 || hdrFormat == .hlg || hdrFormat == .dolbyVision }
@@ -69,10 +170,8 @@ public struct VideoColorProfile: Sendable, Equatable {
         let pq = transfer.contains("pq") || transfer.contains("2084") || transfer.contains("smpte2084")
         let hlg = transfer.contains("hlg") || transfer.contains("arib")
 
+        if (pq || hlg) && wideGamut, dolbyVision != nil { return .dolbyVision }
         if pq && wideGamut {
-            if let hint = releaseHint?.lowercased(), hint.contains("dovi") || hint.contains("dv") || hint.contains("dolby") {
-                return .dolbyVision
-            }
             return .hdr10
         }
         if hlg && wideGamut { return .hlg }

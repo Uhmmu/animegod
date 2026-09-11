@@ -37,6 +37,7 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
     @Published private(set) var currentEpisode: EpisodeMedia
     @Published private(set) var colorProfile: VideoColorProfile?
     @Published private(set) var hdrOutputActive = false
+    @Published private(set) var forcedSDR = false
 
     let episodes: [EpisodeMedia]
     var currentIndex: Int
@@ -51,9 +52,11 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
     private var lastPosition: Double?
     private var watchedDuration: Double = 0
     private var didEndSession = false
+    private var didApplyVersionPolicy = false
     // Deinit-only access from the nonisolated finalizer; safe because the
     // object is already unreferenced there.
     nonisolated(unsafe) private var displayObserver: NSObjectProtocol?
+    nonisolated(unsafe) private var screenParametersObserver: NSObjectProtocol?
 
     init(request: PlayerRequest) {
         episodes = request.episodes
@@ -94,6 +97,7 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
         mediaURL = url
         isLoading = true
         errorMessage = nil
+        colorProfile = nil
         currentEpisode = EpisodeMedia(
             episode: currentEpisode.episode,
             mediaFile: file,
@@ -143,6 +147,7 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
         didEndSession = false
         chapters = []
         currentChapter = nil
+        colorProfile = nil
         speed = 1
         subtitleDelay = 0
         audioDelay = 0
@@ -258,9 +263,8 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
         reconfigureColorOutput()
     }
 
-    /// End-to-end HDR output report: with the experimental EDR path enabled
-    /// at mpv creation, mpv tone-maps to the display itself; otherwise HDR
-    /// plays through SDR tone mapping. Never a half-configured pipeline.
+    /// End-to-end HDR output decision. Layer format changes are delegated to
+    /// a renderer rebuild; runtime updates touch only mpv target properties.
     func reconfigureColorOutput() {
         let screen = controller?.view.window?.screen ?? NSScreen.main
         let potential = screen?.maximumPotentialExtendedDynamicRangeColorComponentValue ?? 1
@@ -270,9 +274,36 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
             headroom: current > 1 ? current : nil,
             potentialHeadroom: potential > 1 ? potential : nil
         )
-        hdrOutputActive = MPVPlayerController.experimentalEDRPipelineEnabled
-            && (colorProfile?.isHDR == true)
-            && potential > 1.0
+        let decision = HDRRenderDecision.decide(
+            profile: colorProfile, potentialHeadroom: potential,
+            forcedSDR: forcedSDR
+        )
+        controller?.applyColorOutput(
+            profile: colorProfile, forcedSDR: forcedSDR,
+            displayPeak: potential
+        )
+        hdrOutputActive = decision == .edr && (controller?.isHDROutputActive ?? false)
+    }
+
+    func toggleForcedSDR() {
+        forcedSDR.toggle()
+        reconfigureColorOutput()
+    }
+
+    var outputMode: String {
+        if forcedSDR { return "Forced SDR" }
+        guard let profile = colorProfile else { return "Unknown" }
+        switch profile.hdrFormat {
+        case .dolbyVision:
+            if controller?.pipelineName == MPVPlayerController.PlaybackPipeline.avFoundationDolbyVision.rawValue {
+                return "Dolby Vision native"
+            }
+            return "Dolby Vision → HDR10 fallback"
+        case .hdr10: return "HDR10"
+        case .hlg: return "HLG"
+        case .sdr: return "SDR"
+        case .unknown: return "Unknown"
+        }
     }
 
     struct DisplayHDRInfo: Equatable {
@@ -291,6 +322,34 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor in self?.reconfigureColorOutput() }
+        }
+        screenParametersObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.reconfigureColorOutput() }
+        }
+        applyPreferredVersionPolicyIfNeeded()
+    }
+
+    private func applyPreferredVersionPolicyIfNeeded() {
+        guard !didApplyVersionPolicy else { return }
+        didApplyVersionPolicy = true
+        let peak = (controller?.view.window?.screen ?? NSScreen.main)?
+            .maximumPotentialExtendedDynamicRangeColorComponentValue ?? 1
+        guard peak > 1 else { return }
+        for file in currentEpisode.versions where file.id != currentEpisode.mediaFile.id {
+            guard let root = roots.first(where: { $0.id == file.libraryRootID }) else { continue }
+            let temporaryAccess = try? ScopedLibraryAccess(root: root)
+            let rootURL = temporaryAccess?.url ?? URL(fileURLWithPath: root.lastKnownPath, isDirectory: true)
+            let url = rootURL.appending(path: file.relativePath)
+            let metadata = DolbyVisionContainerProbe.inspect(url: url)?.metadata
+            temporaryAccess?.stop()
+            if metadata?.profile == 8, metadata?.hasHDR10CompatibleBaseLayer == true {
+                switchVersion(to: file)
+                break
+            }
         }
     }
 
@@ -311,6 +370,9 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
     deinit {
         if let displayObserver {
             NotificationCenter.default.removeObserver(displayObserver)
+        }
+        if let screenParametersObserver {
+            NotificationCenter.default.removeObserver(screenParametersObserver)
         }
         access?.stop()
     }
@@ -478,6 +540,13 @@ struct PlayerScreen: View {
                 await model.saveProgress(episodeID: state.currentEpisode.id, position: state.position, duration: state.duration)
             }
         }
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(2))
+                guard !Task.isCancelled else { break }
+                state.reconfigureColorOutput()
+            }
+        }
     }
 
     private var header: some View {
@@ -621,7 +690,7 @@ struct PlayerScreen: View {
             Image(systemName: "square.stack.3d.up")
         }
         .fixedSize()
-        .help("Video Version — default picks SDR when available because macOS players cannot render Dolby Vision metadata")
+        .help("Video Version — EDR displays prefer detected Profile 8 with a compatible base layer; otherwise SDR remains first")
     }
 
     private func versionLabel(_ file: MediaFile) -> String {
@@ -777,7 +846,7 @@ struct PlayerScreen: View {
         let rendered = controller?.renderedOutputSize
         let renderedText = rendered.map { "\(Int($0.width))x\(Int($0.height))" } ?? "nil"
         let fullscreen = controller?.view.window?.styleMask.contains(.fullScreen) ?? false
-        print("SMOKE \(label): window=\(Int(windowFrame.width))x\(Int(windowFrame.height)) fs=\(fullscreen) view=\(Int(viewBounds.width))x\(Int(viewBounds.height)) drawable=\(Int(drawable.width))x\(Int(drawable.height)) mpvOut=\(renderedText) pos=\(Int(state.position))/\(Int(state.duration))")
+        print("SMOKE \(label): window=\(Int(windowFrame.width))x\(Int(windowFrame.height)) fs=\(fullscreen) view=\(Int(viewBounds.width))x\(Int(viewBounds.height)) drawable=\(Int(drawable.width))x\(Int(drawable.height)) surface=\(renderedText) pos=\(Int(state.position))/\(Int(state.duration))")
     }
 
     private func revealControls() {
@@ -815,16 +884,14 @@ struct PlayerScreen: View {
         window.toggleFullScreen(nil)
     }
 
-    /// ⌘⇧D toggles the HDR diagnostics panel; ⌘⇧H toggles the experimental
-    /// EDR pipeline (may corrupt output until the renderer supports a
-    /// constant HDR format — diagnostics tool, not a feature yet).
+    /// ⌘⇧D toggles diagnostics; ⌘⇧H forces SDR without mutating the live
+    /// CAMetalLayer format.
     private var diagnosticsShortcuts: some View {
         Group {
             Button("Toggle Diagnostics") { showDiagnostics.toggle() }
                 .keyboardShortcut("d", modifiers: [.command, .shift])
             Button("Toggle HDR Output") {
-                MPVPlayerController.experimentalEDRPipelineEnabled.toggle()
-                state.reconfigureColorOutput()
+                state.toggleForcedSDR()
             }
                 .keyboardShortcut("h", modifiers: [.command, .shift])
         }
@@ -845,16 +912,21 @@ struct PlayerScreen: View {
                 "Matrix: \(state.colorProfile?.matrix ?? "—")")
 
             section("HDR",
-                state.colorProfile?.hdrFormat.displayName ?? "Unknown",
+                state.outputMode,
                 state.colorProfile?.signalPeak.map { "Signal peak: \($0)" } ?? "Signal peak: —",
-                "Release hint: \(state.colorProfile?.releaseHint ?? "none")")
+                "DV metadata: \(state.colorProfile?.releaseHint ?? "none")",
+                "RPU: \(state.colorProfile?.dolbyVision?.rpuPresent == true ? "present" : "not reported")",
+                profileLimitation)
 
             section("Output",
                 "Display: \(state.displayInfo.name ?? "—")",
                 "EDR headroom: \(state.displayInfo.headroom.map { String(format: "%.1f×", $0) } ?? "1.0× (SDR)")",
                 "Potential: \(state.displayInfo.potentialHeadroom.map { String(format: "%.1f×", $0) } ?? "—")",
-                "Pipeline: mpv gpu (mac OpenGL) → EDR / Tone Mapping → \(outputMode)",
-                "Mode: \(outputMode)")
+                "Swapchain: \(state.controller?.swapchainFormatName ?? "—")",
+                "Tone mapping: \(state.controller?.toneMappingModeName ?? "—")",
+                "Pipeline: \(state.controller?.pipelineName ?? "—")",
+                "Forced SDR: \(state.forcedSDR ? "yes" : "no")",
+                "Mode: \(state.outputMode)")
         }
         .font(.system(size: 11, design: .monospaced))
         .foregroundStyle(.white)
@@ -865,17 +937,12 @@ struct PlayerScreen: View {
         .transition(.opacity)
     }
 
-    private var outputMode: String {
-        guard MPVPlayerController.experimentalEDRPipelineEnabled else {
-            if let profile = state.colorProfile, profile.isHDR {
-                return "HDR → SDR tone mapping"
-            }
-            return "SDR"
+    private var profileLimitation: String {
+        guard let metadata = state.colorProfile?.dolbyVision else { return "DV profile: —" }
+        if metadata.profile == 7 {
+            return "DV Profile 7 FEL/MEL: unsupported; HDR10 base layer"
         }
-        if let profile = state.colorProfile, profile.isHDR {
-            return state.hdrOutputActive ? "EDR HDR (experimental)" : "HDR → SDR tone mapping"
-        }
-        return "SDR"
+        return "DV \(metadata.profileLabel): \(metadata.configurationKind.rawValue)"
     }
 
     private func section(_ title: String, _ lines: String...) -> some View {
