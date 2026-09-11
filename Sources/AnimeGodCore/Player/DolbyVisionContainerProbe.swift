@@ -17,7 +17,7 @@ public enum DolbyVisionContainerProbe {
         guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
         defer { try? handle.close() }
         let size = (try? handle.seekToEnd()) ?? 0
-        let window: UInt64 = 32 * 1_024 * 1_024
+        let window: UInt64 = 8 * 1_024 * 1_024
         var chunks: [Data] = []
         try? handle.seek(toOffset: 0)
         if let head = try? handle.read(upToCount: Int(min(size, window))) { chunks.append(head) }
@@ -32,22 +32,33 @@ public enum DolbyVisionContainerProbe {
     }
 
     public static func inspect(data: Data) -> Result? {
-        let bytes = [UInt8](data)
-        guard bytes.count >= 13 else { return nil }
-        for index in 4...(bytes.count - 9) {
-            let tag = String(bytes: bytes[index..<(index + 4)], encoding: .ascii)
-            guard tag == "dvvC" || tag == "dvcC" else { continue }
-            let declaredSize = Int(bytes[index - 4]) << 24 | Int(bytes[index - 3]) << 16
-                | Int(bytes[index - 2]) << 8 | Int(bytes[index - 1])
-            guard declaredSize >= 13, index + 9 <= bytes.count else { continue }
-            let kind: DolbyVisionConfigurationKind = tag == "dvvC" ? .dvvC : .dvcC
-            guard let metadata = DolbyVisionConfigurationParser.parse(
-                Data(bytes[(index + 4)..<(index + 9)]), kind: kind
-            ) else { continue }
-            let searchStart = max(0, index - 64)
-            let nearby = String(bytes: bytes[searchStart..<index], encoding: .isoLatin1) ?? ""
-            let codecTag = nearby.contains("hvc1") ? "hvc1" : nearby.contains("hev1") ? "hev1" : nil
-            return Result(metadata: metadata, codecTag: codecTag)
+        guard data.count >= 13 else { return nil }
+        for (tag, kind) in [
+            ("dvvC", DolbyVisionConfigurationKind.dvvC),
+            ("dvcC", DolbyVisionConfigurationKind.dvcC)
+        ] {
+            let marker = Data(tag.utf8)
+            var search = data.startIndex..<data.endIndex
+            while let range = data.range(of: marker, in: search) {
+                let index = range.lowerBound
+                guard index >= data.startIndex + 4, range.upperBound + 5 <= data.endIndex else {
+                    search = range.upperBound..<data.endIndex
+                    continue
+                }
+                let sizeIndex = index - 4
+                let declaredSize = Int(data[sizeIndex]) << 24 | Int(data[sizeIndex + 1]) << 16
+                    | Int(data[sizeIndex + 2]) << 8 | Int(data[sizeIndex + 3])
+                if declaredSize >= 13,
+                   let metadata = DolbyVisionConfigurationParser.parse(
+                       data.subdata(in: range.upperBound..<(range.upperBound + 5)), kind: kind
+                   ) {
+                    let nearbyStart = max(data.startIndex, index - 64)
+                    let nearby = String(data: data.subdata(in: nearbyStart..<index), encoding: .isoLatin1) ?? ""
+                    let codecTag = nearby.contains("hvc1") ? "hvc1" : nearby.contains("hev1") ? "hev1" : nil
+                    return Result(metadata: metadata, codecTag: codecTag)
+                }
+                search = range.upperBound..<data.endIndex
+            }
         }
         return nil
     }

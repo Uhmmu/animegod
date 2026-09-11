@@ -215,6 +215,26 @@ final class MPVPlayerController: NSViewController {
         playerGeneration = UUID()
         let generation = playerGeneration
         delegate?.playerLoadingStateDidChange(isLoading: true)
+        let extensionName = url.pathExtension.lowercased()
+        let canUseNativeDolbyVision = ["mp4", "m4v", "mov"].contains(extensionName)
+
+        // MKV and other formats can never enter the AVFoundation DV path.
+        // Start mpv immediately; container inspection is diagnostics-only and
+        // must not delay SDR playback on large files or external disks.
+        if !canUseNativeDolbyVision {
+            stopNativePlayback()
+            loadWithMPV(url: url, position: position)
+            Task { @MainActor [weak self] in
+                let probe = await Task.detached(priority: .utility) {
+                    DolbyVisionContainerProbe.inspect(url: url)
+                }.value
+                guard let self, generation == self.playerGeneration else { return }
+                self.currentContainerProbe = probe
+                self.publishColorProfile()
+            }
+            return
+        }
+
         Task { @MainActor [weak self] in
             guard let self else { return }
             let probe = await Task.detached(priority: .userInitiated) {
@@ -227,13 +247,17 @@ final class MPVPlayerController: NSViewController {
                 self.startNativePlayback(url: url, position: position, info: nativeInfo)
             } else {
                 self.stopNativePlayback()
-                if self.mpv == nil { self.setupMPV() }
-                guard self.mpv != nil else { return }
-                var options: [String] = []
-                if position > 0 { options.append("start=\(position)") }
-                self.command("loadfile", arguments: [url.absoluteString, "replace", "-1", options.joined(separator: ",")])
+                self.loadWithMPV(url: url, position: position)
             }
         }
+    }
+
+    private func loadWithMPV(url: URL, position: Double) {
+        if mpv == nil { setupMPV() }
+        guard mpv != nil else { return }
+        var options: [String] = []
+        if position > 0 { options.append("start=\(position)") }
+        command("loadfile", arguments: [url.absoluteString, "replace", "-1", options.joined(separator: ",")])
     }
 
     private func rebuildRendererForCurrentSurface() {
