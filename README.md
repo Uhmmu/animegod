@@ -7,9 +7,8 @@ in one fast SwiftUI application.
 > Give a local anime collection memory, structure, context, and history while
 > preserving the speed and quality of a native macOS application.
 
-**Current release: 0.1.0** (Milestones 1–8 of the product plan). See
-[docs/HDR_DOLBY_PLAYBACK_PLAN.md](docs/HDR_DOLBY_PLAYBACK_PLAN.md) for the
-deferred HDR/Dolby Vision roadmap.
+**Current release: 0.1.1.** This release completes the
+[HDR and Dolby Vision playback plan](docs/HDR_DOLBY_PLAYBACK_PLAN.md).
 
 ## Features
 
@@ -60,9 +59,10 @@ deferred HDR/Dolby Vision roadmap.
   keyboard shortcuts (`Space`, `←/→`, `F`, `N/P`), double-click fullscreen,
   in-player episode navigation with category labels, alternative-encode
   version menu.
-- HDR: signal-based HDR10/HLG/Dolby-Vision detection and a diagnostics panel
-  (**⌘⇧D**). HDR currently tone-maps to SDR; the EDR pipeline and native
-  Dolby Vision handling are planned (see the roadmap doc).
+- HDR: signal-based HDR10/HLG/Dolby-Vision detection, 16-bit-float BT.2020 EDR
+  output on capable displays, automatic HDR-to-SDR tone mapping, and a
+  diagnostics panel (**⌘⇧D**). Eligible Dolby Vision Profile 8.4 MP4/MOV files
+  use Apple's native playback path; MKV and Profile 7 use the HDR10 base layer.
 
 ### Personal library
 - Watch events are recorded from real playback sessions (sub-15 s touches are

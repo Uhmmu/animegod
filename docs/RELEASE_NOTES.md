@@ -1,66 +1,42 @@
-# AnimeGod 0.1.0 — Milestones 1–8
+# AnimeGod 0.1.1
 
-The complete vertical slice of the product plan: a local-first anime library
-and player, metadata aggregation, personal tracking, and yearly statistics —
-all native SwiftUI on macOS.
+AnimeGod 0.1.1 completes native HDR and Dolby Vision playback and includes two
+player reliability fixes discovered during final validation.
 
-## HDR and Dolby Vision playback
+## HDR and Dolby Vision
 
-- Constant-format 16-bit-float BT.2020 EDR output for HDR10 and HLG, with
-  automatic SDR fallback and a user Forced SDR control.
-- Real `dvvC`/`dvcC` and mpv RPU-side-data detection; filenames no longer
-  classify Dolby Vision.
-- Eligible Dolby Vision Profile 8.4 `hvc1` MP4/MOV files use AVFoundation;
-  MKV Profile 8 and Profile 7 use an honestly labelled HDR10-base fallback.
-- MKV playback starts in mpv immediately; its bounded container probe now runs
-  in the background so large SDR files and external disks cannot stall loading.
-- Fullscreen playback restarts its idle timer after renderer reloads and hides
-  both controls and the pointer; moving the mouse or leaving fullscreen
-  restores them.
-- Diagnostics report the exact HDR mode, RPU evidence, layer format,
-  tone-mapping mode, EDR headroom, pipeline, and Profile 7 limitation.
+- Added constant-format 16-bit-float BT.2020 EDR output for HDR10 and HLG on
+  capable displays, with automatic SDR fallback and a user-controlled Forced
+  SDR mode.
+- Dolby Vision is now identified from real `dvvC`/`dvcC` configuration records
+  and mpv RPU side data instead of release filenames.
+- Eligible Dolby Vision Profile 8.4 `hvc1` MP4/MOV files use AVFoundation's
+  native playback path.
+- Dolby Vision Profile 8 MKV and Profile 7 use the HDR10-compatible base layer
+  and report the fallback honestly in diagnostics.
+- The diagnostics panel reports the exact HDR mode, RPU evidence, layer format,
+  tone-mapping mode, EDR headroom, active pipeline, and Profile 7 limitation.
+- Display changes and fullscreen transitions re-evaluate output capabilities
+  without losing playback position, pause state, tracks, volume, speed, or
+  subtitle/audio delays.
 
-## Highlights
+## Playback fixes
 
-**Player (M5)**
-- Chapters, playback speed, volume, subtitle/audio delay controls
-- External subtitle auto-discovery + manual loading
-- Full keyboard shortcuts (Space, ←/→, F, N/P) and double-click fullscreen
-- In-player episode navigation with category labels (Episodes / SP / Music / …)
-- Alternative encodes (DoVi + SDR) merge into one episode with a version menu
-- Auto-hiding controls in a standalone player window
+- Fixed large SDR MKV files remaining on “Opening video…” while a Dolby Vision
+  container probe scanned the file. MKV playback now starts immediately and a
+  bounded probe runs in the background.
+- Fixed the pointer remaining visible after entering fullscreen. When playback
+  is active, the controls and pointer now hide after 2.8 seconds of inactivity;
+  moving the mouse, leaving fullscreen, or switching away restores them.
 
-**Smarter matching (M6)**
-- Best-effort auto-matching: every title links to its most likely Bangumi/AniList
-  entry; dubious candidates queue in "Review Matches"
-- Auto-guessed links display confidence; a wrong link is fixed with Change Match
-- Provider-reported anime types (TV / movie / OVA / ONA) classify local entries
-- Extended filename corpus: fractional episodes, release versions, Chinese
-  numeral chapters, disc menus
+## Compatibility and limitations
 
-**Translation (M7)**
-- Independent translation service with a DeepL-compatible provider
-- One batched request per batch of posts; results cached in the local database
-- Original text always preserved beside the translation
-- API key stored in the macOS Keychain
-
-**Statistics (M8)**
-- Yearly report: watch time, sessions, episodes finished, monthly/weekday/hour
-  habits, most-watched anime, most-watched studios, personal highest-rated
-- Studio credits from AniList and Bangumi infoboxes
-- All computed locally from watch history
-
-**Library intelligence**
-- One folder, two works: 前篇/後篇 compilation films and bundled movies split
-  into separate entries
-- Bonus folders (SPs/特典) stay attached to their work as specials
-- Pirate-site ad labels and technical tails stripped from titles
-- Adult-video catalogue codes excluded from the library
-- Rescans preserve bindings, personal entries, and history across renames
-
-## Known limitations
-
-- Dolby Vision Profile 7 FEL/MEL enhancement layers are not supported; the
+- Requires macOS 14 or later. The supplied DMG contains a Universal app for
+  Apple silicon and Intel Macs.
+- Dolby Vision Profile 7 FEL/MEL enhancement layers are not decoded; the
   HDR10-compatible base layer is used instead.
-- Direct MyAnimeList integration needs an official client ID (not bundled).
-- First launch of an unsigned build may require right-click → Open.
+- The app is ad-hoc signed but not Developer ID notarized. Depending on macOS
+  security settings, the first launch may require right-clicking the app and
+  choosing **Open**.
+- Direct MyAnimeList integration still requires an official client ID and is
+  not bundled.

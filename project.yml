@@ -29,6 +29,8 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.uhmmu.AnimeGod
         PRODUCT_NAME: AnimeGod
+        MARKETING_VERSION: 0.1.1
+        CURRENT_PROJECT_VERSION: 2
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: AnimeGod
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.entertainment
@@ -38,4 +40,3 @@ targets:
         SWIFT_STRICT_CONCURRENCY: complete
     scheme:
       testTargets: []
-
