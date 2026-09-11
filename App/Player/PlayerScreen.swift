@@ -1,5 +1,6 @@
 import AnimeGodCore
 import AppKit
+import Combine
 import SwiftUI
 
 struct MPVPlayerView: NSViewControllerRepresentable {
@@ -17,8 +18,28 @@ struct MPVPlayerView: NSViewControllerRepresentable {
     func updateNSViewController(_ controller: MPVPlayerController, context: Context) {}
 }
 
+/// Hosts the session-owned native danmaku canvas above the video surface
+/// and below every control. Mouse-transparent by construction.
+private struct DanmakuOverlay: NSViewRepresentable {
+    @ObservedObject var session: DanmakuSession
+
+    func makeNSView(context: Context) -> DanmakuCanvas { session.canvas }
+
+    func updateNSView(_ view: DanmakuCanvas, context: Context) {}
+}
+
 @MainActor
 final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
+    private struct SubtitlePreference: Codable {
+        let isEnabled: Bool
+        let mediaFileID: UUID?
+        let trackID: Int64?
+        let title: String?
+        let language: String?
+    }
+
+    private static let subtitlePreferenceKey = "player.subtitle.preference"
+
     @Published var position: Double
     @Published var duration: Double
     @Published var paused = false
@@ -43,6 +64,8 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
     var currentIndex: Int
     /// Invoked when the current file reaches its end so the screen can advance.
     var onFileFinished: (() -> Void)?
+    /// Danmaku for this playback window; purely additive to playback.
+    let danmaku = DanmakuSession()
 
     private(set) var mediaURL: URL
     weak var controller: MPVPlayerController?
@@ -53,6 +76,7 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
     private var watchedDuration: Double = 0
     private var didEndSession = false
     private var didApplyVersionPolicy = false
+    private var didApplySubtitlePreference = false
     // Deinit-only access from the nonisolated finalizer; safe because the
     // object is already unreferenced there.
     nonisolated(unsafe) private var displayObserver: NSObjectProtocol?
@@ -104,6 +128,8 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
             progress: currentEpisode.progress,
             versions: currentEpisode.versions
         )
+        didApplySubtitlePreference = false
+        loadDanmaku(for: file, url: url)
         controller?.play(url: url, position: position)
     }
 
@@ -151,7 +177,32 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
         speed = 1
         subtitleDelay = 0
         audioDelay = 0
+        didApplySubtitlePreference = false
+        loadDanmaku(for: episode.mediaFile, url: url)
         controller?.play(url: url, position: position)
+    }
+
+    /// Danmaku follows the file actually on screen — switching episodes or
+    /// swapping encodes re-targets it; the comment cache makes either path
+    /// instant after the first fetch.
+    private var danmakuDatabase: LibraryDatabase?
+
+    private func loadDanmaku(for file: MediaFile, url: URL) {
+        guard danmaku.isAttached else { return }
+        danmaku.load(DanmakuSession.EpisodeRequest(
+            fileURL: url,
+            mediaFileID: file.id,
+            fileName: url.lastPathComponent,
+            fileSize: file.fileSize,
+            duration: duration
+        ), database: danmakuDatabase)
+    }
+
+    /// Called once the screen has the model's database; performs the
+    /// initial load that attach() enabled.
+    func loadDanmakuIfNeeded(database: LibraryDatabase?) {
+        danmakuDatabase = database
+        loadDanmaku(for: currentEpisode.mediaFile, url: mediaURL)
     }
 
     func togglePause() {
@@ -202,6 +253,22 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
         controller?.selectChapter(index)
     }
 
+    func selectSubtitle(_ track: MediaTrack?) {
+        didApplySubtitlePreference = true
+        subtitleID = track?.id
+        let preference = SubtitlePreference(
+            isEnabled: track != nil,
+            mediaFileID: currentEpisode.mediaFile.id,
+            trackID: track?.id,
+            title: track?.title,
+            language: track?.language
+        )
+        if let data = try? JSONEncoder().encode(preference) {
+            UserDefaults.standard.set(data, forKey: Self.subtitlePreferenceKey)
+        }
+        controller?.selectSubtitle(id: track?.id)
+    }
+
     func stepChapter(_ offset: Int) {
         controller?.stepChapter(offset)
     }
@@ -218,8 +285,16 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
             }
             lastPosition = position
             self.position = position
+            // Danmaku follows the real playback clock: every player sample
+            // re-anchors it, so pause/seek/speed are always reflected.
+            danmaku.playbackSample(position: position, speed: speed, paused: paused ?? self.paused)
         }
-        if let duration { self.duration = duration }
+        if let duration {
+            self.duration = duration
+            if let fileID = danmaku.currentMediaFileID, fileID == currentEpisode.mediaFile.id {
+                danmaku.updateDuration(duration)
+            }
+        }
         if let paused { self.paused = paused }
     }
 
@@ -244,6 +319,58 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
         subtitleTracks = subtitles
         self.audioID = audioID
         self.subtitleID = subtitleID
+        applySubtitlePreferenceIfNeeded(to: subtitles, currentID: subtitleID)
+    }
+
+    private func applySubtitlePreferenceIfNeeded(to tracks: [MediaTrack], currentID: Int64?) {
+        guard !didApplySubtitlePreference,
+              let data = UserDefaults.standard.data(forKey: Self.subtitlePreferenceKey),
+              let preference = try? JSONDecoder().decode(SubtitlePreference.self, from: data) else { return }
+
+        if !preference.isEnabled {
+            didApplySubtitlePreference = true
+            if currentID != nil { controller?.selectSubtitle(id: nil) }
+            return
+        }
+
+        guard !tracks.isEmpty else { return }
+        didApplySubtitlePreference = true
+        guard let preferredTrack = preferredSubtitleTrack(in: tracks, preference: preference) else { return }
+        subtitleID = preferredTrack.id
+        if currentID != preferredTrack.id { controller?.selectSubtitle(id: preferredTrack.id) }
+    }
+
+    private func preferredSubtitleTrack(
+        in tracks: [MediaTrack], preference: SubtitlePreference
+    ) -> MediaTrack? {
+        if preference.mediaFileID == currentEpisode.mediaFile.id,
+           let trackID = preference.trackID,
+           let exactTrack = tracks.first(where: { $0.id == trackID }) {
+            return exactTrack
+        }
+
+        let title = preference.title.map(Self.normalizedSubtitleAttribute)
+        let language = preference.language.map(Self.normalizedSubtitleAttribute)
+        if let exact = tracks.first(where: {
+            title == Self.normalizedSubtitleAttribute($0.title)
+                && language == $0.language.map(Self.normalizedSubtitleAttribute)
+        }) {
+            return exact
+        }
+        if let language,
+           let languageMatch = tracks.first(where: {
+               $0.language.map(Self.normalizedSubtitleAttribute) == language
+           }) {
+            return languageMatch
+        }
+        if let title {
+            return tracks.first(where: { Self.normalizedSubtitleAttribute($0.title) == title })
+        }
+        return nil
+    }
+
+    private static func normalizedSubtitleAttribute(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
     func playerDidUpdateChapters(_ chapters: [MediaChapter], current: Int?) {
@@ -252,7 +379,10 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
     }
 
     func playerDidUpdatePlaybackState(speed: Double?, volume: Double?, subtitleDelay: Double?, audioDelay: Double?) {
-        if let speed { self.speed = speed }
+        if let speed {
+            self.speed = speed
+            danmaku.playbackSample(position: position, speed: speed, paused: paused)
+        }
         if let volume { self.volume = volume }
         if let subtitleDelay { self.subtitleDelay = subtitleDelay }
         if let audioDelay { self.audioDelay = audioDelay }
@@ -441,11 +571,17 @@ struct PlayerScreen: View {
     @State private var cursorHiddenByPlayer = false
     @State private var isSwitching = false
     @State private var showDiagnostics = false
+    @State private var showDanmakuSettings = false
+    @State private var showDanmakuMatch = false
 
     init(request: PlayerRequest) {
         self.request = request
         _state = StateObject(wrappedValue: PlayerState(request: request))
     }
+
+    /// The app-wide danmaku preferences (owned by AppModel, republished
+    /// through its objectWillChange so the player UI tracks changes).
+    private var danmakuPreferences: DanmakuPreferences { model.danmakuPreferences }
 
     private var episodeLabel: String {
         let episode = state.currentEpisode.episode
@@ -464,10 +600,18 @@ struct PlayerScreen: View {
         ZStack {
             MPVPlayerView(state: state)
                 .background(.black)
+            DanmakuOverlay(session: state.danmaku)
+                .allowsHitTesting(false)
             MouseMovementView(
                 onMove: { revealControls() },
                 onClick: { toggleControls() },
                 onDoubleClick: { toggleFullscreen() }
+            )
+            DanmakuStatusBadge(
+                session: state.danmaku,
+                preferences: danmakuPreferences,
+                controlsVisible: controlsVisible,
+                openMatch: { showDanmakuMatch = true }
             )
             if state.isLoading {
                 ProgressView("Opening video…")
@@ -513,9 +657,29 @@ struct PlayerScreen: View {
                 .opacity(0.001)
         }
         .background(.black)
+        .sheet(isPresented: $showDanmakuSettings) {
+            DanmakuSettingsPanel(
+                preferences: danmakuPreferences,
+                session: state.danmaku,
+                openMatch: {
+                    showDanmakuSettings = false
+                    showDanmakuMatch = true
+                }
+            )
+        }
+        .sheet(isPresented: $showDanmakuMatch) {
+            DanmakuMatchSheet(
+                session: state.danmaku,
+                currentAnime: currentDanmakuMatch?.anime,
+                currentEpisode: currentDanmakuMatch?.episode,
+                onDismiss: { showDanmakuMatch = false }
+            )
+        }
         .onAppear {
             state.onFileFinished = { Task { await advanceAfterFinish() } }
             state.startObservingDisplay()
+            state.danmaku.attach(preferences: model.danmakuPreferences)
+            state.loadDanmakuIfNeeded(database: model.libraryDatabase)
             revealControls()
             if ProcessInfo.processInfo.arguments.contains("-smokePlayerTest") {
                 scheduleSmokeTest()
@@ -641,6 +805,12 @@ struct PlayerScreen: View {
                 if state.currentEpisode.versions.count > 1 {
                     versionMenu
                 }
+                DanmakuMenuButton(
+                    preferences: danmakuPreferences,
+                    session: state.danmaku,
+                    openSettings: { showDanmakuSettings = true },
+                    openMatch: { showDanmakuMatch = true }
+                )
                 speedMenu
                 audioMenu
                 subtitleMenu
@@ -767,10 +937,10 @@ struct PlayerScreen: View {
 
     private var subtitleMenu: some View {
         Menu {
-            Button("Off") { state.controller?.selectSubtitle(id: nil) }
+            Button("Off") { state.selectSubtitle(nil) }
             Divider()
             ForEach(state.subtitleTracks) { track in
-                Button { state.controller?.selectSubtitle(id: track.id) } label: {
+                Button { state.selectSubtitle(track) } label: {
                     if state.subtitleID == track.id { Label(track.displayName, systemImage: "checkmark") }
                     else { Text(track.displayName) }
                 }
@@ -940,7 +1110,7 @@ struct PlayerScreen: View {
     }
 
     /// ⌘⇧D toggles diagnostics; ⌘⇧H forces SDR without mutating the live
-    /// CAMetalLayer format.
+    /// CAMetalLayer format; D toggles danmaku.
     private var diagnosticsShortcuts: some View {
         Group {
             Button("Toggle Diagnostics") { showDiagnostics.toggle() }
@@ -949,6 +1119,10 @@ struct PlayerScreen: View {
                 state.toggleForcedSDR()
             }
                 .keyboardShortcut("h", modifiers: [.command, .shift])
+            Button("Toggle Danmaku") {
+                danmakuPreferences.enabled.toggle()
+            }
+                .keyboardShortcut("d", modifiers: [])
         }
         .accessibilityHidden(true)
     }
@@ -982,6 +1156,11 @@ struct PlayerScreen: View {
                 "Pipeline: \(state.controller?.pipelineName ?? "—")",
                 "Forced SDR: \(state.forcedSDR ? "yes" : "no")",
                 "Mode: \(state.outputMode)")
+
+            DanmakuDiagnosticsSection(
+                session: state.danmaku,
+                preferences: danmakuPreferences
+            )
         }
         .font(.system(size: 11, design: .monospaced))
         .foregroundStyle(.white)
@@ -999,6 +1178,12 @@ struct PlayerScreen: View {
         }
         return "DV \(metadata.profileLabel): \(metadata.configurationKind.rawValue)"
     }
+
+    private var currentDanmakuMatch: (anime: String, episode: String)? {
+        if case let .ready(anime, episode, _, _) = state.danmaku.phase { return (anime, episode) }
+        return nil
+    }
+
 
     private func section(_ title: String, _ lines: String...) -> some View {
         VStack(alignment: .leading, spacing: 3) {

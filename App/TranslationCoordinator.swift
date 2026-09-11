@@ -2,12 +2,13 @@ import AnimeGodCore
 import Foundation
 import Security
 
-/// Stores the translation provider API key in the macOS Keychain rather than
+/// Stores provider credentials in the macOS Keychain rather than
 /// plain-text preferences.
 enum KeychainStore {
-    private static let service = "com.uhmmu.AnimeGod.translation"
+    private static let defaultService = "com.uhmmu.AnimeGod.translation"
+    private static let danmakuService = "com.uhmmu.AnimeGod.danmaku"
 
-    static func save(_ value: String, account: String) {
+    static func save(_ value: String, account: String, service: String = defaultService) {
         let data = Data(value.utf8)
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -21,7 +22,7 @@ enum KeychainStore {
         SecItemAdd(attributes as CFDictionary, nil)
     }
 
-    static func load(account: String) -> String? {
+    static func load(account: String, service: String = defaultService) -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -33,6 +34,27 @@ enum KeychainStore {
         guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
               let data = item as? Data else { return nil }
         return String(data: data, encoding: .utf8)
+    }
+
+    /// Credentials for the dandanplay Open Danmaku API, kept in a separate
+    /// keychain service. Secrets never leave this type except into
+    /// provider construction — and are never logged.
+    enum Danmaku {
+        static let appIDAccount = "dandanplay-app-id"
+        static let appSecretAccount = "dandanplay-app-secret"
+
+        static func loadAppID() -> String? {
+            KeychainStore.load(account: appIDAccount, service: danmakuService)
+        }
+
+        static func loadAppSecret() -> String? {
+            KeychainStore.load(account: appSecretAccount, service: danmakuService)
+        }
+
+        static func save(appID: String, appSecret: String) {
+            KeychainStore.save(appID, account: appIDAccount, service: danmakuService)
+            KeychainStore.save(appSecret, account: appSecretAccount, service: danmakuService)
+        }
     }
 }
 

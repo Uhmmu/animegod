@@ -7,8 +7,9 @@ in one fast SwiftUI application.
 > Give a local anime collection memory, structure, context, and history while
 > preserving the speed and quality of a native macOS application.
 
-**Current release: 0.1.1.** This release completes the
-[HDR and Dolby Vision playback plan](docs/HDR_DOLBY_PLAYBACK_PLAN.md).
+**Current release: 0.1.2.** This release adds native dandanplay danmaku,
+preserves the complete video frame in windowed and fullscreen playback, and
+remembers the user's subtitle selection.
 
 ## Features
 
@@ -56,13 +57,29 @@ in one fast SwiftUI application.
   hardware decode, multi audio/subtitle tracks, sidecar subtitle discovery
   (`sub-auto=fuzzy` + `subs/字幕` folders), manual external subtitle loading.
 - Chapters, playback speed (0.5×–2×), volume, subtitle/audio delay, timeline,
-  keyboard shortcuts (`Space`, `←/→`, `F`, `N/P`), double-click fullscreen,
+  keyboard shortcuts (`Space`, `←/→`, `F`, `N/P`, `D`), double-click fullscreen,
   in-player episode navigation with category labels, alternative-encode
   version menu.
 - HDR: signal-based HDR10/HLG/Dolby-Vision detection, 16-bit-float BT.2020 EDR
   output on capable displays, automatic HDR-to-SDR tone mapping, and a
   diagnostics panel (**⌘⇧D**). Eligible Dolby Vision Profile 8.4 MP4/MOV files
   use Apple's native playback path; MKV and Profile 7 use the HDR10 base layer.
+
+### Danmaku (弹幕)
+- Native renderer over the video (Core Animation layers + display link,
+  bitmap-cached text) — synchronized against the player's own clock, so
+  pause freezes, seeks rebuild without replaying old comments, and speed
+  changes scale movement; it never touches the HDR/EDR video pipeline.
+- Official **dandanplay Open Danmaku API**: automatic episode identification
+  (MD5-of-first-16MB file hash + filename + size + duration), manual
+  anime/episode search when matching fails, comments cached per provider
+  episode in the local database (offline replay, no repeated API hits).
+- Player-bar controls: on/off (`D`), opacity, font size, display area,
+  scrolling speed, max simultaneous comments, per-mode and colored-comment
+  filters, ±10 s timing offset, reload, and episode re-matching — all
+  persisted. Requires free AppId/AppSecret credentials from
+  [dev.dandanplay.com](https://dev.dandanplay.com), stored in the Keychain
+  via **Settings**.
 
 ### Personal library
 - Watch events are recorded from real playback sessions (sub-15 s touches are
@@ -99,7 +116,8 @@ xcodebuild -project AnimeGod.xcodeproj -scheme AnimeGod -configuration Release b
 ## Data & privacy
 
 Everything — library, metadata cache, watch history, personal entries,
-statistics, translations — lives in the local SQLite database
-(`~/Library/Application Support/AnimeGod`). Nothing is uploaded. Network is
-used only for the metadata providers you invoke and the translation provider
-you configure.
+statistics, translations, danmaku matches and comment caches — lives in the
+local SQLite database (`~/Library/Containers/com.uhmmu.AnimeGod/Data/…`).
+Nothing is uploaded. Network is used only for the metadata providers you
+invoke, the translation provider you configure, and the dandanplay danmaku
+API when danmaku is enabled.

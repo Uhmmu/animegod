@@ -26,6 +26,12 @@ final class AppModel: ObservableObject {
     private var database: LibraryDatabase?
     private let scanner = LibraryScanner()
     let translation = TranslationCoordinator()
+    /// App-wide danmaku preferences (enabled + presentation + provider
+    /// credentials in the Keychain). Owned here so the player and Settings
+    /// observe the same instance.
+    let danmakuPreferences = DanmakuPreferences()
+    /// Read access for player-owned subsystems (danmaku cache/match).
+    var libraryDatabase: LibraryDatabase? { database }
     private let metadataProviders: [MetadataProviderID: any MetadataProvider] = [
         .bangumi: BangumiMetadataProvider(),
         .anilist: AniListMetadataProvider()
@@ -34,9 +40,13 @@ final class AppModel: ObservableObject {
     private var cancellables: Set<AnyCancellable> = []
 
     init() {
-        // Republish translation state so views observing only AppModel update
-        // while a batch translation runs.
+        // Republish translation and danmaku preference state so views
+        // observing only AppModel update while batches/settings change.
         translation.objectWillChange
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &cancellables)
+        danmakuPreferences.objectWillChange
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.objectWillChange.send() }
             .store(in: &cancellables)

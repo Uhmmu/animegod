@@ -134,6 +134,7 @@ public actor LibraryDatabase {
                 )
             }
             try db.execute(sql: "DELETE FROM episode WHERE id NOT IN (SELECT episodeID FROM mediaFile)")
+            try db.execute(sql: "DELETE FROM danmakuMatch WHERE mediaFileID NOT IN (SELECT id FROM mediaFile)")
             try Self.migrateIdentityOnRegroup(successors: successors, in: db)
             // Folder renames on disk change relative paths, so regrouping was
             // never observed; reconcile parked bindings by title instead.
@@ -728,6 +729,104 @@ public actor LibraryDatabase {
         }
     }
 
+    // MARK: - Danmaku cache
+
+    /// Returns the cached comments for a provider episode, if present.
+    /// Cached data keeps danmaku working offline; freshness is checked by
+    /// the caller, never here.
+    public func danmakuCache(providerID: String, episodeID: Int64) throws -> DanmakuCacheEntry? {
+        try database.read { db in
+            guard let row = try Row.fetchOne(
+                db,
+                sql: "SELECT payload FROM danmakuCache WHERE cacheKey = ?",
+                arguments: ["\(providerID):\(episodeID)"]
+            ) else { return nil }
+            let payload: Data = row["payload"]
+            return try? JSONDecoder().decode(DanmakuCacheEntry.self, from: payload)
+        }
+    }
+
+    public func saveDanmakuCache(_ entry: DanmakuCacheEntry) throws {
+        let payload = try JSONEncoder().encode(entry)
+        try database.write { db in
+            try db.execute(sql: """
+                INSERT INTO danmakuCache (cacheKey, providerID, episodeID, animeTitle, episodeTitle, commentCount, payload, fetchedAt)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(cacheKey) DO UPDATE SET
+                    providerID = excluded.providerID,
+                    episodeID = excluded.episodeID,
+                    animeTitle = excluded.animeTitle,
+                    episodeTitle = excluded.episodeTitle,
+                    commentCount = excluded.commentCount,
+                    payload = excluded.payload,
+                    fetchedAt = excluded.fetchedAt
+                """, arguments: [
+                    "\(entry.providerID):\(entry.episodeID)",
+                    entry.providerID,
+                    entry.episodeID,
+                    entry.animeTitle,
+                    entry.episodeTitle,
+                    entry.comments.count,
+                    payload,
+                    entry.fetchedAt
+                ])
+        }
+    }
+
+    /// The provider episode a media file was matched to, if any.
+    public func danmakuMatch(mediaFileID: UUID) throws -> DanmakuMatchBinding? {
+        try database.read { db in
+            guard let row = try Row.fetchOne(
+                db,
+                sql: "SELECT providerID, episodeID, animeTitle, episodeTitle, shift, isManual, matchedAt FROM danmakuMatch WHERE mediaFileID = ?",
+                arguments: [mediaFileID.uuidString]
+            ) else { return nil }
+            return DanmakuMatchBinding(
+                mediaFileID: mediaFileID,
+                providerID: row["providerID"],
+                episodeID: row["episodeID"],
+                animeTitle: row["animeTitle"] ?? "",
+                episodeTitle: row["episodeTitle"] ?? "",
+                shift: row["shift"] ?? 0,
+                isManual: row["isManual"],
+                matchedAt: row["matchedAt"]
+            )
+        }
+    }
+
+    public func saveDanmakuMatch(_ binding: DanmakuMatchBinding) throws {
+        try database.write { db in
+            try db.execute(sql: """
+                INSERT INTO danmakuMatch
+                    (mediaFileID, providerID, episodeID, animeTitle, episodeTitle, shift, isManual, matchedAt)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(mediaFileID) DO UPDATE SET
+                    providerID = excluded.providerID,
+                    episodeID = excluded.episodeID,
+                    animeTitle = excluded.animeTitle,
+                    episodeTitle = excluded.episodeTitle,
+                    shift = excluded.shift,
+                    isManual = excluded.isManual,
+                    matchedAt = excluded.matchedAt
+                """, arguments: [
+                    binding.mediaFileID.uuidString,
+                    binding.providerID,
+                    binding.episodeID,
+                    binding.animeTitle,
+                    binding.episodeTitle,
+                    binding.shift,
+                    binding.isManual,
+                    binding.matchedAt
+                ])
+        }
+    }
+
+    public func removeDanmakuMatch(mediaFileID: UUID) throws {
+        try database.write { db in
+            try db.execute(sql: "DELETE FROM danmakuMatch WHERE mediaFileID = ?", arguments: [mediaFileID.uuidString])
+        }
+    }
+
     // MARK: - Translation cache
 
     public func cachedTranslations(provider: String, targetLanguage: String, texts: [String]) throws -> [Int: String] {
@@ -1072,6 +1171,35 @@ public actor LibraryDatabase {
                 table.column("createdAt", .datetime).notNull()
             }
             try db.create(index: "translationCache_recent", on: "translationCache", columns: ["createdAt"])
+        }
+        migrator.registerMigration("v5_danmaku") { db in
+            // Danmaku payload cache keyed by provider + episode identity —
+            // never by local filename — so replays work offline.
+            try db.create(table: "danmakuCache") { table in
+                table.column("cacheKey", .text).primaryKey()
+                table.column("providerID", .text).notNull()
+                table.column("episodeID", .integer).notNull()
+                table.column("animeTitle", .text).notNull().defaults(to: "")
+                table.column("episodeTitle", .text).notNull().defaults(to: "")
+                table.column("commentCount", .integer).notNull().defaults(to: 0)
+                table.column("payload", .blob).notNull()
+                table.column("fetchedAt", .datetime).notNull()
+            }
+            try db.create(index: "danmakuCache_provider", on: "danmakuCache", columns: ["providerID", "episodeID"])
+            // Media-file → provider-episode binding. The mediaFile UUID is
+            // stable across rescans, so bindings survive renames/regrouping.
+            // No FK: matches may be written while a scan is mid-flight;
+            // dangling rows are swept during scans.
+            try db.create(table: "danmakuMatch") { table in
+                table.column("mediaFileID", .text).primaryKey()
+                table.column("providerID", .text).notNull()
+                table.column("episodeID", .integer).notNull()
+                table.column("animeTitle", .text).notNull().defaults(to: "")
+                table.column("episodeTitle", .text).notNull().defaults(to: "")
+                table.column("shift", .double).notNull().defaults(to: 0)
+                table.column("isManual", .boolean).notNull().defaults(to: false)
+                table.column("matchedAt", .datetime).notNull()
+            }
         }
         return migrator
     }

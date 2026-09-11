@@ -1,33 +1,30 @@
-# AnimeGod 0.1.1
+# AnimeGod 0.1.2
 
-AnimeGod 0.1.1 completes native HDR and Dolby Vision playback and includes two
-player reliability fixes discovered during final validation.
+AnimeGod 0.1.2 adds native danmaku playback and improves everyday video and
+subtitle behavior.
 
-## HDR and Dolby Vision
+## Native danmaku
 
-- Added constant-format 16-bit-float BT.2020 EDR output for HDR10 and HLG on
-  capable displays, with automatic SDR fallback and a user-controlled Forced
-  SDR mode.
-- Dolby Vision is now identified from real `dvvC`/`dvcC` configuration records
-  and mpv RPU side data instead of release filenames.
-- Eligible Dolby Vision Profile 8.4 `hvc1` MP4/MOV files use AVFoundation's
-  native playback path.
-- Dolby Vision Profile 8 MKV and Profile 7 use the HDR10-compatible base layer
-  and report the fallback honestly in diagnostics.
-- The diagnostics panel reports the exact HDR mode, RPU evidence, layer format,
-  tone-mapping mode, EDR headroom, active pipeline, and Profile 7 limitation.
-- Display changes and fullscreen transitions re-evaluate output capabilities
-  without losing playback position, pause state, tracks, volume, speed, or
-  subtitle/audio delays.
+- Added a native Core Animation danmaku renderer synchronized to the player's
+  playback clock, including pause, seek, speed-change, and viewport handling.
+- Added official dandanplay Open Danmaku API matching by file identity, manual
+  anime/episode matching, local per-episode caching, and offline replay.
+- Added player controls for visibility, opacity, font size, display area,
+  scrolling speed, comment limits, mode/color filtering, timing offset,
+  reload, and rematching. Press `D` to toggle danmaku.
+- dandanplay AppId and AppSecret can be configured in Settings and are stored
+  in the macOS Keychain.
 
-## Playback fixes
+## Playback and subtitles
 
-- Fixed large SDR MKV files remaining on “Opening video…” while a Dolby Vision
-  container probe scanned the file. MKV playback now starts immediately and a
-  bounded probe runs in the background.
-- Fixed the pointer remaining visible after entering fullscreen. When playback
-  is active, the controls and pointer now hide after 2.8 seconds of inactivity;
-  moving the mouse, leaving fullscreen, or switching away restores them.
+- Video now always preserves the source aspect ratio in both windowed and
+  fullscreen playback. The complete frame remains visible, with black bars
+  when the display and video aspect ratios differ.
+- Subtitle selections persist across launches. The same file restores its
+  exact track; other episodes match the preferred subtitle by language and
+  name even when track IDs differ. Choosing Off is remembered as well.
+- Enabled the hardened-runtime permissions required by MPVKit's embedded
+  LuaJIT so playback scripts can initialize in packaged builds.
 
 ## Compatibility and limitations
 

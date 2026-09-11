@@ -10,5 +10,12 @@
 	<true/>
 	<key>com.apple.security.network.client</key>
 	<true/>
+	<!-- MPVKit embeds LuaJIT for mpv's built-in scripts. Under the hardened
+	     runtime, LuaJIT's generated code is otherwise killed as an invalid
+	     executable page as soon as playback initializes. -->
+	<key>com.apple.security.cs.allow-jit</key>
+	<true/>
+	<key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+	<true/>
 </dict>
 </plist>

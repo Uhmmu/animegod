@@ -3,7 +3,9 @@ import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject var translation: TranslationCoordinator
+    @ObservedObject var danmaku: DanmakuPreferences
     @State private var savedFeedback = false
+    @State private var danmakuSavedFeedback = false
 
     var body: some View {
         Form {
@@ -43,6 +45,33 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.trailing)
+                }
+            }
+
+            Section("Danmaku") {
+                TextField("dandanplay AppId", text: $danmaku.appID, prompt: Text("from dev.dandanplay.com"))
+                SecureField("dandanplay AppSecret", text: $danmaku.appSecret, prompt: Text("one of the two secrets issued to your app"))
+                HStack {
+                    Button("Save") {
+                        danmaku.saveCredentials()
+                        danmakuSavedFeedback = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { danmakuSavedFeedback = false }
+                    }
+                    if danmakuSavedFeedback {
+                        Label("Saved", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                            .transition(.opacity)
+                    }
+                    Spacer()
+                    Text("AnimeGod uses the official dandanplay Open Danmaku API. Create a (free) app at dev.dandanplay.com, then paste its AppId and AppSecret here — both are stored in your macOS Keychain, never in plain text.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.trailing)
+                }
+                if danmaku.appID.isEmpty && danmaku.appSecret.isEmpty {
+                    Text("Without credentials the player still works — danmaku simply stays unavailable until they are configured.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
         }

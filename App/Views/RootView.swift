@@ -48,7 +48,7 @@ struct RootView: View {
                 case .diary: DiaryView()
                 case .statistics: StatisticsView()
                 case .folders: LibraryRootsView()
-                case .settings: SettingsView(translation: model.translation)
+                case .settings: SettingsView(translation: model.translation, danmaku: model.danmakuPreferences)
                 case nil: ContentUnavailableView("Choose a section", systemImage: "sidebar.left")
                 }
             }

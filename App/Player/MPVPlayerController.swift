@@ -298,6 +298,7 @@ final class MPVPlayerController: NSViewController {
         setOption("subs-match-os-language", "yes")
         setOption("subs-fallback", "yes")
         setOption("input-media-keys", "yes")
+        configureAspectPreservingVideo()
         if metalOutputConfiguration != .sdrFallback {
             // Must be set before mpv_initialize. The CAMetalLayer format and
             // colorspace are fixed for this renderer session.
@@ -357,6 +358,21 @@ final class MPVPlayerController: NSViewController {
             Task { @MainActor in controller.drainEvents() }
         }
         mpv_set_wakeup_callback(handle, wakeupHandler, Unmanaged.passUnretained(self).toOpaque())
+    }
+
+    /// Always show the complete source frame. These are explicit instead of
+    /// relying on mpv defaults so a renderer rebuild during a fullscreen
+    /// transition cannot switch to fill/crop behavior. Any unused space stays
+    /// black on the player surface.
+    private func configureAspectPreservingVideo() {
+        setOption("keepaspect", "yes")
+        setOption("panscan", "0")
+        setOption("video-zoom", "0")
+        setOption("video-pan-x", "0")
+        setOption("video-pan-y", "0")
+        setOption("video-scale-x", "1")
+        setOption("video-scale-y", "1")
+        setOption("video-unscaled", "no")
     }
 
     private func observe(_ name: String, format: mpv_format) {
