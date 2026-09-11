@@ -20,6 +20,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var isScanning = false
     @Published private(set) var isEnrichingMetadata = false
     @Published private(set) var metadataProgress: String?
+    @Published private(set) var availableRootIDs: Set<UUID> = []
     @Published var errorMessage: String?
     @Published var playerRequest: PlayerRequest?
 
@@ -30,6 +31,9 @@ final class AppModel: ObservableObject {
     /// credentials in the Keychain). Owned here so the player and Settings
     /// observe the same instance.
     let danmakuPreferences = DanmakuPreferences()
+    /// Local episode copies: auto-cached while playing from an external
+    /// drive, manually cacheable, playable when the drive is unplugged.
+    let episodeCache = EpisodeCacheStore()
     /// Read access for player-owned subsystems (danmaku cache/match).
     var libraryDatabase: LibraryDatabase? { database }
     private let metadataProviders: [MetadataProviderID: any MetadataProvider] = [
@@ -53,6 +57,18 @@ final class AppModel: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.objectWillChange.send() }
             .store(in: &cancellables)
+        episodeCache.objectWillChange
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &cancellables)
+        // Plugging a drive back in (or pulling it) changes which episodes can
+        // play from source, so the library reflects mount state immediately.
+        for name in [NSWorkspace.didMountNotification, NSWorkspace.didUnmountNotification] {
+            NotificationCenter.default.publisher(for: name)
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] _ in Task { await self?.refreshRootAvailability() } }
+                .store(in: &cancellables)
+        }
         Task { await prepare() }
     }
 
@@ -97,17 +113,40 @@ final class AppModel: ObservableObject {
         do {
             let access = try ScopedLibraryAccess(root: root)
             defer { access.stop() }
+            // An unplugged drive keeps its index untouched: scanning an
+            // absent folder would read as "every file removed".
+            guard FileManager.default.fileExists(atPath: access.url.path) else {
+                await refreshRootAvailability()
+                return
+            }
             let result = try await scanner.scan(root: root, resolvedURL: access.url)
             try await database.importScan(result)
+            await episodeCache.reconcile()
             roots = try await database.libraryRoots()
             await reloadLibrary()
+            await refreshRootAvailability()
         } catch {
             errorMessage = "Could not scan \(root.displayName): \(error.localizedDescription)"
         }
     }
 
+    /// Which library roots currently have their volume mounted. Unplugged
+    /// roots keep their entries visible; they just cannot play uncached
+    /// episodes or start new caches.
+    func refreshRootAvailability() async {
+        var available = Set<UUID>()
+        for root in roots {
+            guard let access = try? ScopedLibraryAccess(root: root) else { continue }
+            let exists = FileManager.default.fileExists(atPath: access.url.path)
+            access.stop()
+            if exists { available.insert(root.id) }
+        }
+        availableRootIDs = available
+    }
+
     func remove(_ root: LibraryRoot) async {
         guard let database else { return }
+        episodeCache.purgeEntries(libraryRootID: root.id)
         do {
             try await database.removeLibraryRoot(id: root.id)
             roots = try await database.libraryRoots()
@@ -136,7 +175,7 @@ final class AppModel: ObservableObject {
         let siblings = (try? await database.episodes(animeID: episode.episode.animeID)) ?? []
         let list = siblings.contains(where: { $0.id == episode.id }) ? siblings : [episode]
         guard let index = list.firstIndex(where: { $0.id == episode.id }) else { return }
-        playerRequest = PlayerRequest(episodes: list, startIndex: index, roots: roots)
+        playerRequest = PlayerRequest(episodes: list, startIndex: index, roots: roots, cache: episodeCache)
     }
 
     func searchMetadata(_ query: String, provider providerID: MetadataProviderID) async -> [AnimeMetadataCandidate] {
@@ -358,6 +397,9 @@ final class AppModel: ObservableObject {
         guard duration > 0, let database else { return }
         let completion = min(max(position / duration, 0), 1)
         let completed = duration >= 2 * 60 && completion >= 0.90
+        // Closing playback at ≥90% retires the transparent auto cache for
+        // this episode; manual copies always stay until removed by hand.
+        episodeCache.handlePlaybackFinished(episode: episode, completion: completion)
         await saveProgress(episodeID: episode.id, position: position, duration: duration)
         let animeTitle = metadataByAnimeID[episode.episode.animeID]?.title
             ?? library.first(where: { $0.id == episode.episode.animeID })?.anime.title
@@ -391,6 +433,8 @@ final class AppModel: ObservableObject {
             let database = try LibraryDatabase(url: applicationSupport.appending(path: "library.sqlite"))
             self.database = database
             roots = try await database.libraryRoots()
+            await episodeCache.prepare(database: database)
+            await refreshRootAvailability()
             await reloadLibrary()
         } catch {
             errorMessage = "Could not open the local library: \(error.localizedDescription)"
@@ -497,12 +541,10 @@ struct PlayerRequest: Identifiable {
     let episodes: [EpisodeMedia]
     let startIndex: Int
     let roots: [LibraryRoot]
+    /// Local episode copies, so playback survives an unplugged drive.
+    let cache: EpisodeCacheStore?
 
     var episode: EpisodeMedia { episodes[startIndex] }
-
-    func root(for episode: EpisodeMedia) -> LibraryRoot? {
-        roots.first { $0.id == episode.mediaFile.libraryRootID }
-    }
 }
 
 /// A plausible-but-ambiguous metadata match waiting for the user's decision.

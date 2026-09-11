@@ -827,6 +827,143 @@ public actor LibraryDatabase {
         }
     }
 
+    // MARK: - Episode cache
+
+    /// All cached episode copies, joined with their library labels for the
+    /// cache manager. Orphaned rows cannot exist: the media-file foreign key
+    /// cascades them away.
+    public func cacheEntries() throws -> [EpisodeCacheEntry] {
+        try database.read { db in
+            let rows = try Row.fetchAll(db, sql: """
+                SELECT episodeCache.*,
+                       anime.title AS animeTitle,
+                       episode.kind AS episodeKind, episode.number AS episodeNumber,
+                       episode.numberText AS episodeNumberText,
+                       COALESCE(playbackProgress.isWatched, 0) AS isWatched
+                FROM episodeCache
+                JOIN mediaFile ON mediaFile.id = episodeCache.mediaFileID
+                JOIN episode ON episode.id = mediaFile.episodeID
+                JOIN anime ON anime.id = episode.animeID
+                LEFT JOIN playbackProgress ON playbackProgress.episodeID = episode.id
+                ORDER BY anime.sortTitle COLLATE NOCASE, episode.sortIndex, episodeCache.relativePath
+                """)
+            return rows.map(Self.decodeCacheEntry)
+        }
+    }
+
+    public func cacheEntry(mediaFileID: UUID) throws -> EpisodeCacheEntry? {
+        try database.read { db in
+            try Row.fetchOne(
+                db,
+                sql: "SELECT * FROM episodeCache WHERE mediaFileID = ?",
+                arguments: [mediaFileID.uuidString]
+            ).map(Self.decodeCacheEntry)
+        }
+    }
+
+    public func saveCacheEntry(_ entry: EpisodeCacheEntry) throws {
+        try database.write { db in
+            try db.execute(sql: """
+                INSERT INTO episodeCache
+                    (mediaFileID, libraryRootID, relativePath, fileName, fileSize,
+                     bytesCopied, state, policy, createdAt, completedAt)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(mediaFileID) DO UPDATE SET
+                    fileSize = excluded.fileSize,
+                    bytesCopied = excluded.bytesCopied,
+                    state = excluded.state,
+                    policy = excluded.policy,
+                    completedAt = excluded.completedAt
+                """, arguments: [
+                    entry.mediaFileID.uuidString,
+                    entry.libraryRootID.uuidString,
+                    entry.relativePath,
+                    entry.fileName,
+                    entry.fileSize,
+                    entry.bytesCopied,
+                    entry.state.rawValue,
+                    entry.policy.rawValue,
+                    entry.createdAt,
+                    entry.completedAt
+                ])
+        }
+    }
+
+    /// Progress ticks during a copy; touches nothing but the byte counter so
+    /// frequent updates stay cheap.
+    public func updateCacheProgress(mediaFileID: UUID, bytesCopied: Int64) throws {
+        try database.write { db in
+            try db.execute(
+                sql: "UPDATE episodeCache SET bytesCopied = ? WHERE mediaFileID = ?",
+                arguments: [bytesCopied, mediaFileID.uuidString]
+            )
+        }
+    }
+
+    /// Marks a copy playable offline and records the final size the source
+    /// actually had, guarding against a source that changed mid-copy.
+    public func markCacheComplete(mediaFileID: UUID, fileSize: Int64) throws {
+        try database.write { db in
+            try db.execute(sql: """
+                UPDATE episodeCache
+                SET state = ?, bytesCopied = ?, fileSize = ?, completedAt = ?
+                WHERE mediaFileID = ?
+                """, arguments: [EpisodeCacheState.complete.rawValue, fileSize, fileSize, Date.now, mediaFileID.uuidString])
+        }
+    }
+
+    /// Upgrades an in-flight auto cache to manual when the user explicitly
+    /// asked to keep the episode; the running copy simply changes owner.
+    public func setCachePolicy(mediaFileID: UUID, policy: EpisodeCachePolicy) throws {
+        try database.write { db in
+            try db.execute(
+                sql: "UPDATE episodeCache SET policy = ? WHERE mediaFileID = ?",
+                arguments: [policy.rawValue, mediaFileID.uuidString]
+            )
+        }
+    }
+
+    public func removeCacheEntry(mediaFileID: UUID) throws {
+        try database.write { db in
+            try db.execute(
+                sql: "DELETE FROM episodeCache WHERE mediaFileID = ?",
+                arguments: [mediaFileID.uuidString]
+            )
+        }
+    }
+
+    public func removeCacheEntries(libraryRootID: UUID) throws {
+        try database.write { db in
+            try db.execute(
+                sql: "DELETE FROM episodeCache WHERE libraryRootID = ?",
+                arguments: [libraryRootID.uuidString]
+            )
+        }
+    }
+
+    private static func decodeCacheEntry(_ row: Row) -> EpisodeCacheEntry {
+        // Joined label columns only exist on the list query, so read them all
+        // optionality; a bare single-row select just reports no labels.
+        let kind = (row["episodeKind"] as String?).flatMap(EpisodeKind.init(rawValue:))
+        let numberText: String? = row["episodeNumberText"]
+        let isWatched: Bool? = row["isWatched"]
+        return EpisodeCacheEntry(
+            mediaFileID: UUID(uuidString: row["mediaFileID"])!,
+            libraryRootID: UUID(uuidString: row["libraryRootID"])!,
+            relativePath: row["relativePath"],
+            fileName: row["fileName"],
+            fileSize: row["fileSize"],
+            bytesCopied: row["bytesCopied"],
+            state: EpisodeCacheState(rawValue: row["state"]) ?? .copying,
+            policy: EpisodeCachePolicy(rawValue: row["policy"]) ?? .auto,
+            createdAt: row["createdAt"],
+            completedAt: row["completedAt"],
+            animeTitle: row["animeTitle"],
+            episodeLabel: kind.map { Episode.displayLabel(kind: $0, numberText: numberText) },
+            isEpisodeWatched: isWatched ?? false
+        )
+    }
+
     // MARK: - Translation cache
 
     public func cachedTranslations(provider: String, targetLanguage: String, texts: [String]) throws -> [Int: String] {
@@ -1200,6 +1337,24 @@ public actor LibraryDatabase {
                 table.column("isManual", .boolean).notNull().defaults(to: false)
                 table.column("matchedAt", .datetime).notNull()
             }
+        }
+        migrator.registerMigration("v6_episode_cache") { db in
+            // Local copies of episodes that live on an external drive. Keyed by
+            // the media file (stable across rescans) so cache rows disappear
+            // with their source and the store reconciles orphaned files.
+            try db.create(table: "episodeCache") { table in
+                table.column("mediaFileID", .text).primaryKey().references("mediaFile", onDelete: .cascade)
+                table.column("libraryRootID", .text).notNull().references("libraryRoot", onDelete: .cascade)
+                table.column("relativePath", .text).notNull()
+                table.column("fileName", .text).notNull()
+                table.column("fileSize", .integer).notNull()
+                table.column("bytesCopied", .integer).notNull().defaults(to: 0)
+                table.column("state", .text).notNull().defaults(to: EpisodeCacheState.copying.rawValue)
+                table.column("policy", .text).notNull()
+                table.column("createdAt", .datetime).notNull()
+                table.column("completedAt", .datetime)
+            }
+            try db.create(index: "episodeCache_root", on: "episodeCache", columns: ["libraryRootID"])
         }
         return migrator
     }

@@ -138,6 +138,24 @@ public struct Episode: Codable, Identifiable, Hashable, Sendable {
         self.kind = kind
         self.sortIndex = sortIndex
     }
+
+    /// Short human label ("Episode 3", "Special 2", "Creditless Opening") used
+    /// by watch history and the episode cache manager.
+    public var displayLabel: String {
+        Self.displayLabel(kind: kind, numberText: numberText)
+    }
+
+    public static func displayLabel(kind: EpisodeKind, numberText: String?) -> String {
+        switch kind {
+        case .opening: "Creditless Opening"
+        case .ending: "Creditless Ending"
+        case .music: "Music Video"
+        case .trailer: "Trailer"
+        case .special: numberText.map { "Special \($0)" } ?? "Special"
+        case .extra: "Extra"
+        case .regular: numberText.map { "Episode \($0)" } ?? "Movie / Episode"
+        }
+    }
 }
 
 public struct MediaFile: Codable, Identifiable, Hashable, Sendable {

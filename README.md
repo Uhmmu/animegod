@@ -81,6 +81,27 @@ remembers the user's subtitle selection.
   diagnostics panel (**⌘⇧D**). Eligible Dolby Vision Profile 8.4 MP4/MOV files
   use Apple's native playback path; MKV and Profile 7 use the HDR10 base layer.
 
+### Episode cache
+- **Auto-cache**: the first time an episode on an external drive plays, it is
+  copied to this Mac in the background (one copy at a time, chunked with live
+  progress); playback keeps reading from the drive until the copy finishes.
+- **Watched = freed**: closing an episode at ≥90 % automatically deletes its
+  auto cache — the copy is a buffer between first play and finishing, not a
+  permanent duplicate. Manual caches are never auto-deleted.
+- **Manual caching**: every episode row has a copy-to-Mac button (with live
+  progress and cancel), plus **Cache All** on the anime page; a manual request
+  for an episode already auto-caching simply claims that copy.
+- **Offline playback**: an unplugged drive keeps its full index — cached
+  episodes play normally, everything else shows 请插入硬盘. Playback prefers a
+  finished cache over the drive, so pulling the disk mid-series never
+  interrupts the current episode.
+- **Cache manager** (Sources → Episode Cache): total size, per-anime grouping
+  with watched badges, live copy progress, cancel, reveal in Finder,
+  per-episode delete, clear-all, and toggles for both automatic rules. Copies
+  live in `Application Support/AnimeGod/Episode Cache`, reconciled against the
+  database at launch and after every rescan (orphaned files and crashed
+  partials are cleaned up).
+
 ### Danmaku (弹幕)
 - Native renderer over the video (Core Animation layers + display link,
   bitmap-cached text) — synchronized against the player's own clock, so
@@ -132,8 +153,10 @@ xcodebuild -project AnimeGod.xcodeproj -scheme AnimeGod -configuration Release b
 ## Data & privacy
 
 Everything — library, metadata cache, watch history, personal entries,
-statistics, translations, danmaku matches and comment caches — lives in the
-local SQLite database (`~/Library/Containers/com.uhmmu.AnimeGod/Data/…`).
+statistics, translations, danmaku matches, comment caches, and the
+episode-cache index — lives in the
+local SQLite database (`~/Library/Containers/com.uhmmu.AnimeGod/Data/…`);
+cached episode files sit in the same container's Application Support folder.
 Nothing is uploaded. Network is used only for the metadata providers you
 invoke, the Bangumi charts section, the translation provider you configure,
 and the dandanplay danmaku API when danmaku is enabled.

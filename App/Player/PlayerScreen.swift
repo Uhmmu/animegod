@@ -9,8 +9,12 @@ struct MPVPlayerView: NSViewControllerRepresentable {
     func makeNSViewController(context: Context) -> MPVPlayerController {
         let controller = MPVPlayerController()
         controller.delegate = state
-        controller.initialURL = state.mediaURL
-        controller.initialPosition = state.position
+        // Handing mpv a URL that failed resolution would clobber the friendly
+        // offline message with a raw loadfile error.
+        if state.playbackAvailable {
+            controller.initialURL = state.mediaURL
+            controller.initialPosition = state.position
+        }
         state.controller = controller
         return controller
     }
@@ -55,6 +59,9 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
     @Published var audioDelay: Double = 0
     @Published var isLoading = true
     @Published var errorMessage: String?
+    /// False when no playable source existed at init (drive missing, no
+    /// cache); the controller must not receive a file to load then.
+    private(set) var playbackAvailable = true
     @Published private(set) var currentEpisode: EpisodeMedia
     @Published private(set) var colorProfile: VideoColorProfile?
     @Published private(set) var hdrOutputActive = false
@@ -67,10 +74,12 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
     /// Danmaku for this playback window; purely additive to playback.
     let danmaku = DanmakuSession()
 
-    private(set) var mediaURL: URL
+    /// Meaningful only while `playbackAvailable` is true.
+    private(set) var mediaURL = URL(fileURLWithPath: "/")
     weak var controller: MPVPlayerController?
     private var access: ScopedLibraryAccess?
     private let roots: [LibraryRoot]
+    private let cache: EpisodeCacheStore?
     let startedAt = Date.now
     private var lastPosition: Double?
     private var watchedDuration: Double = 0
@@ -86,18 +95,62 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
         episodes = request.episodes
         currentIndex = request.startIndex
         roots = request.roots
+        cache = request.cache
         let episode = request.episode
-        let root = request.root(for: episode)
         currentEpisode = episode
-        access = root.flatMap { try? ScopedLibraryAccess(root: $0) }
-        let rootURL = access?.url ?? URL(fileURLWithPath: root?.lastKnownPath ?? "/", isDirectory: true)
-        mediaURL = rootURL.appending(path: episode.mediaFile.relativePath)
         position = episode.progress?.position ?? 0
         duration = episode.progress?.duration ?? 0
-        if !FileManager.default.isReadableFile(atPath: mediaURL.path) {
-            errorMessage = "AnimeGod can no longer read this file. Remove and re-add its library folder to renew access."
-            isLoading = false
+        if let resolved = resolvePlayback(file: episode.mediaFile) {
+            mediaURL = resolved.url
+            access = resolved.access
+            startAutoCacheIfNeeded(for: episode.mediaFile, playedFromCache: resolved.playedFromCache)
         }
+    }
+
+    /// The outcome of picking where an episode's bytes come from.
+    private struct ResolvedPlayback {
+        let url: URL
+        let access: ScopedLibraryAccess?
+        let playedFromCache: Bool
+    }
+
+    /// Cache-first playback resolution: a finished local copy wins over the
+    /// source drive (so pulling the disk mid-series never interrupts), the
+    /// source drive serves everything else, and a missing source with no
+    /// cache explains what to plug back in.
+    private func resolvePlayback(file: MediaFile) -> ResolvedPlayback? {
+        guard let root = roots.first(where: { $0.id == file.libraryRootID }) else {
+            errorMessage = "The library folder for this episode is unavailable."
+            isLoading = false
+            playbackAvailable = false
+            return nil
+        }
+        if let cachedURL = cache?.cachedFileURL(for: file.id) {
+            return ResolvedPlayback(url: cachedURL, access: nil, playedFromCache: true)
+        }
+        let access = try? ScopedLibraryAccess(root: root)
+        let rootURL = access?.url ?? URL(fileURLWithPath: root.lastKnownPath, isDirectory: true)
+        let sourceURL = rootURL.appending(path: file.relativePath)
+        if FileManager.default.isReadableFile(atPath: sourceURL.path) {
+            return ResolvedPlayback(url: sourceURL, access: access, playedFromCache: false)
+        }
+        access?.stop()
+        if !FileManager.default.fileExists(atPath: rootURL.path) {
+            errorMessage = "请插入硬盘「\(root.displayName)」后再播放 —— 本集尚未缓存到这台 Mac。"
+        } else {
+            errorMessage = "AnimeGod can no longer read this file. Remove and re-add its library folder to renew access."
+        }
+        isLoading = false
+        playbackAvailable = false
+        return nil
+    }
+
+    /// Episodes playing straight off an external drive quietly gain a local
+    /// auto cache; cache-sourced playback is already local.
+    private func startAutoCacheIfNeeded(for file: MediaFile, playedFromCache: Bool) {
+        guard !playedFromCache, let cache,
+              let root = roots.first(where: { $0.id == file.libraryRootID }) else { return }
+        cache.startAutoCacheIfNeeded(mediaFile: file, root: root)
     }
 
     var hasNext: Bool { episodes.indices.contains(currentIndex + 1) }
@@ -107,18 +160,10 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
     /// current playback position and session bookkeeping.
     func switchVersion(to file: MediaFile) {
         guard file.id != currentEpisode.mediaFile.id,
-              let root = roots.first(where: { $0.id == file.libraryRootID }) else { return }
-        let newAccess = try? ScopedLibraryAccess(root: root)
-        let rootURL = newAccess?.url ?? URL(fileURLWithPath: root.lastKnownPath, isDirectory: true)
-        let url = rootURL.appending(path: file.relativePath)
-        guard FileManager.default.isReadableFile(atPath: url.path) else {
-            newAccess?.stop()
-            errorMessage = "AnimeGod can no longer read this file. Remove and re-add its library folder to renew access."
-            return
-        }
+              let resolved = resolvePlayback(file: file) else { return }
         access?.stop()
-        access = newAccess
-        mediaURL = url
+        access = resolved.access
+        mediaURL = resolved.url
         isLoading = true
         errorMessage = nil
         colorProfile = nil
@@ -129,8 +174,9 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
             versions: currentEpisode.versions
         )
         didApplySubtitlePreference = false
-        loadDanmaku(for: file, url: url)
-        controller?.play(url: url, position: position)
+        startAutoCacheIfNeeded(for: file, playedFromCache: resolved.playedFromCache)
+        loadDanmaku(for: file, url: resolved.url)
+        controller?.play(url: resolved.url, position: position)
     }
 
     /// Finalizes the current episode's watch session and prepares playback of
@@ -139,23 +185,13 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
     /// persist it; the new file is already loading by then.
     func switchEpisode(to index: Int) -> (oldEpisode: EpisodeMedia, startedAt: Date, watchedDuration: Double, position: Double, duration: Double)? {
         guard episodes.indices.contains(index), index != currentIndex else { return nil }
-        guard let root = roots.first(where: { $0.id == episodes[index].mediaFile.libraryRootID }) else {
-            errorMessage = "The library folder for this episode is unavailable."
-            return nil
-        }
-        let newAccess = try? ScopedLibraryAccess(root: root)
-        let rootURL = newAccess?.url ?? URL(fileURLWithPath: root.lastKnownPath, isDirectory: true)
-        let url = rootURL.appending(path: episodes[index].mediaFile.relativePath)
-        guard FileManager.default.isReadableFile(atPath: url.path) else {
-            newAccess?.stop()
-            errorMessage = "AnimeGod can no longer read this file. Remove and re-add its library folder to renew access."
-            return nil
-        }
+        guard let resolved = resolvePlayback(file: episodes[index].mediaFile) else { return nil }
         let oldEpisode = currentEpisode
         let finished = takeSession()
         access?.stop()
-        access = newAccess
-        load(url: url, episode: episodes[index], index: index)
+        access = resolved.access
+        load(url: resolved.url, episode: episodes[index], index: index)
+        startAutoCacheIfNeeded(for: episodes[index].mediaFile, playedFromCache: resolved.playedFromCache)
         guard let finished else { return nil }
         return (oldEpisode, finished.startedAt, finished.watchedDuration, finished.position, finished.duration)
     }
@@ -163,6 +199,7 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
     private func load(url: URL, episode: EpisodeMedia, index: Int) {
         errorMessage = nil
         isLoading = true
+        playbackAvailable = true
         mediaURL = url
         currentEpisode = episode
         currentIndex = index

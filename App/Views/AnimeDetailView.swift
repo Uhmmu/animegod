@@ -112,11 +112,14 @@ struct AnimeDetailView: View {
                 }
 
                 if let first = episodes.first {
-                    Button { Task { await model.play(first) } } label: {
-                        Label(first.progress == nil ? "Play First Episode" : "Resume Watching", systemImage: "play.fill")
+                    HStack(spacing: 12) {
+                        Button { Task { await model.play(first) } } label: {
+                            Label(first.progress == nil ? "Play First Episode" : "Resume Watching", systemImage: "play.fill")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.large)
+                        cacheAllButton
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
                 }
 
                 let profile = model.profile(for: anime.id)
@@ -133,6 +136,32 @@ struct AnimeDetailView: View {
                 .foregroundStyle(.secondary)
             }
         }
+    }
+
+    /// Copies every not-yet-cached episode of this anime to this Mac in one
+    /// queued batch; entries already cached or copying are skipped.
+    @ViewBuilder
+    private var cacheAllButton: some View {
+        let cacheable = episodes.filter { item in
+            model.episodeCache.entriesByMediaFileID[item.mediaFile.id]?.state != .complete
+                && !model.episodeCache.isQueuedOrCopying(mediaFileID: item.mediaFile.id)
+                && model.roots.contains { $0.id == item.mediaFile.libraryRootID }
+        }
+        Button {
+            for item in cacheable {
+                if let root = model.roots.first(where: { $0.id == item.mediaFile.libraryRootID }) {
+                    model.episodeCache.cacheManually(mediaFile: item.mediaFile, root: root)
+                }
+            }
+        } label: {
+            Label(
+                cacheable.isEmpty ? "All Cached" : "Cache All (\(cacheable.count))",
+                systemImage: cacheable.isEmpty ? "checkmark.icloud" : "icloud.and.arrow.down"
+            )
+        }
+        .controlSize(.large)
+        .disabled(cacheable.isEmpty)
+        .help("Copy every episode of this anime to this Mac for offline playback")
     }
 
     private var sourceRatings: some View {
@@ -210,7 +239,21 @@ struct AnimeDetailView: View {
 
     private var episodeSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Episodes").font(.title2.bold())
+            HStack(alignment: .firstTextBaseline) {
+                Text("Episodes").font(.title2.bold())
+                Spacer()
+            }
+            // The index survives an unplugged drive; this banner explains
+            // which episodes still play (cached) and which wait for the disk.
+            let offlineRoots = model.roots.filter { root in
+                episodes.contains { $0.mediaFile.libraryRootID == root.id }
+                    && !model.availableRootIDs.contains(root.id)
+            }
+            ForEach(offlineRoots) { root in
+                Label("“\(root.displayName)” is not connected — cached episodes still play; the rest need the drive plugged in.", systemImage: "externaldrive.badge.exclamationmark")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
 
             if episodes.isEmpty {
                 ContentUnavailableView("No Episodes", systemImage: "film").frame(maxWidth: .infinity)
@@ -252,32 +295,37 @@ struct AnimeDetailView: View {
     private func episodeRows(_ items: [EpisodeMedia]) -> some View {
         LazyVStack(spacing: 1) {
             ForEach(items) { item in
-                Button { Task { await model.play(item) } } label: {
-                    HStack(spacing: 14) {
-                        Image(systemName: item.progress?.isWatched == true ? "checkmark.circle.fill" : "play.circle.fill")
-                            .font(.title2)
-                            .foregroundStyle(item.progress?.isWatched == true ? Color.green : Color.accentColor)
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(episodeLabel(item.episode)).font(.headline)
-                            Text(item.mediaFile.relativePath)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
+                HStack(spacing: 4) {
+                    Button { Task { await model.play(item) } } label: {
+                        HStack(spacing: 14) {
+                            Image(systemName: item.progress?.isWatched == true ? "checkmark.circle.fill" : "play.circle.fill")
+                                .font(.title2)
+                                .foregroundStyle(item.progress?.isWatched == true ? Color.green : Color.accentColor)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(episodeLabel(item.episode)).font(.headline)
+                                Text(item.mediaFile.relativePath)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                            Spacer()
+                            if let progress = item.progress, !progress.isWatched {
+                                ProgressView(value: progress.completion)
+                                    .frame(width: 90)
+                                    .accessibilityLabel("Playback progress")
+                            }
+                            Text((item.progress?.position ?? 0) > 0 ? "Resume" : "Play")
+                                .font(.callout.weight(.semibold))
                         }
-                        Spacer()
-                        if let progress = item.progress, !progress.isWatched {
-                            ProgressView(value: progress.completion)
-                                .frame(width: 90)
-                                .accessibilityLabel("Playback progress")
-                        }
-                        Text((item.progress?.position ?? 0) > 0 ? "Resume" : "Play")
-                            .font(.callout.weight(.semibold))
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 11)
+                        .contentShape(Rectangle())
                     }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 11)
-                    .contentShape(Rectangle())
+                    .buttonStyle(.plain)
+                    // Sibling (not nested) so both controls stay clickable.
+                    EpisodeCacheControl(item: item)
+                        .padding(.trailing, 10)
                 }
-                .buttonStyle(.plain)
                 Divider().padding(.leading, 50)
             }
         }
@@ -461,6 +509,68 @@ struct AnimeDetailView: View {
         case .special: "Special \(episode.numberText ?? "")"
         case .extra: "Extra"
         case .regular: episode.numberText.map { "Episode \($0)" } ?? "Movie / Episode"
+        }
+    }
+}
+
+/// Per-episode cache state and actions on an episode row: start a manual
+/// copy, watch its progress, or manage the finished local file.
+private struct EpisodeCacheControl: View {
+    @EnvironmentObject private var model: AppModel
+    let item: EpisodeMedia
+
+    private var cache: EpisodeCacheStore { model.episodeCache }
+    private var isRootOnline: Bool { model.availableRootIDs.contains(item.mediaFile.libraryRootID) }
+
+    var body: some View {
+        let entry = cache.entriesByMediaFileID[item.mediaFile.id]
+        if entry?.state == .complete {
+            Menu {
+                Button("Show in Finder") { cache.revealInFinder(mediaFileID: item.mediaFile.id) }
+                Divider()
+                Button("Remove Cached Copy", role: .destructive) {
+                    cache.removeEntry(mediaFileID: item.mediaFile.id)
+                }
+            } label: {
+                Image(systemName: "checkmark.icloud.fill")
+                    .foregroundStyle(.green)
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help("Cached on this Mac — plays without the drive")
+        } else if entry?.state == .copying || cache.isQueuedOrCopying(mediaFileID: item.mediaFile.id) {
+            HStack(spacing: 6) {
+                if let entry, entry.fileSize > 0 {
+                    ProgressView(value: entry.progress)
+                        .frame(width: 52)
+                        .help("Caching — \(Int(entry.progress * 100))%")
+                } else {
+                    ProgressView()
+                        .controlSize(.small)
+                        .help("Waiting to cache")
+                }
+                Button {
+                    cache.removeEntry(mediaFileID: item.mediaFile.id)
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.borderless)
+                .help("Cancel caching")
+            }
+        } else if model.roots.contains(where: { $0.id == item.mediaFile.libraryRootID }) {
+            Button {
+                if let root = model.roots.first(where: { $0.id == item.mediaFile.libraryRootID }) {
+                    cache.cacheManually(mediaFile: item.mediaFile, root: root)
+                }
+            } label: {
+                Image(systemName: "icloud.and.arrow.down")
+            }
+            .buttonStyle(.borderless)
+            .disabled(!isRootOnline)
+            .help(isRootOnline
+                  ? "Copy this episode to this Mac"
+                  : "Connect the drive to cache this episode")
         }
     }
 }

@@ -9,6 +9,7 @@ private enum SidebarItem: Hashable {
     case diary
     case statistics
     case folders
+    case episodeCache
     case settings
 }
 
@@ -35,6 +36,7 @@ struct RootView: View {
                 }
                 Section("Sources") {
                     Label("Library Folders", systemImage: "externaldrive").tag(SidebarItem.folders)
+                    Label("Episode Cache", systemImage: "arrow.down.circle.dotted").tag(SidebarItem.episodeCache)
                 }
                 Section("App") {
                     Label("Settings", systemImage: "gearshape").tag(SidebarItem.settings)
@@ -53,6 +55,7 @@ struct RootView: View {
                 case .diary: DiaryView()
                 case .statistics: StatisticsView()
                 case .folders: LibraryRootsView()
+                case .episodeCache: EpisodeCacheView(cache: model.episodeCache)
                 case .settings: SettingsView(translation: model.translation, danmaku: model.danmakuPreferences)
                 case nil: ContentUnavailableView("Choose a section", systemImage: "sidebar.left")
                 }
