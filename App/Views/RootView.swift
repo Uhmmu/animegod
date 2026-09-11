@@ -4,6 +4,7 @@ import SwiftUI
 private enum SidebarItem: Hashable {
     case library
     case continueWatching
+    case bangumiCharts
     case rankings
     case diary
     case statistics
@@ -23,6 +24,9 @@ struct RootView: View {
                 Section("Library") {
                     Label("All Anime", systemImage: "square.grid.2x2").tag(SidebarItem.library)
                     Label("Continue Watching", systemImage: "play.circle").tag(SidebarItem.continueWatching)
+                }
+                Section("Discover") {
+                    Label("Bangumi Charts", systemImage: "chart.bar.doc.horizontal").tag(SidebarItem.bangumiCharts)
                 }
                 Section("Personal") {
                     Label("My Rankings", systemImage: "list.number").tag(SidebarItem.rankings)
@@ -44,6 +48,7 @@ struct RootView: View {
                 switch selection {
                 case .library: LibraryView()
                 case .continueWatching: ContinueWatchingView()
+                case .bangumiCharts: BangumiChartsView()
                 case .rankings: RankingsView()
                 case .diary: DiaryView()
                 case .statistics: StatisticsView()

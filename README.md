@@ -44,6 +44,22 @@ remembers the user's subtitle selection.
 - Rename a folder on disk, rescan, and your bindings follow the file —
   identity migration keeps metadata, personal entries, and history attached.
 
+### Bangumi charts
+- **Bangumi Charts** browses every site-wide ranking Bangumi publishes: all
+  five channels (anime, books, music, games, live action) and every filter
+  sidebar the site offers (分类/来源/题材/地区/受众/平台/分级…), grouped in
+  one menu per channel.
+- Entries come from the read-only `next.bgm.tv/p1/subjects` JSON endpoint
+  (`sort=rank`); the filter taxonomy is discovered from each channel's
+  browser page, so new categories appear without an app update. Filtered
+  subpaths are Cloudflare-challenged on bgm.tv, so charts themselves never
+  request them.
+- Ranked rows show cover, site rank (gold/silver/bronze podium), score,
+  rating count, and info line; **Load More** pages through up to thousands
+  of ranked subjects. Subjects already matched in the local library are
+  badged and link straight to their detail page; everything else opens its
+  bgm.tv page.
+
 ### Translation
 - Independent translation service (`AnimeGodCore/Translation`) with a
   **DeepL-compatible provider**: batched requests, free/pro endpoint
@@ -109,7 +125,7 @@ xcodebuild -project AnimeGod.xcodeproj -scheme AnimeGod -configuration Release b
 - The app target is SwiftUI + AppKit with the LGPL build of MPVKit for
   playback. See `THIRD_PARTY_NOTICES.md` before distributing binaries.
 - Optional live provider tests: `ANIMEGOD_LIVE_TESTS=1 swift test --filter
-  BangumiMetadataProviderTests`.
+  'Bangumi.*ProviderTests'`.
 - Headless player smoke test: run the built binary with `-smokePlayerTest`
   (auto-plays the first episode, toggles fullscreen, prints layout sizes).
 
@@ -119,5 +135,5 @@ Everything — library, metadata cache, watch history, personal entries,
 statistics, translations, danmaku matches and comment caches — lives in the
 local SQLite database (`~/Library/Containers/com.uhmmu.AnimeGod/Data/…`).
 Nothing is uploaded. Network is used only for the metadata providers you
-invoke, the translation provider you configure, and the dandanplay danmaku
-API when danmaku is enabled.
+invoke, the Bangumi charts section, the translation provider you configure,
+and the dandanplay danmaku API when danmaku is enabled.
