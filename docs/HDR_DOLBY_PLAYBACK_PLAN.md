@@ -72,8 +72,8 @@ reproduction > hardware decoding > performance > feature completeness.
    - Configure the Metal layer **before** `mpv_initialize`: `pixelFormat =
      .rgba16Float`, `colorspace = extendedLinearITUR_2020`,
      `wantsExtendedDynamicRangeContent = true`, `CAEDRMetadata` per format
-     (HDR10: `CAEDRMetadata.hdr10(minLuminance: 0.5, maxLuminance: displayPeak,
-     opticalOutputScale: 100)` — shader output 1.0 == 100 nit; HLG:
+     (HDR10: `CAEDRMetadata.hdr10(minLuminance: 0.005, maxLuminance: 1000,
+     opticalOutputScale: 203)` — matching libplacebo's linear reference white; HLG:
      `CAEDRMetadata.hlg`).
    - The layer configuration must be **constant for the whole session**; for
      SDR content, drive mpv's `target-prim=bt.709 + target-trc=bt.1886 +
@@ -101,9 +101,9 @@ Reference for the Metal EDR contract (Apple sample):
 metalLayer.wantsExtendedDynamicRangeContent = true
 metalLayer.pixelFormat = .rgba16Float
 metalLayer.colorspace = CGColorSpace(name: CGColorSpace.extendedLinearITUR_2020)
-metalLayer.edrMetadata = CAEDRMetadata(minLuminance: 0.5,
+metalLayer.edrMetadata = CAEDRMetadata(minLuminance: 0.005,
                                        maxLuminance: 1000,
-                                       opticalOutputScale: 100)
+                                       opticalOutputScale: 203)
 ```
 
 ## Phase 2 — Apple-native Dolby Vision

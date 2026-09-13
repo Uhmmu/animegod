@@ -447,7 +447,7 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
         )
         controller?.applyColorOutput(
             profile: colorProfile, forcedSDR: forcedSDR,
-            potentialHeadroom: potential, currentHeadroom: current
+            potentialHeadroom: potential
         )
         hdrOutputActive = decision == .edr && (controller?.isHDROutputActive ?? false)
     }

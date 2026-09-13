@@ -78,7 +78,7 @@ final class MPVPlayerController: NSViewController {
     var toneMappingModeName: String {
         if playbackPipeline == .avFoundationDolbyVision { return "Apple Dolby Vision display mapping" }
         if forcedSDR || !targetHDRActive { return getString("tone-mapping") ?? "auto (HDR → SDR)" }
-        return "EDR passthrough / libplacebo"
+        return "libplacebo linear → Apple system EDR"
     }
     var isForcedSDR: Bool { forcedSDR }
     var isHDROutputActive: Bool { targetHDRActive }
@@ -555,7 +555,7 @@ final class MPVPlayerController: NSViewController {
     /// CAEDRMetadata change recreates the renderer before touching the layer.
     func applyColorOutput(
         profile: VideoColorProfile?, forcedSDR: Bool,
-        potentialHeadroom: Double, currentHeadroom: Double
+        potentialHeadroom: Double
     ) {
         self.forcedSDR = forcedSDR
         let hasEDRDisplay = potentialHeadroom > 1
@@ -593,10 +593,10 @@ final class MPVPlayerController: NSViewController {
             }
             setString("target-prim", "bt.2020")
             setString("target-trc", "linear")
-            targetPeakNits = HDRDisplayTarget.peakNits(
-                currentHeadroom: currentHeadroom,
-                potentialHeadroom: potentialHeadroom
-            )
+            // Do not pre-compress HDR into the display's momentary headroom.
+            // CAEDRMetadata owns that final display adaptation. Keeping mpv at
+            // the same mastering peak avoids applying tone mapping twice.
+            targetPeakNits = HDROutputContract.masteringPeakNits
             setString("target-peak", String(targetPeakNits))
         } else {
             targetPeakNits = 100
@@ -613,7 +613,11 @@ final class MPVPlayerController: NSViewController {
             metalLayer.pixelFormat = .rgba16Float
             metalLayer.colorspace = CGColorSpace(name: CGColorSpace.extendedLinearITUR_2020)
             metalLayer.wantsExtendedDynamicRangeContent = true
-            metalLayer.edrMetadata = .hdr10(minLuminance: 0.5, maxLuminance: 1_000, opticalOutputScale: 100)
+            metalLayer.edrMetadata = .hdr10(
+                minLuminance: 0.005,
+                maxLuminance: Float(HDROutputContract.masteringPeakNits),
+                opticalOutputScale: Float(HDROutputContract.referenceWhiteNits)
+            )
             playbackPipeline = .mpvEDR
         case .hlg:
             metalLayer.pixelFormat = .rgba16Float

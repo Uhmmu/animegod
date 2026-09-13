@@ -114,25 +114,17 @@ public enum HDRRenderDecision: Sendable, Equatable {
     }
 }
 
-/// Separates a display's stable EDR capability from the headroom that is
-/// available right now. Potential headroom is only an eligibility signal;
-/// using it as a live tone-mapping target makes HDR midtones too dark when
-/// brightness, power, thermal state, or other onscreen content reduces the
-/// display's current headroom.
-public enum HDRDisplayTarget {
-    public static func peakNits(
-        currentHeadroom: Double, potentialHeadroom: Double,
-        referenceWhiteNits: Double = 100
-    ) -> Double {
-        let potential = sanitizedHeadroom(potentialHeadroom)
-        let current = min(sanitizedHeadroom(currentHeadroom), potential)
-        let referenceWhite = referenceWhiteNits.isFinite && referenceWhiteNits > 0
-            ? referenceWhiteNits : 100
-        return current * referenceWhite
-    }
+/// The luminance contract between libplacebo's linear output and Core
+/// Animation's system EDR tone mapper. libplacebo defines diffuse white as
+/// 203 nits, so CAEDRMetadata must use the same optical scale. The renderer
+/// maps into the mastering range once; Core Animation then adapts that range
+/// to the display's current headroom.
+public enum HDROutputContract {
+    public static let referenceWhiteNits = 203.0
+    public static let masteringPeakNits = 1_000.0
 
-    private static func sanitizedHeadroom(_ value: Double) -> Double {
-        value.isFinite && value > 1 ? value : 1
+    public static func linearComponentValue(forNits nits: Double) -> Double {
+        max(0, nits) / referenceWhiteNits
     }
 }
 

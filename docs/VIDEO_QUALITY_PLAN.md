@@ -86,19 +86,18 @@ Possible result: moving an unchanged-size window from a 1x display to a 2x
 display can temporarily retain a lower-resolution drawable until another resize
 or fullscreen transition occurs.
 
-### R2 — Resolved: HDR targets current headroom
+### R2 — Resolved: one system-owned display mapping
 
 The player reads both
 `maximumExtendedDynamicRangeColorComponentValue` and
 `maximumPotentialExtendedDynamicRangeColorComponentValue`. Potential headroom
-now decides EDR eligibility only; current headroom supplies mpv's live
-`target-peak`, capped by the display's potential headroom. The diagnostics panel
-reports the resulting target in nits.
+decides EDR eligibility only. mpv maps HDR into a 1000-nit linear mastering
+range, while `CAEDRMetadata` performs the single final adaptation to the
+display's current headroom. The diagnostics panel reports the mpv target.
 
-Current headroom is the live tone-mapping limit because it can change with
-brightness, power state, thermal state, and the amount of bright content on
-screen. Existing screen-parameter notifications reapply the target when that
-headroom changes.
+The linear buffer and `CAEDRMetadata` share a 203-nit optical reference white,
+matching libplacebo's linear-light convention. This avoids first compressing
+Dolby/HDR to 100 nits and then asking Core Animation to tone map it again.
 
 ### R3 — Output color contracts need end-to-end verification
 
@@ -217,7 +216,7 @@ Work:
 
 - Separate display capability from live rendering capacity:
   - potential headroom decides HDR eligibility;
-  - current headroom supplies the live tone-mapping peak.
+  - Core Animation adapts the mastering range to current display headroom.
 - Clamp and smooth noisy headroom updates so minor changes do not cause visible
   pumping or repeated renderer rebuilds.
 - Define an explicit output contract for each path:
