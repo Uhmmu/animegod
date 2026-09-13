@@ -86,18 +86,19 @@ Possible result: moving an unchanged-size window from a 1x display to a 2x
 display can temporarily retain a lower-resolution drawable until another resize
 or fullscreen transition occurs.
 
-### R2 — HDR targets potential headroom instead of current headroom
+### R2 — Resolved: HDR targets current headroom
 
 The player reads both
 `maximumExtendedDynamicRangeColorComponentValue` and
-`maximumPotentialExtendedDynamicRangeColorComponentValue`, but passes the
-potential value to `target-peak`.
+`maximumPotentialExtendedDynamicRangeColorComponentValue`. Potential headroom
+now decides EDR eligibility only; current headroom supplies mpv's live
+`target-peak`, capped by the display's potential headroom. The diagnostics panel
+reports the resulting target in nits.
 
-Potential headroom is suitable for determining whether a display is
-HDR-capable. Current headroom is the stronger candidate for live tone-mapping
-limits because it can change with brightness, power state, thermal state, and
-the amount of bright content on screen. Fullscreen HDR can make this difference
-more visible.
+Current headroom is the live tone-mapping limit because it can change with
+brightness, power state, thermal state, and the amount of bright content on
+screen. Existing screen-parameter notifications reapply the target when that
+headroom changes.
 
 ### R3 — Output color contracts need end-to-end verification
 
@@ -398,4 +399,3 @@ The full plan is complete only when:
 
 Implement Phases 0 through 5 in order. Phase 6 is optional and should be
 considered only after the faithful playback pipeline is demonstrably correct.
-

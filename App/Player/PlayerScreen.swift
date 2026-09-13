@@ -447,7 +447,7 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
         )
         controller?.applyColorOutput(
             profile: colorProfile, forcedSDR: forcedSDR,
-            displayPeak: potential
+            potentialHeadroom: potential, currentHeadroom: current
         )
         hdrOutputActive = decision == .edr && (controller?.isHDROutputActive ?? false)
     }
@@ -1188,6 +1188,7 @@ struct PlayerScreen: View {
                 "Display: \(state.displayInfo.name ?? "—")",
                 "EDR headroom: \(state.displayInfo.headroom.map { String(format: "%.1f×", $0) } ?? "1.0× (SDR)")",
                 "Potential: \(state.displayInfo.potentialHeadroom.map { String(format: "%.1f×", $0) } ?? "—")",
+                "Target peak: \(state.controller?.targetPeakName ?? "—")",
                 "Swapchain: \(state.controller?.swapchainFormatName ?? "—")",
                 "Tone mapping: \(state.controller?.toneMappingModeName ?? "—")",
                 "Pipeline: \(state.controller?.pipelineName ?? "—")",

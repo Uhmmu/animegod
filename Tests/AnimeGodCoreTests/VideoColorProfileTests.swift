@@ -115,4 +115,15 @@ struct VideoColorProfileTests {
         #expect(HDRRenderDecision.decide(profile: hdr10, potentialHeadroom: 1, forcedSDR: false) == .toneMapToSDR)
         #expect(HDRRenderDecision.decide(profile: hdr10, potentialHeadroom: 4, forcedSDR: true) == .toneMapToSDR)
     }
+
+    @Test func hdrPeakUsesCurrentHeadroomWithoutExceedingDisplayCapability() {
+        #expect(HDRDisplayTarget.peakNits(currentHeadroom: 2.5, potentialHeadroom: 6) == 250)
+        #expect(HDRDisplayTarget.peakNits(currentHeadroom: 8, potentialHeadroom: 4) == 400)
+        #expect(HDRDisplayTarget.peakNits(currentHeadroom: 1, potentialHeadroom: 4) == 100)
+        #expect(HDRDisplayTarget.peakNits(currentHeadroom: .nan, potentialHeadroom: 4) == 100)
+        #expect(HDRDisplayTarget.peakNits(currentHeadroom: 2, potentialHeadroom: .infinity) == 100)
+        #expect(HDRDisplayTarget.peakNits(
+            currentHeadroom: 2, potentialHeadroom: 4, referenceWhiteNits: 120
+        ) == 240)
+    }
 }

@@ -63,6 +63,7 @@ final class MPVPlayerController: NSViewController {
     private var playbackPipeline: PlaybackPipeline = .mpvEDR
     private var forcedSDR = false
     private var targetHDRActive = false
+    private var targetPeakNits: Double = 100
     private var playerGeneration = UUID()
     private var currentContainerProbe: DolbyVisionContainerProbe.Result?
     nonisolated(unsafe) private var avPlayer: AVPlayer?
@@ -81,6 +82,7 @@ final class MPVPlayerController: NSViewController {
     }
     var isForcedSDR: Bool { forcedSDR }
     var isHDROutputActive: Bool { targetHDRActive }
+    var targetPeakName: String { String(format: "%.0f nits", targetPeakNits) }
 
     private struct PlaybackRestoration {
         let paused: Bool
@@ -551,9 +553,12 @@ final class MPVPlayerController: NSViewController {
 
     /// Applies only runtime-safe mpv target properties. A required HLG/HDR10
     /// CAEDRMetadata change recreates the renderer before touching the layer.
-    func applyColorOutput(profile: VideoColorProfile?, forcedSDR: Bool, displayPeak: Double) {
+    func applyColorOutput(
+        profile: VideoColorProfile?, forcedSDR: Bool,
+        potentialHeadroom: Double, currentHeadroom: Double
+    ) {
         self.forcedSDR = forcedSDR
-        let hasEDRDisplay = displayPeak > 1
+        let hasEDRDisplay = potentialHeadroom > 1
         targetHDRActive = profile?.isHDR == true && hasEDRDisplay && !forcedSDR
             && playbackPipeline != .mpvSDR
 
@@ -588,8 +593,13 @@ final class MPVPlayerController: NSViewController {
             }
             setString("target-prim", "bt.2020")
             setString("target-trc", "linear")
-            setString("target-peak", String(max(100, displayPeak * 100)))
+            targetPeakNits = HDRDisplayTarget.peakNits(
+                currentHeadroom: currentHeadroom,
+                potentialHeadroom: potentialHeadroom
+            )
+            setString("target-peak", String(targetPeakNits))
         } else {
+            targetPeakNits = 100
             setString("target-prim", "bt.709")
             setString("target-trc", "bt.1886")
             setString("target-peak", "100")

@@ -114,6 +114,28 @@ public enum HDRRenderDecision: Sendable, Equatable {
     }
 }
 
+/// Separates a display's stable EDR capability from the headroom that is
+/// available right now. Potential headroom is only an eligibility signal;
+/// using it as a live tone-mapping target makes HDR midtones too dark when
+/// brightness, power, thermal state, or other onscreen content reduces the
+/// display's current headroom.
+public enum HDRDisplayTarget {
+    public static func peakNits(
+        currentHeadroom: Double, potentialHeadroom: Double,
+        referenceWhiteNits: Double = 100
+    ) -> Double {
+        let potential = sanitizedHeadroom(potentialHeadroom)
+        let current = min(sanitizedHeadroom(currentHeadroom), potential)
+        let referenceWhite = referenceWhiteNits.isFinite && referenceWhiteNits > 0
+            ? referenceWhiteNits : 100
+        return current * referenceWhite
+    }
+
+    private static func sanitizedHeadroom(_ value: Double) -> Double {
+        value.isFinite && value > 1 ? value : 1
+    }
+}
+
 /// Color-relevant signal properties read from the playback engine
 /// (mpv `video-params/*`), kept verbatim so the diagnostics panel can prove
 /// metadata survived demux → decode → render.
