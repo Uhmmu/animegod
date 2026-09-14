@@ -246,6 +246,7 @@ final class DanmakuCanvas: NSView {
         engine.load(comments: baked)
         engine.seek(to: max(0, latestPlaybackPosition))
         syncLayers(structural: true)
+        publishDiagnostics()
         updateDisplayLinkState()
     }
 
@@ -271,7 +272,8 @@ final class DanmakuCanvas: NSView {
     private func updateDisplayLinkState() {
         let shouldRun = window != nil && isVisible && hasComments
         if shouldRun, stopDisplayLink == nil {
-            let link = displayLink(target: self, selector: #selector(displayLinkTick))
+            let link = displayLink(target: self, selector: #selector(displayLinkTick(_:)))
+            link.add(to: .main, forMode: .common)
             stopDisplayLink = { [weak link] in link?.invalidate() }
         } else if !shouldRun, let stop = stopDisplayLink {
             stop()
@@ -279,7 +281,7 @@ final class DanmakuCanvas: NSView {
         }
     }
 
-    @objc private func displayLinkTick() {
+    @objc private func displayLinkTick(_ link: CADisplayLink) {
         let host = CACurrentMediaTime()
         let media = clock.mediaTime(atHost: host)
 
