@@ -114,7 +114,11 @@ struct DanmakuMenuButton: View {
 
             Button("Match Episode…") { openMatch() }
                 .disabled(session.phase.isActionable == false && isReady == false)
-            Button("Reload Danmaku") { session.reload() }
+            Button {
+                session.reload()
+            } label: {
+                Label("Refresh Danmaku", systemImage: "arrow.clockwise")
+            }
                 .disabled(session.phase == .idle || session.phase == .disabled || session.phase == .needsConfiguration)
 
             Divider()
@@ -291,6 +295,12 @@ struct DanmakuMatchSheet: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
+                Button {
+                    session.reload()
+                } label: {
+                    Label("Refresh", systemImage: "arrow.clockwise")
+                }
+                .disabled(liveMatch == nil || session.isReloading)
                 Button("Done") { onDismiss() }
             }
             .padding(12)

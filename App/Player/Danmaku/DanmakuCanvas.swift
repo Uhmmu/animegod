@@ -186,7 +186,12 @@ final class DanmakuCanvas: NSView {
         )
         wantsLayer = true
         layer = hostLayer
-        hostLayer.isGeometryFlipped = true
+        // Keep Core Animation's native bottom-left coordinates and convert
+        // the engine's top-origin lane positions explicitly in syncLayers.
+        // A geometry-flipped root hosting layer is not reliably inherited by
+        // its sublayers and previously made scrolling lanes grow upward from
+        // the bottom of the player.
+        hostLayer.isGeometryFlipped = false
         hostLayer.backgroundColor = NSColor.clear.cgColor
         postsFrameChangedNotifications = true
         NotificationCenter.default.addObserver(
@@ -357,8 +362,11 @@ final class DanmakuCanvas: NSView {
         }
         let lineRectHeight = lineHeight
         for index in active.indices {
+            // Engine lanes are expressed from the top edge (lane zero is the
+            // first row). CALayer frames use a bottom-left origin here.
+            let layerY = max(0, bounds.height - active[index].y - lineRectHeight)
             orderedLayers[index].frame = CGRect(
-                x: active[index].x, y: active[index].y,
+                x: active[index].x, y: layerY,
                 width: max(active[index].width, 1), height: lineRectHeight
             )
         }

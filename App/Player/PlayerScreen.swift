@@ -262,15 +262,23 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
 
     func togglePause() {
         paused.toggle()
+        // Freeze/resume the danmaku clock immediately. mpv may report the
+        // pause property without a simultaneous position update.
+        danmaku.playbackSample(position: position, speed: speed, paused: paused)
         controller?.setPaused(paused)
     }
 
     func seek(to value: Double) {
         position = value
+        danmaku.playbackSample(position: value, speed: speed, paused: paused)
         controller?.seek(to: value)
     }
 
     func seek(by offset: Double) {
+        let upperBound = duration > 0 ? duration : Double.greatestFiniteMagnitude
+        let target = min(max(position + offset, 0), upperBound)
+        position = target
+        danmaku.playbackSample(position: target, speed: speed, paused: paused)
         controller?.seek(by: offset)
     }
 
@@ -333,16 +341,14 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
     }
 
     func playerDidUpdate(position: Double?, duration: Double?, paused: Bool?) {
+        let effectivePaused = paused ?? self.paused
         if let position {
-            if let lastPosition, !self.paused {
+            if let lastPosition, !effectivePaused {
                 let delta = position - lastPosition
                 if delta > 0, delta <= 5 { watchedDuration += delta }
             }
             lastPosition = position
             self.position = position
-            // Danmaku follows the real playback clock: every player sample
-            // re-anchors it, so pause/seek/speed are always reflected.
-            danmaku.playbackSample(position: position, speed: speed, paused: paused ?? self.paused)
         }
         if let duration {
             self.duration = duration
@@ -351,6 +357,15 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
             }
         }
         if let paused { self.paused = paused }
+        if position != nil || paused != nil {
+            // Pause-only events must re-anchor too; otherwise interpolation
+            // keeps advancing until another position sample happens.
+            danmaku.playbackSample(
+                position: position ?? self.position,
+                speed: speed,
+                paused: effectivePaused
+            )
+        }
     }
 
     /// Returns the finished session for the episode that just stopped, clearing
