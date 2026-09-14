@@ -195,11 +195,13 @@ public struct AnimeFilenameParser: Sendable {
     }
 
     private func specialKind(in value: String) -> EpisodeKind {
-        if value.range(of: #"(?i)(?:^|[\s._-])NCOP(?:[\s._-]|$)"#, options: .regularExpression) != nil { return .opening }
-        if value.range(of: #"(?i)(?:^|[\s._-])NCED(?:[\s._-]|$)"#, options: .regularExpression) != nil { return .ending }
+        // Numbered clips ("PV1", "[NCOP2]") are as common as bare tags, so
+        // every marker accepts a trailing release number.
+        if value.range(of: #"(?i)(?:^|[\s._\[\]-])NCOP[\s._-]?\d*(?:[\s._\[\]-]|$)"#, options: .regularExpression) != nil { return .opening }
+        if value.range(of: #"(?i)(?:^|[\s._\[\]-])NCED[\s._-]?\d*(?:[\s._\[\]-]|$)"#, options: .regularExpression) != nil { return .ending }
         if value.range(of: #"(?i)(?:^|[\s._-])MVs?(?:[\s._-]?\d+)?(?:[\s._-]|$)|music\s*video"#, options: .regularExpression) != nil { return .music }
         if value.range(of: #"(?i)(?:^|[\s._\[\]-])Menu(?:[\s._\[\]-]?\d+)?(?:[\s._\[\]-]|$)"#, options: .regularExpression) != nil { return .extra }
-        if value.range(of: #"(?i)\b(?:PV|Trailer|Teaser)\b"#, options: .regularExpression) != nil { return .trailer }
+        if value.range(of: #"(?i)\b(?:PV|Trailer|Teaser)\s*\d*\b"#, options: .regularExpression) != nil { return .trailer }
         if value.range(of: #"(?i)\b(?:SP|Special)\s*\d*\b"#, options: .regularExpression) != nil { return .special }
         return .regular
     }

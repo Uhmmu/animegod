@@ -46,6 +46,19 @@ struct AnimeFilenameParserTests {
         #expect(trailer.episodeKind == .trailer)
     }
 
+    @Test(arguments: [
+        ("PV1.mkv", EpisodeKind.trailer),
+        ("[Nekomoe kissaten] Summer Ghost [PV2][BDRip 1080p HEVC-10bit AAC].mkv", .trailer),
+        ("Show Teaser 03.mkv", .trailer),
+        ("[VCB-Studio] Show [NCOP1][Ma10p_1080p][x265_flac].mkv", .opening),
+        ("[VCB-Studio] Show [NCED][Ma10p_1080p][x265_flac].mkv", .ending),
+        ("SP3.mkv", .special)
+    ])
+    func classifiesNumberedAndBracketedExtras(input: String, expected: EpisodeKind) {
+        let result = parser.parse(url: URL(fileURLWithPath: "/Anime/Show/\(input)"))
+        #expect(result.episodeKind == expected)
+    }
+
     @Test func classifiesSpecialEpisodes() {
         let special = parser.parse(url: URL(fileURLWithPath: "/Anime/Show/Show SP01 [1080p].mkv"))
         #expect(special.episodeKind == .special)

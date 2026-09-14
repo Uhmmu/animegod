@@ -156,8 +156,11 @@ public actor LibraryScanner {
             ) { entry in
                 split[normalize(entry.fileTitle)] ?? folderTitle
             }.mapValues(\.count)
+            // On a tie the folder's own work wins, so a stray misparsed clip
+            // can never pull the release's extras away from it.
             let fallbackTitle = clusterCounts.max { a, b in
                 if a.value != b.value { return a.value < b.value }
+                if (a.key == folderTitle) != (b.key == folderTitle) { return b.key == folderTitle }
                 return a.key > b.key
             }?.key ?? folderTitle
             for var entry in group {

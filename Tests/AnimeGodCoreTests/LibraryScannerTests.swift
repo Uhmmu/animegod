@@ -148,6 +148,29 @@ struct LibraryScannerTests {
         #expect(specials.compactMap(\.parsed.episodeText).sorted() == ["01", "04", "10"])
     }
 
+    @Test func numberedPVsStayWithTheirRelease() async throws {
+        // Real-world layout: bare PV1/SP1 files beside the movie, no SPs folder.
+        let rootURL = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        let releaseURL = rootURL.appending(
+            path: "[J.X&MGRT]Sakasama no Patema[GB][BDrip][1080P_Hi10_FLAC](Scans&OST&Special)",
+            directoryHint: .isDirectory
+        )
+        try FileManager.default.createDirectory(at: releaseURL, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+        try Data([0x01]).write(to: releaseURL.appending(path: "[J.X&MGRT]Sakasama no Patema.1080p.10bit.mkv"))
+        for (index, name) in ["PV1.mkv", "PV2.mkv", "PV3.mkv", "SP1.mkv", "SP2.mkv", "menu.mkv"].enumerated() {
+            try Data([UInt8(index + 2)]).write(to: releaseURL.appending(path: name))
+        }
+
+        let root = LibraryRoot(displayName: "Test", lastKnownPath: rootURL.path)
+        let result = try await LibraryScanner().scan(root: root, resolvedURL: rootURL)
+
+        #expect(result.files.count == 7)
+        #expect(Set(result.files.map(\.parsed.title)).count == 1)
+        #expect(result.files.filter { $0.parsed.episodeKind == .regular }.count == 1)
+        #expect(result.files.filter { $0.parsed.episodeKind == .trailer }.count == 3)
+    }
+
     @Test func excludesAVCatalogueReleases() async throws {
         let rootURL = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString, directoryHint: .isDirectory)
         let avURL = rootURL.appending(path: "SONE-615", directoryHint: .isDirectory)
