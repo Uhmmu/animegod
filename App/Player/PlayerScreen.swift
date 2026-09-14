@@ -223,16 +223,34 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
     /// swapping encodes re-targets it; the comment cache makes either path
     /// instant after the first fetch.
     private var danmakuDatabase: LibraryDatabase?
+    private var danmakuAnimeTitleCandidates: [String] = []
 
     private func loadDanmaku(for file: MediaFile, url: URL) {
         guard danmaku.isAttached else { return }
+        let parsed = AnimeFilenameParser().parse(url: url)
+        let titles = danmakuAnimeTitleCandidates + [parsed.title]
         danmaku.load(DanmakuSession.EpisodeRequest(
             fileURL: url,
             mediaFileID: file.id,
             fileName: url.lastPathComponent,
             fileSize: file.fileSize,
-            duration: duration
+            duration: duration,
+            titleCandidates: titles,
+            episodeNumber: currentEpisode.episode.number ?? parsed.episode,
+            episodeKind: currentEpisode.episode.kind
         ), database: danmakuDatabase)
+    }
+
+    /// Supplies provider-backed and library titles without exposing the raw
+    /// release filename as the user's search text.
+    func updateDanmakuSearchContext(titleCandidates: [String]) {
+        danmakuAnimeTitleCandidates = titleCandidates
+        let parsed = AnimeFilenameParser().parse(url: mediaURL)
+        danmaku.updateSearchContext(
+            titleCandidates: titleCandidates + [parsed.title],
+            episodeNumber: currentEpisode.episode.number ?? parsed.episode,
+            episodeKind: currentEpisode.episode.kind
+        )
     }
 
     /// Called once the screen has the model's database; performs the
@@ -620,6 +638,15 @@ struct PlayerScreen: View {
     /// through its objectWillChange so the player UI tracks changes).
     private var danmakuPreferences: DanmakuPreferences { model.danmakuPreferences }
 
+    private var danmakuTitleCandidates: [String] {
+        let animeID = state.currentEpisode.episode.animeID
+        let metadata = model.metadataByAnimeID[animeID]
+        let localTitle = model.library.first(where: { $0.id == animeID })?.anime.title
+        return [metadata?.title, metadata?.originalTitle, localTitle]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
     private var episodeLabel: String {
         let episode = state.currentEpisode.episode
         return switch episode.kind {
@@ -715,6 +742,7 @@ struct PlayerScreen: View {
         .onAppear {
             state.onFileFinished = { Task { await advanceAfterFinish() } }
             state.startObservingDisplay()
+            state.updateDanmakuSearchContext(titleCandidates: danmakuTitleCandidates)
             state.danmaku.attach(preferences: model.danmakuPreferences)
             state.loadDanmakuIfNeeded(database: model.libraryDatabase)
             revealControls()
@@ -752,6 +780,9 @@ struct PlayerScreen: View {
             if !isLoading, state.errorMessage == nil {
                 revealControls()
             }
+        }
+        .onChange(of: state.currentEpisode.id) { _, _ in
+            state.updateDanmakuSearchContext(titleCandidates: danmakuTitleCandidates)
         }
         .onChange(of: state.paused) { _, _ in
             revealControls()

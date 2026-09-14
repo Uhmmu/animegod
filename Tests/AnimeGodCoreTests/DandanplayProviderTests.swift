@@ -133,6 +133,19 @@ struct DandanplayProviderTests {
         #expect(comments.isEmpty)
     }
 
+    @Test func parsesCurrentDirectCommentPayloadWithoutLegacyEnvelope() async throws {
+        DanmakuMockURLProtocol.reset()
+        DanmakuMockURLProtocol.handler = { request in
+            let json = #"{"count":1,"comments":[{"cid":1,"p":"8.5,1,16777215,user","m":"新版响应"}]}"#
+            return (httpResponse(request.url), Data(json.utf8))
+        }
+
+        let comments = try await makeProvider().fetchComments(episodeID: 160630008)
+
+        #expect(comments.count == 1)
+        #expect(comments.first?.text == "新版响应")
+    }
+
     @Test func commentsMissingCollectionsParseAsEmpty() async throws {
         DanmakuMockURLProtocol.reset()
         DanmakuMockURLProtocol.handler = { request in
@@ -275,6 +288,24 @@ struct DandanplayProviderTests {
         #expect(anime.episodes[1].episodeID == 10080010002)
         let query = DanmakuMockURLProtocol.lastRequestURL?.query ?? ""
         #expect(query.contains("anime="))
+    }
+
+    @Test func parsesCurrentDirectSearchPayloadWithoutLegacyEnvelope() async throws {
+        DanmakuMockURLProtocol.reset()
+        DanmakuMockURLProtocol.handler = { request in
+            let json = """
+            {"hasMore":false,"animes":[
+              {"animeId":16063,"animeTitle":"孤独摇滚！","type":"tvseries","typeDescription":"TV动画",
+               "episodes":[{"episodeId":160630008,"episodeTitle":"第8话 孤独摇滚"}]}
+            ]}
+            """
+            return (httpResponse(request.url), Data(json.utf8))
+        }
+
+        let results = try await makeProvider().searchAnime(query: "孤独摇滚")
+
+        #expect(results.first?.animeID == 16063)
+        #expect(results.first?.episodes.first?.episodeID == 160630008)
     }
 
     @Test func emptySearchResultsParseAsEmpty() async throws {

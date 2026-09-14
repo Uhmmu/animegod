@@ -84,8 +84,8 @@ struct DanmakuDiagnosticsSection: View {
     }
 }
 
-/// The player-bar danmaku control: one-click on/off (plus the `D`
-/// shortcut), quick filters, and doors into settings and manual matching.
+/// The player-bar danmaku control: its primary click opens smart episode
+/// selection; the menu still provides the toggle, filters, and settings.
 struct DanmakuMenuButton: View {
     @ObservedObject var preferences: DanmakuPreferences
     @ObservedObject var session: DanmakuSession
@@ -129,8 +129,10 @@ struct DanmakuMenuButton: View {
             Button("Danmaku Settings…") { openSettings() }
         } label: {
             Image(systemName: preferences.enabled ? "text.bubble.fill" : "text.bubble")
+        } primaryAction: {
+            openMatch()
         }
-        .help("Danmaku — toggle with D, configure, or match an episode")
+        .help("Choose the best matching danmaku episode")
     }
 
     private var isReady: Bool {
@@ -147,7 +149,7 @@ struct DanmakuMenuButton: View {
         case .loading: session.isReloading ? "Fetching danmaku…" : "Loading danmaku…"
         case let .ready(anime, episode, episodeID, cache):
             "\(anime) · \(episode) · #\(episodeID) · cache \(cache == .hit ? "HIT" : "MISS")"
-        case .noMatch: "No episode matched — match it manually"
+        case .noMatch: "No file match — choose an automatic suggestion"
         case let .failed(message): message
         }
     }
@@ -260,8 +262,9 @@ struct DanmakuSettingsPanel: View {
     }
 }
 
-/// Manual anime/episode matching when identification fails or guesses
-/// wrong: search a title, pick the work, pick the episode, done.
+/// Metadata-assisted episode selection. Opening the sheet immediately searches
+/// clean local title aliases and ranks likely episodes; typed search remains a
+/// fallback for genuinely ambiguous libraries.
 struct DanmakuMatchSheet: View {
     @ObservedObject var session: DanmakuSession
     let currentAnime: String?
@@ -271,18 +274,22 @@ struct DanmakuMatchSheet: View {
     @State private var query = ""
     @State private var results: [DanmakuSearchedAnime] = []
     @State private var isSearching = false
+    @State private var automaticSuggestions: [DanmakuEpisodeSuggestion] = []
+    @State private var isSearchingAutomatically = false
+    @State private var didSearchAutomatically = false
     @State private var searchTask: Task<Void, Never>?
     @State private var expandedAnimeID: Int64?
 
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 10) {
-                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                TextField("Anime title", text: $query)
-                    .onSubmit(beginSearch)
-                    .textFieldStyle(.roundedBorder)
-                Button("Search", action: beginSearch)
-                    .disabled(query.trimmingCharacters(in: .whitespaces).isEmpty || isSearching)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Choose Danmaku Episode").font(.headline)
+                    Text("Suggestions use library metadata and the episode number, not a pasted filename.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
                 Button("Done") { onDismiss() }
             }
             .padding(12)
@@ -301,67 +308,119 @@ struct DanmakuMatchSheet: View {
 
             Divider()
 
-            if isSearching {
+            if isSearchingAutomatically {
                 Spacer()
-                ProgressView("Searching dandanplay…")
+                ProgressView("Finding the closest episodes on 弹弹play…")
+                Spacer()
+            } else if !results.isEmpty {
+                manualResults
+            } else if !automaticSuggestions.isEmpty {
+                automaticResults
+            } else if isSearching {
+                Spacer()
+                ProgressView("Searching 弹弹play…")
                 Spacer()
             } else if results.isEmpty {
                 Spacer()
                 ContentUnavailableView(
-                    "Search an Anime",
+                    didSearchAutomatically ? "No Automatic Suggestions" : "Preparing Suggestions",
                     systemImage: "text.bubble",
                     description: Text(query.isEmpty
-                        ? "Type a title to find its danmaku library."
+                        ? "Try another title below if the library metadata cannot identify this release."
                         : "No results for “\(query)”.")
                 )
                 Spacer()
-            } else {
-                List(results) { anime in
-                    DisclosureGroup(
-                        isExpanded: binding(for: anime.animeID)
-                    ) {
-                        ForEach(anime.episodes, id: \.episodeID) { episode in
-                            Button {
-                                select(episode, in: anime)
-                            } label: {
-                                HStack {
-                                    Text(episode.episodeTitle.isEmpty
-                                         ? "Episode \(episode.episodeID)" : episode.episodeTitle)
-                                        .lineLimit(1)
-                                    Spacer()
-                                    Image(systemName: "arrow.triangle.2.circle.circle")
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    } label: {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(anime.animeTitle).font(.body.weight(.medium))
-                            HStack(spacing: 6) {
-                                if !anime.typeDescription.isEmpty {
-                                    Text(anime.typeDescription)
-                                }
-                                Text("\(anime.episodes.count) episodes")
-                            }
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        }
-                        .contentShape(Rectangle())
-                        .onTapGesture { toggle(anime) }
+            }
+
+            Divider()
+            HStack(spacing: 10) {
+                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                TextField("Search another anime title (optional)", text: $query)
+                    .onSubmit(beginSearch)
+                    .textFieldStyle(.roundedBorder)
+                Button("Search", action: beginSearch)
+                    .disabled(query.trimmingCharacters(in: .whitespaces).isEmpty || isSearching)
+                if !results.isEmpty {
+                    Button("Back to Suggestions") {
+                        results = []
+                        query = ""
                     }
                 }
-                .listStyle(.inset)
             }
+            .padding(12)
         }
         .frame(minWidth: 520, minHeight: 520)
-        .onAppear {
-            if results.isEmpty, query.isEmpty, let currentAnime {
-                query = currentAnime
-                beginSearch()
+        .onAppear(perform: beginAutomaticSearch)
+        .onDisappear { searchTask?.cancel() }
+    }
+
+    private var automaticResults: some View {
+        List(Array(automaticSuggestions.enumerated()), id: \.element.id) { index, suggestion in
+            Button {
+                select(suggestion.episode, in: suggestion.anime)
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: index == 0 ? "sparkles" : "text.bubble")
+                        .foregroundStyle(index == 0 ? Color.accentColor : Color.secondary)
+                        .frame(width: 18)
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(spacing: 7) {
+                            Text(suggestion.anime.animeTitle).font(.body.weight(.medium))
+                            if index == 0 {
+                                Text("Best Match")
+                                    .font(.caption2.weight(.semibold))
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.accentColor.opacity(0.14), in: Capsule())
+                            }
+                        }
+                        Text(suggestion.episode.episodeTitle.isEmpty
+                             ? "Episode \(suggestion.episode.episodeID)" : suggestion.episode.episodeTitle)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right").foregroundStyle(.tertiary)
+                }
+                .contentShape(Rectangle())
+                .padding(.vertical, 3)
+            }
+            .buttonStyle(.plain)
+        }
+        .listStyle(.inset)
+    }
+
+    private var manualResults: some View {
+        List(results) { anime in
+            DisclosureGroup(isExpanded: binding(for: anime.animeID)) {
+                ForEach(anime.episodes, id: \.episodeID) { episode in
+                    Button { select(episode, in: anime) } label: {
+                        HStack {
+                            Text(episode.episodeTitle.isEmpty
+                                 ? "Episode \(episode.episodeID)" : episode.episodeTitle)
+                                .lineLimit(1)
+                            Spacer()
+                            Image(systemName: "arrow.triangle.2.circle.circle")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            } label: {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(anime.animeTitle).font(.body.weight(.medium))
+                    HStack(spacing: 6) {
+                        if !anime.typeDescription.isEmpty { Text(anime.typeDescription) }
+                        Text("\(anime.episodes.count) episodes")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+                .contentShape(Rectangle())
+                .onTapGesture { toggle(anime) }
             }
         }
-        .onDisappear { searchTask?.cancel() }
+        .listStyle(.inset)
     }
 
     private func binding(for animeID: Int64) -> Binding<Bool> {
@@ -381,6 +440,7 @@ struct DanmakuMatchSheet: View {
         let trimmed = query.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
         searchTask?.cancel()
+        isSearchingAutomatically = false
         isSearching = true
         results = []
         expandedAnimeID = nil
@@ -390,6 +450,19 @@ struct DanmakuMatchSheet: View {
             results = found
             expandedAnimeID = found.first?.animeID
             isSearching = false
+        }
+    }
+
+    private func beginAutomaticSearch() {
+        guard !didSearchAutomatically else { return }
+        didSearchAutomatically = true
+        isSearchingAutomatically = true
+        searchTask?.cancel()
+        searchTask = Task { @MainActor in
+            let found = await session.automaticSuggestions()
+            guard !Task.isCancelled else { return }
+            automaticSuggestions = found
+            isSearchingAutomatically = false
         }
     }
 

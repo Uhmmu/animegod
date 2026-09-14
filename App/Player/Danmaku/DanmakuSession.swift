@@ -36,6 +36,9 @@ final class DanmakuSession: ObservableObject {
         let fileName: String
         let fileSize: Int64
         var duration: Double
+        var titleCandidates: [String] = []
+        var episodeNumber: Double?
+        var episodeKind: EpisodeKind = .regular
     }
 
     @Published private(set) var phase: Phase = .idle
@@ -122,6 +125,17 @@ final class DanmakuSession: ObservableObject {
         currentRequest = request
     }
 
+    /// Enriches filename-derived matching with the titles already known by
+    /// the local library and metadata providers. This affects suggestions but
+    /// never invalidates an existing, user-confirmed binding.
+    func updateSearchContext(titleCandidates: [String], episodeNumber: Double?, episodeKind: EpisodeKind) {
+        guard var request = currentRequest else { return }
+        request.titleCandidates = titleCandidates
+        request.episodeNumber = episodeNumber
+        request.episodeKind = episodeKind
+        currentRequest = request
+    }
+
     /// User-triggered refetch: bypasses the comment cache.
     func reload() {
         guard let request = currentRequest, preferences?.enabled == true else { return }
@@ -150,6 +164,23 @@ final class DanmakuSession: ObservableObject {
         return (try? await provider.searchAnime(query: query)) ?? []
     }
 
+    /// Searches with clean local aliases and returns directly selectable
+    /// episodes ordered by title and episode relevance.
+    func automaticSuggestions() async -> [DanmakuEpisodeSuggestion] {
+        guard let request = currentRequest,
+              let provider = preferences?.makeProvider() else { return [] }
+        let context = searchContext(for: request)
+        let queries = DanmakuAutoMatcher.searchQueries(for: context)
+        var responses: [DanmakuSearchResponse] = []
+        for (index, query) in queries.enumerated() {
+            guard !Task.isCancelled else { return [] }
+            if let anime = try? await provider.searchAnime(query: query) {
+                responses.append(DanmakuSearchResponse(query: query, queryIndex: index, anime: anime))
+            }
+        }
+        return DanmakuAutoMatcher.rank(responses: responses, context: context)
+    }
+
     // MARK: - Flow
 
     private func run(request: EpisodeRequest, forceRefresh: Bool) {
@@ -161,6 +192,14 @@ final class DanmakuSession: ObservableObject {
             defer { if token == self.generation { self.isReloading = false } }
             await self.identifyThenPresent(request: request, forceRefresh: forceRefresh, token: token)
         }
+    }
+
+    private func searchContext(for request: EpisodeRequest) -> DanmakuSearchContext {
+        DanmakuSearchContext(
+            titleCandidates: request.titleCandidates,
+            episodeNumber: request.episodeNumber,
+            episodeKind: request.episodeKind
+        )
     }
 
     private func identifyThenPresent(request: EpisodeRequest, forceRefresh: Bool, token: UUID) async {

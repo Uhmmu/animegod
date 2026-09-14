@@ -109,8 +109,10 @@ remembers the user's subtitle selection.
   changes scale movement; it never touches the HDR/EDR video pipeline.
 - Official **dandanplay Open Danmaku API**: automatic episode identification
   (MD5-of-first-16MB file hash + filename + size + duration), manual
-  anime/episode search when matching fails, comments cached per provider
-  episode in the local database (offline replay, no repeated API hits).
+  confirmation from metadata-assisted, relevance-ranked episode suggestions
+  when file matching fails (manual title search remains a fallback), comments
+  cached per provider episode in the local database (offline replay, no
+  repeated API hits).
 - Player-bar controls: on/off (`D`), opacity, font size, display area,
   scrolling speed, max simultaneous comments, per-mode and colored-comment
   filters, ±10 s timing offset, reload, and episode re-matching — all

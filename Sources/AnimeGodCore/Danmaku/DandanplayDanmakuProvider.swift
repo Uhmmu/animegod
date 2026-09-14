@@ -125,10 +125,11 @@ public struct DandanplayDanmakuProvider: DanmakuProvider {
         guard (200..<300).contains(http.statusCode) else {
             throw DanmakuProviderError.httpStatus(http.statusCode)
         }
-        guard let envelope = try? JSONDecoder().decode(Envelope.self, from: data) else {
-            throw DanmakuProviderError.invalidResponse
-        }
-        guard envelope.success else {
+        // Current public endpoints return their payload directly, while older
+        // responses and business failures include success/errorCode fields.
+        // Accept both contracts; an explicit failure envelope must still win.
+        if let envelope = try? JSONDecoder().decode(Envelope.self, from: data),
+           !envelope.success {
             throw DanmakuProviderError.serviceMessage(
                 envelope.errorMessage?.isEmpty == false ? envelope.errorMessage! : "The danmaku service rejected the request (code \(envelope.errorCode))."
             )
