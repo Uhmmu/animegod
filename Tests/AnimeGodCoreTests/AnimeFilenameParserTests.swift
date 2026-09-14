@@ -132,7 +132,10 @@ struct AnimeFilenameParserTests {
         ("[DBD-Raws][4K_HDR][夏日大作战][美版][2160P][UHDBDRip][HEVC-10bit][简繁外挂][FLACx2][MKV]", "夏日大作战"),
         ("[Nekomoe kissaten][Penguin Highway]", "Penguin Highway"),
         ("[SweetSub&VCB-Studio] Josee to Tora to Sakana-tachi [Ma10p_1080p]", "Josee to Tora to Sakana-tachi"),
-        ("[Snow-Raws] 劇場版メイドインアビス 深き魂の黎明", "劇場版メイドインアビス 深き魂の黎明")
+        ("[Snow-Raws] 劇場版メイドインアビス 深き魂の黎明", "劇場版メイドインアビス 深き魂の黎明"),
+        ("[J.X&MGRT]Sakasama no Patema[GB][BDrip][1080P_Hi10_FLAC](Scans&OST&Special)", "Sakasama no Patema"),
+        ("[Group] Some Work (BDRip 1080p) (CD+BK)", "Some Work"),
+        ("[Group] Hunter x Hunter (2011)", "Hunter x Hunter (2011)")
     ])
     func parsesReleaseFolderTitle(input: String, expected: String) {
         #expect(parser.collectionTitle(from: input) == expected)

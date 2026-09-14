@@ -274,8 +274,37 @@ public struct AnimeFilenameParser: Sendable {
             folded.contains("www.") || folded.contains(".com") || folded.contains("首发") || folded.contains("更多")
     }
 
+    /// Words that describe what a release folder bundles ("Scans&OST&Special")
+    /// rather than the work itself.
+    private static let releaseContentWords: Set<String> = [
+        "scan", "scans", "ost", "osts", "soundtrack", "cd", "cds", "bk", "booklet",
+        "sp", "sps", "special", "specials", "extra", "extras", "bonus", "menu", "menus",
+        "pv", "pvs", "cm", "cms", "ncop", "nced", "nc", "trailer", "trailers", "font", "fonts",
+        "sub", "subs", "subtitle", "subtitles", "fin", "complete", "tv", "movie", "ova", "oad",
+        "特典", "映像特典", "扫图", "掃圖", "原声", "原聲", "字体", "字幕", "外挂", "内封"
+    ]
+
+    /// Removes parenthesised groups that only list release contents or
+    /// technical tags. Groups holding anything else (a year, a subtitle) stay.
+    private func removingReleaseContentGroups(_ value: String) -> String {
+        let pattern = #"[(（]([^()（）]*)[)）]"#
+        var result = value
+        for captures in allCaptures(pattern, in: value).reversed() {
+            let content = captures[1]
+            let tokens = content
+                .folding(options: [.caseInsensitive, .widthInsensitive], locale: .current)
+                .split(whereSeparator: { "&+,、/;".contains($0) || $0.isWhitespace })
+                .map(String.init)
+            guard !tokens.isEmpty,
+                  tokens.allSatisfy({ Self.releaseContentWords.contains($0) || isReleaseNoise($0) }),
+                  let range = result.range(of: captures[0], options: .backwards) else { continue }
+            result.replaceSubrange(range, with: " ")
+        }
+        return result
+    }
+
     private func normalizedCollectionTitle(_ value: String) -> String {
-        var result = value.replacingOccurrences(of: ".", with: " ")
+        var result = removingReleaseContentGroups(value).replacingOccurrences(of: ".", with: " ")
         result = result.replacingOccurrences(of: #"(?i)\b(?:movie|bdrip|uhdbrip|web-?dl|1080p|2160p|720p|4k)\b.*$"#, with: " ", options: .regularExpression)
         result = result.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
         return result.trimmingCharacters(in: .whitespacesAndNewlines.union(CharacterSet(charactersIn: "-_[]【】")))
