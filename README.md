@@ -7,9 +7,9 @@ in one fast SwiftUI application.
 > Give a local anime collection memory, structure, context, and history while
 > preserving the speed and quality of a native macOS application.
 
-**Current release: 0.1.2.** This release adds native dandanplay danmaku,
-preserves the complete video frame in windowed and fullscreen playback, and
-remembers the user's subtitle selection.
+**Current release: 0.1.3.** This release makes danmaku automatic and dependable,
+adds offline episode caching for removable drives, expands Bangumi discovery
+and community content, and improves HDR/Dolby Vision brightness.
 
 ## Features
 
@@ -104,18 +104,21 @@ remembers the user's subtitle selection.
 
 ### Danmaku (弹幕)
 - Native renderer over the video (Core Animation layers + display link,
-  bitmap-cached text) — synchronized against the player's own clock, so
-  pause freezes, seeks rebuild without replaying old comments, and speed
-  changes scale movement; it never touches the HDR/EDR video pipeline.
+  bitmap-cached text), arranged from the top of the picture and synchronized
+  against the player's own clock. Pausing freezes comments immediately;
+  seeking, changing speed, and resuming keep the video and comments together.
+  It never touches the HDR/EDR video pipeline.
 - Official **dandanplay Open Danmaku API**: automatic episode identification
-  (MD5-of-first-16MB file hash + filename + size + duration), manual
-  confirmation from metadata-assisted, relevance-ranked episode suggestions
-  when file matching fails (manual title search remains a fallback), comments
-  cached per provider episode in the local database (offline replay, no
-  repeated API hits).
+  plus a metadata-assisted episode chooser that opens directly from the
+  danmaku button. Suggestions are ranked by title, episode number, and media
+  type, so release filenames do not need to be copied into a search box.
+  Manual title search remains available for unusual releases.
+- Downloaded comments are cached in the local database by provider and episode
+  for offline replay and to avoid repeated requests. Use **Refresh Danmaku**
+  when you explicitly want a fresh copy from dandanplay.
 - Player-bar controls: on/off (`D`), opacity, font size, display area,
   scrolling speed, max simultaneous comments, per-mode and colored-comment
-  filters, ±10 s timing offset, reload, and episode re-matching — all
+  filters, ±10 s timing offset, refresh, and episode re-matching — all
   persisted. Requires free AppId/AppSecret credentials from
   [dev.dandanplay.com](https://dev.dandanplay.com), stored in the Keychain
   via **Settings**.
