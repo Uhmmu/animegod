@@ -156,6 +156,10 @@ final class DanmakuCanvas: NSView {
     private var settings: DanmakuDisplaySettings = .default
     private var hasComments = false
     private var isVisible = true
+    /// The engine does not tick while there are no comments. Keep the latest
+    /// player position separately so a late match starts at the current scene
+    /// instead of scanning the entire movie from zero on its first frame.
+    private var latestPlaybackPosition: Double = 0
 
     /// Layers by comment id; reused across frames, created/removed only on
     /// structural changes.
@@ -240,6 +244,7 @@ final class DanmakuCanvas: NSView {
         }
         hasComments = !baked.isEmpty
         engine.load(comments: baked)
+        engine.seek(to: max(0, latestPlaybackPosition))
         syncLayers(structural: true)
         updateDisplayLinkState()
     }
@@ -247,6 +252,7 @@ final class DanmakuCanvas: NSView {
     /// Player position sample. Anchors the clock; detects seeks by jump
     /// magnitude and rebuilds engine state instead of replaying.
     func playbackSample(position: Double, speed: Double, paused: Bool, hostTime: Double = CACurrentMediaTime()) {
+        latestPlaybackPosition = max(0, position)
         let predicted = clock.mediaTime(atHost: hostTime)
         if abs(position - predicted) > max(0.5, 0.25 * speed) {
             engine.seek(to: max(0, position))

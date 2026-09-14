@@ -279,6 +279,7 @@ struct DanmakuMatchSheet: View {
     @State private var didSearchAutomatically = false
     @State private var searchTask: Task<Void, Never>?
     @State private var expandedAnimeID: Int64?
+    @State private var pendingEpisodeID: Int64?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -294,9 +295,22 @@ struct DanmakuMatchSheet: View {
             }
             .padding(12)
 
-            if let currentAnime {
+            if let match = liveMatch {
                 HStack {
-                    Text("Currently matched: \(currentAnime)\(currentEpisode.map { " · \($0)" } ?? "")")
+                    Label {
+                        Text("Current: \(match.anime) · \(match.episode) · \(session.renderer.loadedCount.formatted()) comments")
+                            .lineLimit(1)
+                    } icon: {
+                        Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                    }
+                    .font(.caption)
+                    Spacer()
+                }
+                .padding(.horizontal, 12)
+                .padding(.bottom, 6)
+            } else if let currentAnime {
+                HStack {
+                    Text("Previously matched: \(currentAnime)\(currentEpisode.map { " · \($0)" } ?? "")")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -351,6 +365,14 @@ struct DanmakuMatchSheet: View {
         }
         .frame(minWidth: 520, minHeight: 520)
         .onAppear(perform: beginAutomaticSearch)
+        .onChange(of: session.phase) { _, phase in
+            switch phase {
+            case .ready, .failed, .noMatch:
+                pendingEpisodeID = nil
+            default:
+                break
+            }
+        }
         .onDisappear { searchTask?.cancel() }
     }
 
@@ -360,13 +382,21 @@ struct DanmakuMatchSheet: View {
                 select(suggestion.episode, in: suggestion.anime)
             } label: {
                 HStack(spacing: 12) {
-                    Image(systemName: index == 0 ? "sparkles" : "text.bubble")
-                        .foregroundStyle(index == 0 ? Color.accentColor : Color.secondary)
+                    Image(systemName: rowIcon(for: suggestion, index: index))
+                        .foregroundStyle(rowColor(for: suggestion, index: index))
                         .frame(width: 18)
                     VStack(alignment: .leading, spacing: 3) {
                         HStack(spacing: 7) {
                             Text(suggestion.anime.animeTitle).font(.body.weight(.medium))
-                            if index == 0 {
+                            if suggestion.episode.episodeID == liveMatch?.episodeID {
+                                Text("Current Match")
+                                    .font(.caption2.weight(.semibold))
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.green.opacity(0.14), in: Capsule())
+                            } else if pendingEpisodeID == suggestion.episode.episodeID {
+                                ProgressView().controlSize(.small)
+                            } else if index == 0 {
                                 Text("Best Match")
                                     .font(.caption2.weight(.semibold))
                                     .padding(.horizontal, 6)
@@ -466,13 +496,32 @@ struct DanmakuMatchSheet: View {
         }
     }
 
+    private var liveMatch: (anime: String, episode: String, episodeID: Int64)? {
+        if case let .ready(anime, episode, episodeID, _) = session.phase {
+            return (anime, episode, episodeID)
+        }
+        return nil
+    }
+
+    private func rowIcon(for suggestion: DanmakuEpisodeSuggestion, index: Int) -> String {
+        if suggestion.episode.episodeID == liveMatch?.episodeID { return "checkmark.circle.fill" }
+        if pendingEpisodeID == suggestion.episode.episodeID { return "arrow.triangle.2.circlepath" }
+        return index == 0 ? "sparkles" : "text.bubble"
+    }
+
+    private func rowColor(for suggestion: DanmakuEpisodeSuggestion, index: Int) -> Color {
+        if suggestion.episode.episodeID == liveMatch?.episodeID { return .green }
+        if pendingEpisodeID == suggestion.episode.episodeID || index == 0 { return .accentColor }
+        return .secondary
+    }
+
     private func select(_ episode: DanmakuSearchedEpisode, in anime: DanmakuSearchedAnime) {
+        pendingEpisodeID = episode.episodeID
         session.matchManually(to: DanmakuEpisodeRef(
             providerID: "dandanplay",
             episodeID: episode.episodeID,
             animeTitle: anime.animeTitle,
             episodeTitle: episode.episodeTitle
         ))
-        onDismiss()
     }
 }

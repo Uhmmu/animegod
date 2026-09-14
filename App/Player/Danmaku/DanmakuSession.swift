@@ -144,7 +144,7 @@ final class DanmakuSession: ObservableObject {
 
     /// Manual episode selection from the match sheet.
     func matchManually(to episodeRef: DanmakuEpisodeRef) {
-        guard let request = currentRequest, let database else { return }
+        guard let request = currentRequest else { return }
         generation = UUID()
         let token = generation
         isReloading = true
@@ -152,9 +152,11 @@ final class DanmakuSession: ObservableObject {
         Task { [weak self] in
             guard let self else { return }
             defer { if token == self.generation { self.isReloading = false } }
-            try? await database.saveDanmakuMatch(DanmakuMatchBinding(
-                mediaFileID: request.mediaFileID, episodeRef: episodeRef, isManual: true
-            ))
+            if let database = self.database {
+                try? await database.saveDanmakuMatch(DanmakuMatchBinding(
+                    mediaFileID: request.mediaFileID, episodeRef: episodeRef, isManual: true
+                ))
+            }
             await self.presentComments(for: episodeRef, forceRefresh: false, token: token)
         }
     }
