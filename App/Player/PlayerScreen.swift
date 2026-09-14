@@ -1097,6 +1097,14 @@ struct PlayerScreen: View {
                 process.waitUntilExit()
             }
             try? await Task.sleep(for: .seconds(4))
+            let arguments = ProcessInfo.processInfo.arguments
+            if let flag = arguments.firstIndex(of: "-smokeMatch"), flag + 1 < arguments.count,
+               let version = state.currentEpisode.versions.first(where: { $0.relativePath.contains(arguments[flag + 1]) }),
+               version.id != state.currentEpisode.mediaFile.id {
+                FileHandle.standardError.write(Data("SMOKE switching version to \(version.relativePath)\n".utf8))
+                state.switchVersion(to: version)
+                try? await Task.sleep(for: .seconds(12))
+            }
             let window = state.controller?.view.window
             if window?.styleMask.contains(.fullScreen) == true {
                 toggleFullscreen()
@@ -1138,7 +1146,9 @@ struct PlayerScreen: View {
         let rendered = controller?.renderedOutputSize
         let renderedText = rendered.map { "\(Int($0.width))x\(Int($0.height))" } ?? "nil"
         let fullscreen = controller?.view.window?.styleMask.contains(.fullScreen) ?? false
-        print("SMOKE \(label): window=\(Int(windowFrame.width))x\(Int(windowFrame.height)) fs=\(fullscreen) view=\(Int(viewBounds.width))x\(Int(viewBounds.height)) drawable=\(Int(drawable.width))x\(Int(drawable.height)) surface=\(renderedText) pos=\(Int(state.position))/\(Int(state.duration)) controls=\(controlsVisible) cursorHidden=\(cursorHiddenByPlayer)")
+        FileHandle.standardError.write(Data("SMOKE \(label): window=\(Int(windowFrame.width))x\(Int(windowFrame.height)) fs=\(fullscreen) view=\(Int(viewBounds.width))x\(Int(viewBounds.height)) drawable=\(Int(drawable.width))x\(Int(drawable.height)) surface=\(renderedText) pos=\(Int(state.position))/\(Int(state.duration)) controls=\(controlsVisible) cursorHidden=\(cursorHiddenByPlayer)\n".utf8))
+        let screen = controller?.view.window?.screen
+        FileHandle.standardError.write(Data("SMOKE \(label) color: headroom=\(screen?.maximumExtendedDynamicRangeColorComponentValue ?? 0) potential=\(screen?.maximumPotentialExtendedDynamicRangeColorComponentValue ?? 0) mode=\(state.outputMode) hdrActive=\(state.hdrOutputActive) \(controller?.colorPipelineDiagnostics ?? "nil")\n".utf8))
     }
 
     private func revealControls() {

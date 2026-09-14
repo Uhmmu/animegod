@@ -103,6 +103,24 @@ struct RootView: View {
                 try? await Task.sleep(for: .milliseconds(500))
                 waited += 1
             }
+            let arguments = ProcessInfo.processInfo.arguments
+            if let flag = arguments.firstIndex(of: "-smokeMatch"), flag + 1 < arguments.count {
+                let needle = arguments[flag + 1]
+                FileHandle.standardError.write(Data("SMOKE match needle=\(needle) library=\(model.library.count)\n".utf8))
+                for item in model.library {
+                    let episodes = await model.episodes(for: item.anime)
+                    if let hit = episodes.first(where: { $0.versions.contains { $0.relativePath.contains(needle) } }) {
+                        FileHandle.standardError.write(Data("SMOKE match hit anime=\(item.anime.title) primary=\(hit.mediaFile.relativePath)\n".utf8))
+                    }
+                    if let episode = episodes.first(where: { episode in
+                        episode.mediaFile.relativePath.contains(needle)
+                            || episode.versions.contains { $0.relativePath.contains(needle) }
+                    }) {
+                        await model.play(episode)
+                        return
+                    }
+                }
+            }
             guard let anime = model.library.first?.anime else { return }
             let episodes = await model.episodes(for: anime)
             if let episode = episodes.first { await model.play(episode) }

@@ -83,6 +83,18 @@ final class MPVPlayerController: NSViewController {
     var isForcedSDR: Bool { forcedSDR }
     var isHDROutputActive: Bool { targetHDRActive }
     var targetPeakName: String { String(format: "%.0f nits", targetPeakNits) }
+    /// What the layer and renderer actually use right now, as opposed to what
+    /// was requested. MoltenVK may rewrite layer state on swapchain creation.
+    var colorPipelineDiagnostics: String {
+        let colorspace = metalLayer.colorspace.flatMap { $0.name as String? } ?? "nil"
+        let edr = metalLayer.edrMetadata == nil ? "nil" : "set"
+        return "layer.colorspace=\(colorspace) layer.format=\(metalLayer.pixelFormat.diagnosticName) "
+            + "layer.wantsEDR=\(metalLayer.wantsExtendedDynamicRangeContent) layer.edrMetadata=\(edr) "
+            + "mpv.target-trc=\(getString("target-trc") ?? "nil") mpv.target-prim=\(getString("target-prim") ?? "nil") "
+            + "mpv.target-peak=\(getString("target-peak") ?? "nil") mpv.tone-mapping=\(getString("tone-mapping") ?? "nil") "
+            + "mpv.video-params=\(getString("video-params") ?? "nil") "
+            + "mpv.video-target-params=\(getString("video-target-params") ?? "nil")"
+    }
 
     private struct PlaybackRestoration {
         let paused: Bool
