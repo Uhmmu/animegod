@@ -277,15 +277,75 @@ struct DanmakuEngineTests {
         #expect(engine.activeComments.allSatisfy { $0.y < usableAreaHeight })
     }
 
-    @Test func fixedOverflowOverlapsTheSoonestFreeLane() {
+    @Test func fixedOverflowIsDroppedInsteadOfStacked() {
         let engine = makeEngine()
-        // Eight simultaneous top comments in five lanes: deterministic
-        // overflow, never a crash, always inside the display area.
+        // Eight simultaneous top comments in five lanes: the extra three are
+        // dropped rather than drawn over each other.
         engine.load(comments: (0..<8).map { comment("t\($0)", at: 10, mode: .top) })
         engine.tick(at: 10)
-        #expect(engine.activeComments.count == 8)
+        #expect(engine.activeComments.count == 5)
+        #expect(Set(engine.activeComments.map(\.y)).count == 5)
+        #expect(engine.diagnostics.droppedNoLane == 3)
         #expect(engine.activeComments.allSatisfy { $0.y >= 0 })
         #expect(engine.activeComments.allSatisfy { $0.y < usableAreaHeight })
+    }
+
+    @Test func scrollOverflowIsDroppedInsteadOfOverlapping() {
+        let engine = makeEngine()
+        // 450pt display area / 30pt lines = 15 lanes.
+        engine.load(comments: (0..<40).map { comment("\($0)", at: 0) })
+        engine.tick(at: 0)
+        #expect(engine.activeComments.count == 15)
+        #expect(engine.diagnostics.droppedNoLane == 25)
+    }
+
+    @Test func consecutiveCommentsInALaneKeepAGap() {
+        var settings = DanmakuDisplaySettings.default
+        settings.maxLines = 1
+        let engine = makeEngine(settings: settings)
+        let speed = (viewportWidth + commentWidth) / DanmakuEngine.baseScrollDuration
+        let entered = commentWidth / speed
+        let gapCleared = (commentWidth + lineHeight * 0.75) / speed
+        engine.load(comments: [
+            comment("a", at: 0),
+            // Fully on screen, but still inside the gap: dropped.
+            comment("b", at: (entered + gapCleared) / 2),
+            comment("c", at: gapCleared + 0.01),
+        ])
+        engine.tick(at: 0)
+        engine.tick(at: (entered + gapCleared) / 2)
+        engine.tick(at: gapCleared + 0.01)
+        #expect(activeIDs(engine) == ["a", "c"])
+        #expect(engine.diagnostics.droppedNoLane == 1)
+        let a = engine.activeComments.first { $0.id == "a" }!
+        let c = engine.activeComments.first { $0.id == "c" }!
+        #expect(c.x - (a.x + a.width) >= lineHeight * 0.75)
+    }
+
+    @Test func maxLinesCapsScrollingLanes() {
+        var settings = DanmakuDisplaySettings.default
+        settings.maxLines = 4
+        let engine = makeEngine(settings: settings)
+        engine.load(comments: (0..<30).map { comment("\($0)", at: 0) })
+        engine.tick(at: 0)
+        #expect(engine.activeComments.count == 4)
+        #expect(engine.activeComments.map(\.y).max() == 3 * lineHeight)
+    }
+
+    @Test func changingFiltersRebuildsTheTimeline() {
+        let engine = makeEngine()
+        engine.load(comments: [
+            DanmakuComment(id: "keep", time: 1, text: "好耶", mode: .scroll),
+            DanmakuComment(id: "block", time: 1, text: "剧透", mode: .scroll),
+        ])
+        var settings = DanmakuDisplaySettings.default
+        settings.blockedKeywords = ["剧透"]
+        engine.updateSettings(settings)
+        engine.tick(at: 1)
+        #expect(activeIDs(engine) == ["keep"])
+        #expect(engine.diagnostics.totalCount == 2)
+        #expect(engine.diagnostics.loadedCount == 1)
+        #expect(engine.diagnostics.hiddenCount == 1)
     }
 
     private var usableAreaHeight: Double {

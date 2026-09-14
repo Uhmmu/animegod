@@ -116,10 +116,15 @@ and community content, and improves HDR/Dolby Vision brightness.
 - Downloaded comments are cached in the local database by provider and episode
   for offline replay and to avoid repeated requests. Use **Refresh Danmaku**
   when you explicitly want a fresh copy from dandanplay.
-- Player-bar controls: on/off (`D`), opacity, font size, display area,
-  scrolling speed, max simultaneous comments, per-mode and colored-comment
-  filters, ±10 s timing offset, refresh, and episode re-matching — all
-  persisted. Requires free AppId/AppSecret credentials from
+- Player-bar controls: on/off (`D`), opacity, font size, line spacing,
+  display area and max lines, scrolling speed, max simultaneous comments,
+  per-mode and colored-comment filters, ±10 s timing offset, refresh, and
+  episode re-matching — all persisted. Comments in a lane keep a gap, and
+  comments that don't fit are dropped instead of overlapping.
+- Filters for crowded shows: repeated comments within 10 seconds merge into
+  one with a ×N count, a density slider thins the rest evenly (often-repeated
+  comments are always kept), long comments can be hidden, and blocked keywords
+  accept plain text or `/regex/` patterns. Requires free AppId/AppSecret credentials from
   [dev.dandanplay.com](https://dev.dandanplay.com), stored in the Keychain
   via **Settings**.
 

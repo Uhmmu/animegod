@@ -11,6 +11,9 @@ struct DanmakuRendererSnapshot: Sendable {
     var droppedNoLane = 0
     var skippedOnSeek = 0
     var loadedCount = 0
+    var totalCount = 0
+    var mergedCount = 0
+    var hiddenCount = 0
 }
 
 /// Measures and rasterizes comment text. Danmaku text repeats heavily, so
@@ -30,19 +33,17 @@ final class DanmakuTextRasterizer {
     private(set) var fontSize: Double
     private(set) var lineHeight: Double
 
-    init(lineHeight: Double) {
+    init(fontSize: Double, lineHeight: Double) {
+        self.fontSize = fontSize
         self.lineHeight = lineHeight
-        self.fontSize = lineHeight * 0.62
     }
 
-    /// Metrics changed (viewport resize / font scale): fonts re-create,
-    /// caches invalidate.
-    func update(lineHeight newLineHeight: Double, scale: Int) {
-        let clamped = min(max(newLineHeight, 16), 64)
-        let lineHeightChanged = clamped != lineHeight
-        if lineHeightChanged {
-            lineHeight = clamped
-            fontSize = clamped * 0.62
+    /// Metrics changed (viewport resize / font scale / line spacing): fonts
+    /// re-create, caches invalidate.
+    func update(fontSize newFontSize: Double, lineHeight newLineHeight: Double, scale: Int) {
+        if newFontSize != fontSize || newLineHeight != lineHeight {
+            fontSize = newFontSize
+            lineHeight = newLineHeight
             bitmaps.removeAll(keepingCapacity: true)
             widths.removeAll(keepingCapacity: true)
         }
@@ -175,7 +176,8 @@ final class DanmakuCanvas: NSView {
     private var lineHeight: Double { rasterizer.lineHeight }
 
     override init(frame frameRect: NSRect) {
-        rasterizer = DanmakuTextRasterizer(lineHeight: max(frameRect.height, 1) * 0.042)
+        // Placeholder metrics; recomputeMetrics() below derives the real ones.
+        rasterizer = DanmakuTextRasterizer(fontSize: 16, lineHeight: 21)
         super.init(frame: frameRect)
         let rast = rasterizer
         engine = DanmakuEngine(
@@ -216,10 +218,11 @@ final class DanmakuCanvas: NSView {
     // MARK: - Public inputs
 
     func apply(settings newSettings: DanmakuDisplaySettings) {
-        let fontChanged = newSettings.fontScale != settings.fontScale
+        let metricsChanged = newSettings.fontScale != settings.fontScale
+            || newSettings.lineSpacing != settings.lineSpacing
         settings = newSettings
         hostLayer.opacity = Float(min(max(newSettings.opacity, 0.05), 1))
-        if fontChanged {
+        if metricsChanged {
             recomputeMetrics()
         } else {
             engine.updateSettings(newSettings)
@@ -314,7 +317,10 @@ final class DanmakuCanvas: NSView {
             droppedForCapacity: engineDiag.droppedForCapacity,
             droppedNoLane: engineDiag.droppedNoLane,
             skippedOnSeek: engineDiag.skippedOnSeek,
-            loadedCount: engineDiag.loadedCount
+            loadedCount: engineDiag.loadedCount,
+            totalCount: engineDiag.totalCount,
+            mergedCount: engineDiag.mergedCount,
+            hiddenCount: engineDiag.hiddenCount
         ))
     }
 
@@ -326,7 +332,12 @@ final class DanmakuCanvas: NSView {
 
     private func recomputeMetrics() {
         let scale = Int((window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2).rounded())
-        rasterizer.update(lineHeight: max(bounds.height, 1) * 0.042, scale: scale)
+        // Base size tracks the player height (≈29pt in a 1117pt-tall
+        // fullscreen window); the user scale and line spacing apply on top.
+        let baseFontSize = min(max(bounds.height * 0.026, 14), 40)
+        let fontSize = min(max(baseFontSize * settings.fontScale, 10), 60)
+        let spacing = min(max(settings.lineSpacing, 1.05), 2)
+        rasterizer.update(fontSize: fontSize, lineHeight: (fontSize * spacing).rounded(), scale: scale)
         engine.updateSettings(settings)
         engine.updateViewport(width: max(bounds.width, 1), height: max(bounds.height, 1), lineHeight: lineHeight)
         syncLayers(structural: true)

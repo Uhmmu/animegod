@@ -19,6 +19,18 @@ public struct DanmakuDisplaySettings: Codable, Sendable, Equatable {
     public var hideColored: Bool
     /// Manual timing offset in seconds; positive delays danmaku.
     public var timeOffset: Double
+    /// Line height as a multiple of the font size (1.15...1.5).
+    public var lineSpacing: Double
+    /// Maximum scrolling lines; 0 = as many as the display area fits.
+    public var maxLines: Int
+    /// Collapse repeated comments within `DanmakuCommentFilter.mergeWindow`.
+    public var mergeDuplicates: Bool
+    /// 0.2...1.0 fraction of comments kept after merging.
+    public var density: Double
+    /// Hide comments longer than this many characters; 0 = no limit.
+    public var maxLength: Int
+    /// Case-insensitive substrings, or `/regex/` patterns.
+    public var blockedKeywords: [String]
 
     public init(
         opacity: Double = 0.8,
@@ -30,7 +42,13 @@ public struct DanmakuDisplaySettings: Codable, Sendable, Equatable {
         hideTop: Bool = false,
         hideBottom: Bool = false,
         hideColored: Bool = false,
-        timeOffset: Double = 0
+        timeOffset: Double = 0,
+        lineSpacing: Double = 1.3,
+        maxLines: Int = 0,
+        mergeDuplicates: Bool = true,
+        density: Double = 1.0,
+        maxLength: Int = 0,
+        blockedKeywords: [String] = []
     ) {
         self.opacity = opacity
         self.fontScale = fontScale
@@ -42,9 +60,52 @@ public struct DanmakuDisplaySettings: Codable, Sendable, Equatable {
         self.hideBottom = hideBottom
         self.hideColored = hideColored
         self.timeOffset = timeOffset
+        self.lineSpacing = lineSpacing
+        self.maxLines = maxLines
+        self.mergeDuplicates = mergeDuplicates
+        self.density = density
+        self.maxLength = maxLength
+        self.blockedKeywords = blockedKeywords
+    }
+
+    /// Settings persisted by older builds lack newer keys; every key falls
+    /// back to its default so an upgrade keeps the user's existing choices.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let defaults = DanmakuDisplaySettings()
+        opacity = try container.decodeIfPresent(Double.self, forKey: .opacity) ?? defaults.opacity
+        fontScale = try container.decodeIfPresent(Double.self, forKey: .fontScale) ?? defaults.fontScale
+        displayArea = try container.decodeIfPresent(Double.self, forKey: .displayArea) ?? defaults.displayArea
+        speedMultiplier = try container.decodeIfPresent(Double.self, forKey: .speedMultiplier) ?? defaults.speedMultiplier
+        maxSimultaneous = try container.decodeIfPresent(Int.self, forKey: .maxSimultaneous) ?? defaults.maxSimultaneous
+        hideScroll = try container.decodeIfPresent(Bool.self, forKey: .hideScroll) ?? defaults.hideScroll
+        hideTop = try container.decodeIfPresent(Bool.self, forKey: .hideTop) ?? defaults.hideTop
+        hideBottom = try container.decodeIfPresent(Bool.self, forKey: .hideBottom) ?? defaults.hideBottom
+        hideColored = try container.decodeIfPresent(Bool.self, forKey: .hideColored) ?? defaults.hideColored
+        timeOffset = try container.decodeIfPresent(Double.self, forKey: .timeOffset) ?? defaults.timeOffset
+        lineSpacing = try container.decodeIfPresent(Double.self, forKey: .lineSpacing) ?? defaults.lineSpacing
+        maxLines = try container.decodeIfPresent(Int.self, forKey: .maxLines) ?? defaults.maxLines
+        mergeDuplicates = try container.decodeIfPresent(Bool.self, forKey: .mergeDuplicates) ?? defaults.mergeDuplicates
+        density = try container.decodeIfPresent(Double.self, forKey: .density) ?? defaults.density
+        maxLength = try container.decodeIfPresent(Int.self, forKey: .maxLength) ?? defaults.maxLength
+        blockedKeywords = try container.decodeIfPresent([String].self, forKey: .blockedKeywords) ?? defaults.blockedKeywords
     }
 
     public static let `default` = DanmakuDisplaySettings()
+
+    /// True when `other` changes which comments are visible (as opposed to
+    /// how they are drawn).
+    func changesVisibleComments(comparedTo other: DanmakuDisplaySettings) -> Bool {
+        timeOffset != other.timeOffset
+            || hideScroll != other.hideScroll
+            || hideTop != other.hideTop
+            || hideBottom != other.hideBottom
+            || hideColored != other.hideColored
+            || mergeDuplicates != other.mergeDuplicates
+            || density != other.density
+            || maxLength != other.maxLength
+            || blockedKeywords != other.blockedKeywords
+    }
 }
 
 /// A comment currently on screen, with geometry in points. The renderer
@@ -91,7 +152,12 @@ public final class DanmakuEngine {
     public static let spawnGrace: Double = 0.75
 
     public struct Diagnostics: Sendable, Equatable {
+        /// Comments delivered by the provider.
+        public var totalCount = 0
+        /// Comments left after filtering and merging (the engine timeline).
         public var loadedCount = 0
+        public var mergedCount = 0
+        public var hiddenCount = 0
         public var skippedOnSeek = 0
         public var droppedForCapacity = 0
         public var droppedNoLane = 0
@@ -166,12 +232,9 @@ public final class DanmakuEngine {
     }
 
     public func updateSettings(_ newSettings: DanmakuDisplaySettings) {
-        let needsReload = newSettings.timeOffset != settings.timeOffset
-            || newSettings.hideScroll != settings.hideScroll
-            || newSettings.hideTop != settings.hideTop
-            || newSettings.hideBottom != settings.hideBottom
-            || newSettings.hideColored != settings.hideColored
+        let needsReload = newSettings.changesVisibleComments(comparedTo: settings)
         let needsLaneRebuild = newSettings.displayArea != settings.displayArea
+            || newSettings.maxLines != settings.maxLines
         settings = newSettings
         if needsReload {
             rebuildCommentTimeline()
@@ -343,7 +406,10 @@ public final class DanmakuEngine {
     }
 
     private func rebuildLanes() {
-        let laneCount = max(1, Int(usableAreaHeight / lineHeight))
+        var laneCount = max(1, Int(usableAreaHeight / lineHeight))
+        if settings.maxLines > 0 {
+            laneCount = min(laneCount, settings.maxLines)
+        }
         scrollLanes = Array(repeating: nil, count: laneCount)
         let fixedCount = max(1, min(12, laneCount / 3))
         topLanes = Array(repeating: 0, count: fixedCount)
@@ -355,39 +421,32 @@ public final class DanmakuEngine {
         return (viewportWidth + width) / duration
     }
 
-    /// Collision-free lane allocation for a scrolling comment.
-    ///
-    /// A lane is usable when the previous comment (a) has fully entered the
-    /// viewport and (b) the newcomer cannot rear-end it before it exits.
-    /// When no lane is collision-free, the lane that becomes available
-    /// soonest wins — a deterministic overflow that keeps overlaps minimal.
+    /// Minimum horizontal distance between consecutive comments in a lane.
+    private var scrollGap: Double { lineHeight * 0.75 }
+
+    /// Collision-free lane allocation for a scrolling comment: the topmost
+    /// lane whose previous comment (a) is `scrollGap` clear of the right
+    /// edge and (b) cannot be closed to within `scrollGap` by the newcomer
+    /// before it exits. When every lane is busy the comment is dropped —
+    /// overlapping text in dense scenes is unreadable anyway.
     private func allocateScrollLane(now: Double, width: Double, speed: Double) -> Int? {
-        var fallbackLane: Int?
-        var fallbackAvailableAt = Double.infinity
         for (lane, tail) in scrollLanes.enumerated() {
             guard let tail else { return lane }
-            if now >= tail.exitTime { return lane }
-            let availableAt = laneAvailableAt(tail: tail, width: width, speed: speed)
-            if availableAt < fallbackAvailableAt {
-                fallbackAvailableAt = availableAt
-                fallbackLane = lane
+            if now >= tail.exitTime || laneAvailableAt(tail: tail, speed: speed) <= now {
+                return lane
             }
         }
-        // Overflow placement: only into the soonest-free lane whose
-        // previous comment is already fully on screen; otherwise drop.
-        guard let lane = fallbackLane, let tail = scrollLanes[lane] else { return nil }
-        guard tail.speed * (now - tail.spawnTime) >= tail.width else { return nil }
-        return lane
+        return nil
     }
 
-    /// When the lane becomes collision-free for a comment with the given
-    /// width and speed: the predecessor must clear the right edge, and a
-    /// faster newcomer must not catch up before the predecessor exits
-    /// (`v_new * (t_exit - t_spawn_new) <= viewportWidth`).
-    private func laneAvailableAt(tail: LaneTail, width: Double, speed: Double) -> Double {
-        var constraints = [tail.spawnTime + tail.width / tail.speed]
+    /// When the lane becomes free for a comment with the given speed. With
+    /// constant speeds the gap is smallest either at spawn (predecessor's
+    /// tail near the right edge) or, for a faster newcomer, when the
+    /// predecessor exits: `W - v_new * (t_exit - t_spawn_new) >= gap`.
+    private func laneAvailableAt(tail: LaneTail, speed: Double) -> Double {
+        var constraints = [tail.spawnTime + (tail.width + scrollGap) / tail.speed]
         if speed > tail.speed {
-            constraints.append(tail.exitTime - viewportWidth / speed)
+            constraints.append(tail.exitTime - (viewportWidth - scrollGap) / speed)
         }
         return constraints.max() ?? 0
     }
@@ -399,16 +458,8 @@ public final class DanmakuEngine {
         case .bottom: lanes = bottomLanes
         case .scroll: return nil
         }
-        var fallback: Int?
-        var fallbackFreeAt = Double.infinity
-        for (lane, freeAt) in lanes.enumerated() {
-            if now >= freeAt { return lane }
-            if freeAt < fallbackFreeAt {
-                fallbackFreeAt = freeAt
-                fallback = lane
-            }
-        }
-        return fallback
+        // Stacked fixed comments are unreadable; drop when every lane is busy.
+        return lanes.firstIndex { now >= $0 }
     }
 
     private func allowsCapacity() -> Bool {
@@ -418,20 +469,13 @@ public final class DanmakuEngine {
     // MARK: - Helpers
 
     private func rebuildCommentTimeline() {
-        comments = allComments.filter { comment in
-            let modeAllowed: Bool
-            switch comment.mode {
-            case .scroll: modeAllowed = !settings.hideScroll
-            case .top: modeAllowed = !settings.hideTop
-            case .bottom: modeAllowed = !settings.hideBottom
-            }
-            return modeAllowed && !(settings.hideColored && comment.isColored)
-        }
-        .sorted { lhs, rhs in
-            lhs.time < rhs.time || (lhs.time == rhs.time && lhs.id < rhs.id)
-        }
+        let result = DanmakuCommentFilter(settings: settings).apply(to: allComments)
+        comments = result.comments
         effectiveTimes = comments.map { $0.time + settings.timeOffset }
+        diagnostics.totalCount = allComments.count
         diagnostics.loadedCount = comments.count
+        diagnostics.mergedCount = result.mergedCount
+        diagnostics.hiddenCount = result.hiddenCount
     }
 
     private func clearActive() {

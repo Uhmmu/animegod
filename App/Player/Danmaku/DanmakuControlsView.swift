@@ -56,7 +56,8 @@ struct DanmakuDiagnosticsSection: View {
             Text("Matched Anime: \(match?.anime ?? "—")")
             Text("Episode: \(match?.episode ?? "—")")
             Text("Episode ID: \(episodeIDText)")
-            Text("Comments Loaded: \(snapshot.loadedCount)")
+            Text("Comments Loaded: \(snapshot.loadedCount) of \(snapshot.totalCount)")
+            Text("Filtered: merged \(snapshot.mergedCount) · hidden \(snapshot.hiddenCount)")
             Text("Comments Active: \(snapshot.activeCount)")
             Text("Cache: \(cacheText)")
             Text("Timing Offset: \(String(format: "%+.1fs", preferences.settings.timeOffset))")
@@ -127,6 +128,7 @@ struct DanmakuMenuButton: View {
             Toggle("Hide Top Comments", isOn: binding(\.hideTop))
             Toggle("Hide Bottom Comments", isOn: binding(\.hideBottom))
             Toggle("Hide Colored Comments", isOn: binding(\.hideColored))
+            Toggle("Merge Duplicate Comments", isOn: binding(\.mergeDuplicates))
 
             Divider()
 
@@ -173,6 +175,8 @@ struct DanmakuSettingsPanel: View {
     @ObservedObject var session: DanmakuSession
     let openMatch: () -> Void
 
+    @State private var newKeyword = ""
+
     var body: some View {
         Form {
             Section("Danmaku") {
@@ -188,6 +192,20 @@ struct DanmakuSettingsPanel: View {
                     Text("½ Screen").tag(0.5)
                     Text("¾ Screen").tag(0.75)
                     Text("Full Screen").tag(1.0)
+                }
+                Picker("Line Spacing", selection: $preferences.settings.lineSpacing) {
+                    Text("Compact").tag(1.15)
+                    Text("Standard").tag(1.3)
+                    Text("Relaxed").tag(1.5)
+                }
+                LabeledContent("Max Lines") {
+                    Picker("Max Lines", selection: $preferences.settings.maxLines) {
+                        Text("Fill Display Area").tag(0)
+                        ForEach([4, 6, 8, 10, 12, 16], id: \.self) { value in
+                            Text("\(value)").tag(value)
+                        }
+                    }
+                    .labelsHidden()
                 }
                 Slider(value: $preferences.settings.speedMultiplier, in: 0.5...2) {
                     Text("Scrolling Speed \(String(format: "%.1f×", preferences.settings.speedMultiplier))")
@@ -206,11 +224,57 @@ struct DanmakuSettingsPanel: View {
                 }
             }
 
-            Section("Filters") {
+            Section {
+                Toggle("Merge Duplicate Comments", isOn: $preferences.settings.mergeDuplicates)
+                Slider(value: $preferences.settings.density, in: 0.2...1, step: 0.1) {
+                    Text("Density \(Int((preferences.settings.density * 100).rounded()))%")
+                }
+                LabeledContent("Hide Long Comments") {
+                    Picker("Hide Long Comments", selection: $preferences.settings.maxLength) {
+                        Text("Off").tag(0)
+                        ForEach([15, 20, 30, 50], id: \.self) { value in
+                            Text("Over \(value) Characters").tag(value)
+                        }
+                    }
+                    .labelsHidden()
+                }
                 Toggle("Hide Scrolling Comments", isOn: $preferences.settings.hideScroll)
                 Toggle("Hide Top Comments", isOn: $preferences.settings.hideTop)
                 Toggle("Hide Bottom Comments", isOn: $preferences.settings.hideBottom)
                 Toggle("Hide Colored Comments", isOn: $preferences.settings.hideColored)
+            } header: {
+                Text("Filters")
+            } footer: {
+                Text("Merging shows a comment repeated within \(Int(DanmakuCommentFilter.mergeWindow)) seconds once, with a ×N count. Lower density thins comments evenly; comments repeated \(DanmakuCommentFilter.popularThreshold) or more times are always kept.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Blocked Keywords") {
+                HStack {
+                    TextField("Block", text: $newKeyword, prompt: Text("Keyword or /regex/"))
+                        .onSubmit(addKeyword)
+                    Button("Add", action: addKeyword)
+                        .disabled(!DanmakuCommentFilter.isValidKeyword(newKeyword))
+                }
+                if preferences.settings.blockedKeywords.isEmpty {
+                    Text("No blocked keywords. Wrap a pattern in slashes, like /^23+$/, to use a regular expression.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                ForEach(preferences.settings.blockedKeywords, id: \.self) { keyword in
+                    HStack {
+                        Text(keyword).lineLimit(1)
+                        Spacer()
+                        Button {
+                            preferences.settings.blockedKeywords.removeAll { $0 == keyword }
+                        } label: {
+                            Image(systemName: "minus.circle")
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Remove")
+                    }
+                }
             }
 
             Section("Timing") {
@@ -264,6 +328,15 @@ struct DanmakuSettingsPanel: View {
         .navigationTitle("Danmaku")
         .frame(minWidth: 460, minHeight: 620)
     }
+
+    private func addKeyword() {
+        let keyword = newKeyword.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard DanmakuCommentFilter.isValidKeyword(keyword) else { return }
+        if !preferences.settings.blockedKeywords.contains(keyword) {
+            preferences.settings.blockedKeywords.append(keyword)
+        }
+        newKeyword = ""
+    }
 }
 
 /// Metadata-assisted episode selection. Opening the sheet immediately searches
@@ -308,7 +381,7 @@ struct DanmakuMatchSheet: View {
             if let match = liveMatch {
                 HStack {
                     Label {
-                        Text("Current: \(match.anime) · \(match.episode) · \(session.renderer.loadedCount.formatted()) comments")
+                        Text("Current: \(match.anime) · \(match.episode) · \(session.renderer.totalCount.formatted()) comments")
                             .lineLimit(1)
                     } icon: {
                         Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
