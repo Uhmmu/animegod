@@ -1,5 +1,7 @@
 # AnimeGod
 
+**English** | [简体中文](README.zh-CN.md)
+
 AnimeGod is a native, local-first anime library and video player for macOS —
 **IINA × an anime library manager × Bangumi/AniList × a personal anime diary**,
 in one fast SwiftUI application.
@@ -7,9 +9,9 @@ in one fast SwiftUI application.
 > Give a local anime collection memory, structure, context, and history while
 > preserving the speed and quality of a native macOS application.
 
-**Current release: 0.1.3.** This release makes danmaku automatic and dependable,
-adds offline episode caching for removable drives, expands Bangumi discovery
-and community content, and improves HDR/Dolby Vision brightness.
+**Current release: 0.1.4.** This release keeps crowded danmaku readable with
+tighter layout, duplicate merging, density and keyword filters, and adds an
+in-player Danmaku Manager for browsing, searching, and blocking comments.
 
 ## Features
 
@@ -73,7 +75,7 @@ and community content, and improves HDR/Dolby Vision brightness.
   hardware decode, multi audio/subtitle tracks, sidecar subtitle discovery
   (`sub-auto=fuzzy` + `subs/字幕` folders), manual external subtitle loading.
 - Chapters, playback speed (0.5×–2×), volume, subtitle/audio delay, timeline,
-  keyboard shortcuts (`Space`, `←/→`, `F`, `N/P`, `D`), double-click fullscreen,
+  keyboard shortcuts (`Space`, `←/→`, `F`, `N/P`, `D`, `M`), double-click fullscreen,
   in-player episode navigation with category labels, alternative-encode
   version menu.
 - HDR: signal-based HDR10/HLG/Dolby-Vision detection, 16-bit-float BT.2020 EDR
@@ -120,7 +122,10 @@ and community content, and improves HDR/Dolby Vision brightness.
   display area and max lines, scrolling speed, max simultaneous comments,
   per-mode and colored-comment filters, ±10 s timing offset, refresh, and
   episode re-matching — all persisted. Comments in a lane keep a gap, and
-  comments that don't fit are dropped instead of overlapping.
+  comments that don't fit are dropped instead of overlapping. Requires free
+  AppId/AppSecret credentials from
+  [dev.dandanplay.com](https://dev.dandanplay.com), stored in the Keychain
+  via **Settings**.
 - Filters for crowded shows: repeated comments within 10 seconds merge into
   one with a ×N count, a density slider thins the rest evenly (often-repeated
   comments are always kept), long comments can be hidden, and blocked keywords
@@ -129,9 +134,7 @@ and community content, and improves HDR/Dolby Vision brightness.
   listing the last 30 seconds of comments or searching the whole episode.
   Click a comment to jump to it; right-click to block its text or its sender.
   Hidden comments show which rule hid them, and blocked keywords and users can
-  be managed in the panel or in Danmaku Settings. Requires free AppId/AppSecret credentials from
-  [dev.dandanplay.com](https://dev.dandanplay.com), stored in the Keychain
-  via **Settings**.
+  be managed in the panel or in Danmaku Settings.
 
 ### Personal library
 - Watch events are recorded from real playback sessions (sub-15 s touches are

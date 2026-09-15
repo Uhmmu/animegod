@@ -1,50 +1,51 @@
-# AnimeGod 0.1.3
+# AnimeGod 0.1.4
 
-AnimeGod 0.1.3 makes danmaku easier to use, adds reliable offline playback for
-anime stored on removable drives, and brings more of Bangumi into the app.
+AnimeGod 0.1.4 keeps danmaku readable on even the busiest shows, adds an
+in-player Danmaku Manager, and fixes how some release folders are grouped in
+the library.
 
-## Danmaku that finds the right episode
+## Danmaku that stays readable
 
-- Click the danmaku button to see automatically ranked episode suggestions.
-  AnimeGod uses your library metadata, episode number, and media type instead
-  of asking you to paste a release filename into a search field.
-- The selected episode is clearly marked as the current match, so trying a
-  different result gives immediate, visible confirmation.
-- Comments now start at the top of the picture and stay locked to the video.
-  Pausing freezes them immediately, while seeking, changing speed, and
-  resuming keep the timelines synchronized.
-- Every downloaded comment set is cached locally. Replaying the same episode
-  uses the cache without another network request; **Refresh Danmaku** in the
-  player menu or episode chooser fetches a new copy only when you ask for it.
-- Updated compatibility with the current dandanplay API response format.
+- The **Font Size** setting now takes effect, and a new **Line Spacing**
+  option (Compact, Standard, Relaxed) packs comments closer together.
+  Standard spacing is noticeably tighter than before.
+- **Max Lines** limits scrolling comments to a set number of rows, in
+  addition to the existing display-area choice.
+- Comments in the same row keep a gap instead of following each other edge
+  to edge, and comments that don't fit are skipped rather than drawn on top
+  of each other.
 
-## Offline episode playback
+## Filters for crowded shows
 
-- Episodes on an external drive can be cached automatically while you watch or
-  saved manually in advance with **Cache All** and per-episode controls.
-- Cached episodes remain playable when the drive is disconnected. Uncached
-  episodes stay visible in the library and tell you when the drive is needed.
-- Finished auto-cached episodes are removed at 90% watched to reclaim space;
-  manually saved copies remain until you delete them.
-- A new cache manager shows storage use, copy progress, watched status, and
-  controls for cancelling, revealing, or deleting cached episodes.
+- **Merge Duplicate Comments** (on by default) shows a comment repeated within
+  10 seconds once, with a ×N count. Case, spacing, punctuation, and long
+  runs like "哈哈哈哈" are ignored when comparing.
+- **Density** thins comments evenly from 100% down to 20%. The same comments
+  stay visible after seeking, and comments repeated three or more times are
+  always kept.
+- **Hide Long Comments** hides comments over 15, 20, 30, or 50 characters.
+- **Blocked Keywords** accept plain text or `/regex/` patterns.
+- Your existing danmaku settings carry over unchanged.
 
-## More Bangumi discovery and community
+## Danmaku Manager
 
-- Browse Bangumi rankings across anime, books, music, games, and live action,
-  including the site's category filters and paginated results.
-- Ranked entries show covers, rank, score, rating count, and whether the title
-  is already connected to your local library.
-- Anime pages now include Bangumi's subject shoutbox alongside existing
-  community topics and blogs.
+- Press `M`, or choose **Manage Danmaku…** from the danmaku menu, to open a
+  panel beside the video.
+- **Nearby** lists the last 30 seconds of comments as they play; **Search**
+  finds comments anywhere in the episode. Click a comment to jump to it.
+- Right-click a comment to block its text or its sender, copy it, or undo a
+  block. Hidden comments are struck through with the rule that hid them.
+- **Blocked** manages keywords and users in one place; blocked users also
+  appear in Danmaku Settings.
+- Player shortcuts such as Space and `F` pause while you type in the panel,
+  so searching never pauses playback or toggles fullscreen.
 
-## HDR and Dolby Vision
+## Library fixes
 
-- Improved HDR and Dolby Vision luminance mapping on compatible displays so
-  highlights retain their intended brightness without double tone mapping.
-- Dolby Vision Profile 8 playback continues to use its HDR-compatible path;
-  Profile 7 enhancement layers remain unsupported and use the HDR10 base
-  layer.
+- Numbered clips such as `PV1` or `[NCOP1]` stay grouped with their release
+  instead of splitting a folder into several works.
+- Bundled-contents notes like `(Scans&OST&Special)` are removed from work
+  titles; parentheses with other information, such as a year, are kept.
 
 ## Compatibility and limitations
 
