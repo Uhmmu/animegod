@@ -124,7 +124,12 @@ and community content, and improves HDR/Dolby Vision brightness.
 - Filters for crowded shows: repeated comments within 10 seconds merge into
   one with a ×N count, a density slider thins the rest evenly (often-repeated
   comments are always kept), long comments can be hidden, and blocked keywords
-  accept plain text or `/regex/` patterns. Requires free AppId/AppSecret credentials from
+  accept plain text or `/regex/` patterns.
+- **Danmaku Manager** (`M`, or the danmaku menu): a panel beside the video
+  listing the last 30 seconds of comments or searching the whole episode.
+  Click a comment to jump to it; right-click to block its text or its sender.
+  Hidden comments show which rule hid them, and blocked keywords and users can
+  be managed in the panel or in Danmaku Settings. Requires free AppId/AppSecret credentials from
   [dev.dandanplay.com](https://dev.dandanplay.com), stored in the Keychain
   via **Settings**.
 

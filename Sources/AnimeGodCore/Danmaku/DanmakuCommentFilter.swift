@@ -21,27 +21,40 @@ public struct DanmakuCommentFilter {
         public var mergedCount: Int
     }
 
+    /// Why a rule hides a comment. Merging and density thinning depend on
+    /// the whole comment set and are not reported here.
+    public enum HidingReason: Equatable, Sendable {
+        case mode
+        case colored
+        case tooLong
+        /// The blocked keyword entry that matched, as stored in settings.
+        case keyword(String)
+        case sender
+    }
+
     private let settings: DanmakuDisplaySettings
-    private let substrings: [String]
-    private let patterns: [NSRegularExpression]
+    private let substrings: [(text: String, keyword: String)]
+    private let patterns: [(regex: NSRegularExpression, keyword: String)]
+    private let blockedSenders: Set<String>
 
     public init(settings: DanmakuDisplaySettings) {
         self.settings = settings
-        var substrings: [String] = []
-        var patterns: [NSRegularExpression] = []
+        var substrings: [(text: String, keyword: String)] = []
+        var patterns: [(regex: NSRegularExpression, keyword: String)] = []
         for keyword in settings.blockedKeywords {
             if let pattern = Self.regexPattern(from: keyword) {
-                // Invalid expressions are ignored; the settings UI flags them.
+                // Invalid expressions are ignored; the settings UI rejects them.
                 if let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) {
-                    patterns.append(regex)
+                    patterns.append((regex, keyword))
                 }
             } else {
                 let trimmed = keyword.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !trimmed.isEmpty { substrings.append(trimmed) }
+                if !trimmed.isEmpty { substrings.append((trimmed, keyword)) }
             }
         }
         self.substrings = substrings
         self.patterns = patterns
+        blockedSenders = Set(settings.blockedSenders)
     }
 
     public func apply(to comments: [DanmakuComment]) -> Result {
@@ -100,23 +113,29 @@ public struct DanmakuCommentFilter {
     }
 
     private func isAllowed(_ comment: DanmakuComment) -> Bool {
+        hidingReason(for: comment) == nil
+    }
+
+    /// The first rule that hides `comment`, or nil when rules allow it.
+    public func hidingReason(for comment: DanmakuComment) -> HidingReason? {
         switch comment.mode {
-        case .scroll: if settings.hideScroll { return false }
-        case .top: if settings.hideTop { return false }
-        case .bottom: if settings.hideBottom { return false }
+        case .scroll: if settings.hideScroll { return .mode }
+        case .top: if settings.hideTop { return .mode }
+        case .bottom: if settings.hideBottom { return .mode }
         }
-        if settings.hideColored && comment.isColored { return false }
-        if settings.maxLength > 0 && comment.text.count > settings.maxLength { return false }
-        for substring in substrings where comment.text.range(of: substring, options: .caseInsensitive) != nil {
-            return false
+        if let sender = comment.senderID, blockedSenders.contains(sender) { return .sender }
+        if settings.hideColored && comment.isColored { return .colored }
+        if settings.maxLength > 0 && comment.text.count > settings.maxLength { return .tooLong }
+        for entry in substrings where comment.text.range(of: entry.text, options: .caseInsensitive) != nil {
+            return .keyword(entry.keyword)
         }
         if !patterns.isEmpty {
             let range = NSRange(comment.text.startIndex..., in: comment.text)
-            for regex in patterns where regex.firstMatch(in: comment.text, range: range) != nil {
-                return false
+            for entry in patterns where entry.regex.firstMatch(in: comment.text, range: range) != nil {
+                return .keyword(entry.keyword)
             }
         }
-        return true
+        return nil
     }
 
     // MARK: - Helpers

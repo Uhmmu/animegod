@@ -103,6 +103,29 @@ struct DanmakuCommentFilterTests {
         #expect(result.comments.map(\.id) == ["firstQ", "ok"])
     }
 
+    @Test func blockedSendersAreHidden() {
+        let filter = DanmakuCommentFilter(settings: settings { $0.blockedSenders = ["spam"] })
+        let result = filter.apply(to: [
+            DanmakuComment(id: "1", time: 0, text: "广告", mode: .scroll, senderID: "spam"),
+            DanmakuComment(id: "2", time: 1, text: "好耶", mode: .scroll, senderID: "fan"),
+            DanmakuComment(id: "3", time: 2, text: "无名", mode: .scroll),
+        ])
+        #expect(result.comments.map(\.id) == ["2", "3"])
+    }
+
+    @Test func hidingReasonNamesTheMatchingRule() {
+        let filter = DanmakuCommentFilter(settings: settings {
+            $0.blockedKeywords = ["剧透", "/^2+3+$/"]
+            $0.blockedSenders = ["spam"]
+            $0.maxLength = 10
+        })
+        #expect(filter.hidingReason(for: comment("a", at: 0, text: "有剧透")) == .keyword("剧透"))
+        #expect(filter.hidingReason(for: comment("b", at: 0, text: "2333")) == .keyword("/^2+3+$/"))
+        #expect(filter.hidingReason(for: comment("c", at: 0, text: String(repeating: "长", count: 11))) == .tooLong)
+        #expect(filter.hidingReason(for: DanmakuComment(id: "d", time: 0, text: "hi", mode: .scroll, senderID: "spam")) == .sender)
+        #expect(filter.hidingReason(for: comment("e", at: 0, text: "好耶")) == nil)
+    }
+
     @Test func keywordValidation() {
         #expect(DanmakuCommentFilter.isValidKeyword("剧透"))
         #expect(DanmakuCommentFilter.isValidKeyword("/^233+$/"))
@@ -121,5 +144,6 @@ struct DanmakuCommentFilterTests {
         #expect(decoded.mergeDuplicates == DanmakuDisplaySettings.default.mergeDuplicates)
         #expect(decoded.lineSpacing == DanmakuDisplaySettings.default.lineSpacing)
         #expect(decoded.blockedKeywords.isEmpty)
+        #expect(decoded.blockedSenders.isEmpty)
     }
 }

@@ -643,6 +643,10 @@ struct PlayerScreen: View {
     @State private var showDiagnostics = false
     @State private var showDanmakuSettings = false
     @State private var showDanmakuMatch = false
+    @State private var showDanmakuManager = false
+    /// A text field in the danmaku manager has focus; single-key player
+    /// shortcuts are suspended so typing doesn't pause, seek, or go fullscreen.
+    @State private var isTypingInDanmakuManager = false
 
     init(request: PlayerRequest) {
         self.request = request
@@ -723,6 +727,21 @@ struct PlayerScreen: View {
                     .opacity(controlsVisible ? 1 : 0)
                     .animation(.easeOut(duration: 0.2), value: controlsVisible)
                 Spacer()
+            }
+            if showDanmakuManager {
+                DanmakuManagerPanel(
+                    session: state.danmaku,
+                    preferences: danmakuPreferences,
+                    position: state.position,
+                    seek: { state.seek(to: $0) },
+                    onTypingChange: { isTypingInDanmakuManager = $0 },
+                    onClose: closeDanmakuManager
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                .padding(.top, 64)
+                .padding(.bottom, 120)
+                .padding(.trailing, 16)
+                .transition(.move(edge: .trailing).combined(with: .opacity))
             }
             if showDiagnostics {
                 diagnosticsPanel
@@ -855,25 +874,25 @@ struct PlayerScreen: View {
                 Button { state.togglePause() } label: {
                     Image(systemName: state.paused ? "play.fill" : "pause.fill")
                 }
-                .keyboardShortcut(.space, modifiers: [])
+                .keyboardShortcut(playerKey(.space))
                 .accessibilityLabel(state.paused ? "Play" : "Pause")
 
                 Button { state.seek(by: -10) } label: { Image(systemName: "gobackward.10") }
-                    .keyboardShortcut(.leftArrow, modifiers: [])
+                    .keyboardShortcut(playerKey(.leftArrow))
                     .help("Back 10 Seconds")
 
                 Button { state.seek(by: 10) } label: { Image(systemName: "goforward.10") }
-                    .keyboardShortcut(.rightArrow, modifiers: [])
+                    .keyboardShortcut(playerKey(.rightArrow))
                     .help("Forward 10 Seconds")
 
                 Button { Task { await switchTo(state.currentIndex - 1) } } label: { Image(systemName: "chevron.left.2") }
                     .disabled(!state.hasPrevious || isSwitching)
-                    .keyboardShortcut("p", modifiers: [])
+                    .keyboardShortcut(playerKey("p"))
                     .help("Previous Episode (P)")
 
                 Button { Task { await switchTo(state.currentIndex + 1) } } label: { Image(systemName: "chevron.right.2") }
                     .disabled(!state.hasNext || isSwitching)
-                    .keyboardShortcut("n", modifiers: [])
+                    .keyboardShortcut(playerKey("n"))
                     .help("Next Episode (N)")
 
                 if state.episodes.count > 1 {
@@ -892,14 +911,15 @@ struct PlayerScreen: View {
                     preferences: danmakuPreferences,
                     session: state.danmaku,
                     openSettings: { showDanmakuSettings = true },
-                    openMatch: { showDanmakuMatch = true }
+                    openMatch: { showDanmakuMatch = true },
+                    openManager: { withAnimation(.easeOut(duration: 0.2)) { showDanmakuManager = true } }
                 )
                 speedMenu
                 audioMenu
                 subtitleMenu
                 volumeControl
                 Button { toggleFullscreen() } label: { Image(systemName: "arrow.up.left.and.arrow.down.right") }
-                    .keyboardShortcut("f", modifiers: [])
+                    .keyboardShortcut(playerKey("f"))
                     .help("Enter Full Screen (F)")
             }
         }
@@ -1202,8 +1222,19 @@ struct PlayerScreen: View {
         window.toggleFullScreen(nil)
     }
 
+    /// Single-key player shortcuts, suspended while the danmaku manager's
+    /// text fields have focus.
+    private func playerKey(_ key: KeyEquivalent) -> KeyboardShortcut? {
+        isTypingInDanmakuManager ? nil : KeyboardShortcut(key, modifiers: [])
+    }
+
+    private func closeDanmakuManager() {
+        isTypingInDanmakuManager = false
+        withAnimation(.easeOut(duration: 0.2)) { showDanmakuManager = false }
+    }
+
     /// ⌘⇧D toggles diagnostics; ⌘⇧H forces SDR without mutating the live
-    /// CAMetalLayer format; D toggles danmaku.
+    /// CAMetalLayer format; D toggles danmaku; M toggles the danmaku manager.
     private var diagnosticsShortcuts: some View {
         Group {
             Button("Toggle Diagnostics") { showDiagnostics.toggle() }
@@ -1215,7 +1246,15 @@ struct PlayerScreen: View {
             Button("Toggle Danmaku") {
                 danmakuPreferences.enabled.toggle()
             }
-                .keyboardShortcut("d", modifiers: [])
+                .keyboardShortcut(playerKey("d"))
+            Button("Toggle Danmaku Manager") {
+                if showDanmakuManager {
+                    closeDanmakuManager()
+                } else {
+                    withAnimation(.easeOut(duration: 0.2)) { showDanmakuManager = true }
+                }
+            }
+                .keyboardShortcut(playerKey("m"))
         }
         .accessibilityHidden(true)
     }

@@ -31,6 +31,8 @@ public struct DanmakuDisplaySettings: Codable, Sendable, Equatable {
     public var maxLength: Int
     /// Case-insensitive substrings, or `/regex/` patterns.
     public var blockedKeywords: [String]
+    /// Provider sender IDs whose comments are hidden.
+    public var blockedSenders: [String]
 
     public init(
         opacity: Double = 0.8,
@@ -48,7 +50,8 @@ public struct DanmakuDisplaySettings: Codable, Sendable, Equatable {
         mergeDuplicates: Bool = true,
         density: Double = 1.0,
         maxLength: Int = 0,
-        blockedKeywords: [String] = []
+        blockedKeywords: [String] = [],
+        blockedSenders: [String] = []
     ) {
         self.opacity = opacity
         self.fontScale = fontScale
@@ -66,6 +69,7 @@ public struct DanmakuDisplaySettings: Codable, Sendable, Equatable {
         self.density = density
         self.maxLength = maxLength
         self.blockedKeywords = blockedKeywords
+        self.blockedSenders = blockedSenders
     }
 
     /// Settings persisted by older builds lack newer keys; every key falls
@@ -89,6 +93,7 @@ public struct DanmakuDisplaySettings: Codable, Sendable, Equatable {
         density = try container.decodeIfPresent(Double.self, forKey: .density) ?? defaults.density
         maxLength = try container.decodeIfPresent(Int.self, forKey: .maxLength) ?? defaults.maxLength
         blockedKeywords = try container.decodeIfPresent([String].self, forKey: .blockedKeywords) ?? defaults.blockedKeywords
+        blockedSenders = try container.decodeIfPresent([String].self, forKey: .blockedSenders) ?? defaults.blockedSenders
     }
 
     public static let `default` = DanmakuDisplaySettings()
@@ -105,6 +110,7 @@ public struct DanmakuDisplaySettings: Codable, Sendable, Equatable {
             || density != other.density
             || maxLength != other.maxLength
             || blockedKeywords != other.blockedKeywords
+            || blockedSenders != other.blockedSenders
     }
 }
 

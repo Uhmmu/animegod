@@ -44,6 +44,9 @@ final class DanmakuSession: ObservableObject {
     @Published private(set) var phase: Phase = .idle
     @Published private(set) var renderer = DanmakuRendererSnapshot()
     @Published private(set) var isReloading = false
+    /// The current episode's comments with the provider shift applied,
+    /// sorted by time — the manager panel's data source.
+    @Published private(set) var comments: [DanmakuComment] = []
 
     let canvas = DanmakuCanvas(frame: .zero)
     private var preferences: DanmakuPreferences?
@@ -276,7 +279,7 @@ final class DanmakuSession: ObservableObject {
         if !forceRefresh, let database,
            let cached = try? await database.danmakuCache(providerID: ref.providerID, episodeID: ref.episodeID),
            token == generation {
-            canvas.setComments(cached.comments, shift: ref.shift)
+            show(cached.comments, shift: ref.shift)
             markReady(anime: cached.animeTitle, episode: cached.episodeTitle, episodeID: ref.episodeID, cache: .hit)
             return
         }
@@ -296,20 +299,41 @@ final class DanmakuSession: ObservableObject {
                     comments: comments
                 ))
             }
-            canvas.setComments(comments, shift: ref.shift)
+            show(comments, shift: ref.shift)
             markReady(anime: ref.animeTitle, episode: ref.episodeTitle, episodeID: ref.episodeID, cache: .miss)
         } catch {
             guard token == generation else { return }
             // A stale cache still beats nothing when the network is down.
             if let database,
                let cached = try? await database.danmakuCache(providerID: ref.providerID, episodeID: ref.episodeID) {
-                canvas.setComments(cached.comments, shift: ref.shift)
+                show(cached.comments, shift: ref.shift)
                 markReady(anime: cached.animeTitle, episode: cached.episodeTitle, episodeID: ref.episodeID, cache: .hit)
                 return
             }
-            canvas.setComments([], shift: 0)
+            show([], shift: 0)
             phase = .failed(error.localizedDescription)
         }
+    }
+
+    /// Bakes the provider shift in once and hands the same sorted list to
+    /// the renderer and the manager panel.
+    private func show(_ raw: [DanmakuComment], shift: Double) {
+        var baked: [DanmakuComment] = raw
+        if shift != 0 {
+            baked = raw.map { (comment: DanmakuComment) -> DanmakuComment in
+                DanmakuComment(
+                    id: comment.id, time: comment.time + shift, text: comment.text,
+                    mode: comment.mode, color: comment.color,
+                    senderID: comment.senderID, timestamp: comment.timestamp
+                )
+            }
+        }
+        baked.sort { (lhs: DanmakuComment, rhs: DanmakuComment) -> Bool in
+            if lhs.time != rhs.time { return lhs.time < rhs.time }
+            return lhs.id < rhs.id
+        }
+        comments = baked
+        canvas.setComments(baked, shift: 0)
     }
 
     private func markReady(anime: String, episode: String, episodeID: Int64, cache: CacheState) {

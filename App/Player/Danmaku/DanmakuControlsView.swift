@@ -92,6 +92,7 @@ struct DanmakuMenuButton: View {
     @ObservedObject var session: DanmakuSession
     let openSettings: () -> Void
     let openMatch: () -> Void
+    let openManager: () -> Void
 
     var body: some View {
         Menu {
@@ -132,6 +133,7 @@ struct DanmakuMenuButton: View {
 
             Divider()
 
+            Button("Manage Danmaku… (M)") { openManager() }
             Button("Danmaku Settings…") { openSettings() }
         } label: {
             Image(systemName: preferences.enabled ? "text.bubble.fill" : "text.bubble")
@@ -174,8 +176,6 @@ struct DanmakuSettingsPanel: View {
     @ObservedObject var preferences: DanmakuPreferences
     @ObservedObject var session: DanmakuSession
     let openMatch: () -> Void
-
-    @State private var newKeyword = ""
 
     var body: some View {
         Form {
@@ -251,30 +251,11 @@ struct DanmakuSettingsPanel: View {
             }
 
             Section("Blocked Keywords") {
-                HStack {
-                    TextField("Block", text: $newKeyword, prompt: Text("Keyword or /regex/"))
-                        .onSubmit(addKeyword)
-                    Button("Add", action: addKeyword)
-                        .disabled(!DanmakuCommentFilter.isValidKeyword(newKeyword))
-                }
-                if preferences.settings.blockedKeywords.isEmpty {
-                    Text("No blocked keywords. Wrap a pattern in slashes, like /^23+$/, to use a regular expression.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                ForEach(preferences.settings.blockedKeywords, id: \.self) { keyword in
-                    HStack {
-                        Text(keyword).lineLimit(1)
-                        Spacer()
-                        Button {
-                            preferences.settings.blockedKeywords.removeAll { $0 == keyword }
-                        } label: {
-                            Image(systemName: "minus.circle")
-                        }
-                        .buttonStyle(.borderless)
-                        .help("Remove")
-                    }
-                }
+                DanmakuKeywordRows(preferences: preferences)
+            }
+
+            Section("Blocked Users") {
+                DanmakuBlockedUserRows(preferences: preferences, comments: session.comments)
             }
 
             Section("Timing") {
@@ -327,15 +308,6 @@ struct DanmakuSettingsPanel: View {
         .formStyle(.grouped)
         .navigationTitle("Danmaku")
         .frame(minWidth: 460, minHeight: 620)
-    }
-
-    private func addKeyword() {
-        let keyword = newKeyword.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard DanmakuCommentFilter.isValidKeyword(keyword) else { return }
-        if !preferences.settings.blockedKeywords.contains(keyword) {
-            preferences.settings.blockedKeywords.append(keyword)
-        }
-        newKeyword = ""
     }
 }
 
