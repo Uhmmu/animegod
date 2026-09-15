@@ -35,6 +35,10 @@ public struct DanmakuComment: Codable, Identifiable, Hashable, Sendable {
     public let senderID: String?
     /// When the comment was posted, when the provider reports it.
     public let timestamp: Date?
+    /// The `DanmakuProviderMetadata.id` of the provider this comment came
+    /// from. Optional so caches written before multi-source support decode
+    /// unchanged; merged playlists rely on it for dedup and attribution.
+    public let source: String?
 
     public init(
         id: String,
@@ -43,7 +47,8 @@ public struct DanmakuComment: Codable, Identifiable, Hashable, Sendable {
         mode: DanmakuMode,
         color: Int = 0xFFFFFF,
         senderID: String? = nil,
-        timestamp: Date? = nil
+        timestamp: Date? = nil,
+        source: String? = nil
     ) {
         self.id = id
         self.time = time
@@ -52,6 +57,7 @@ public struct DanmakuComment: Codable, Identifiable, Hashable, Sendable {
         self.color = color
         self.senderID = senderID
         self.timestamp = timestamp
+        self.source = source
     }
 
     public var isColored: Bool { color != 0xFFFFFF }
@@ -66,6 +72,10 @@ public struct DanmakuMatchCandidate: Codable, Hashable, Sendable {
     /// Provider-reported danmaku time shift in seconds (positive delays).
     public let shift: Double
     public let typeDescription: String
+    /// Opaque, provider-owned state needed to fetch this episode later
+    /// (Bilibili stores the aid/bvid and duration here). The session
+    /// persists and replays it without interpreting it.
+    public let providerContext: String?
 
     public init(
         animeID: Int64,
@@ -73,7 +83,8 @@ public struct DanmakuMatchCandidate: Codable, Hashable, Sendable {
         episodeID: Int64,
         episodeTitle: String,
         shift: Double = 0,
-        typeDescription: String = ""
+        typeDescription: String = "",
+        providerContext: String? = nil
     ) {
         self.animeID = animeID
         self.animeTitle = animeTitle
@@ -81,6 +92,7 @@ public struct DanmakuMatchCandidate: Codable, Hashable, Sendable {
         self.episodeTitle = episodeTitle
         self.shift = shift
         self.typeDescription = typeDescription
+        self.providerContext = providerContext
     }
 }
 
@@ -103,24 +115,39 @@ public struct DanmakuSearchedAnime: Codable, Identifiable, Hashable, Sendable {
     public let animeTitle: String
     public let typeDescription: String
     public let episodes: [DanmakuSearchedEpisode]
+    /// Which provider returned this result. With several sources enabled,
+    /// search results from each are shown together, and selecting one has
+    /// to bind the episode to the provider that can actually serve it.
+    public let providerID: String
 
-    public var id: Int64 { animeID }
+    /// Unique across providers: two sources can use the same numeric id.
+    public var id: String { "\(providerID):\(animeID)" }
 
-    public init(animeID: Int64, animeTitle: String, typeDescription: String, episodes: [DanmakuSearchedEpisode]) {
+    public init(
+        animeID: Int64,
+        animeTitle: String,
+        typeDescription: String,
+        episodes: [DanmakuSearchedEpisode],
+        providerID: String = ""
+    ) {
         self.animeID = animeID
         self.animeTitle = animeTitle
         self.typeDescription = typeDescription
         self.episodes = episodes
+        self.providerID = providerID
     }
 }
 
 public struct DanmakuSearchedEpisode: Codable, Hashable, Sendable {
     public let episodeID: Int64
     public let episodeTitle: String
+    /// See `DanmakuMatchCandidate.providerContext`.
+    public let providerContext: String?
 
-    public init(episodeID: Int64, episodeTitle: String) {
+    public init(episodeID: Int64, episodeTitle: String, providerContext: String? = nil) {
         self.episodeID = episodeID
         self.episodeTitle = episodeTitle
+        self.providerContext = providerContext
     }
 }
 
@@ -133,13 +160,23 @@ public struct DanmakuEpisodeRef: Codable, Hashable, Sendable {
     public let episodeTitle: String
     /// Provider-reported danmaku shift in seconds, applied on load.
     public let shift: Double
+    /// See `DanmakuMatchCandidate.providerContext`.
+    public let providerContext: String?
 
-    public init(providerID: String, episodeID: Int64, animeTitle: String, episodeTitle: String, shift: Double = 0) {
+    public init(
+        providerID: String,
+        episodeID: Int64,
+        animeTitle: String,
+        episodeTitle: String,
+        shift: Double = 0,
+        providerContext: String? = nil
+    ) {
         self.providerID = providerID
         self.episodeID = episodeID
         self.animeTitle = animeTitle
         self.episodeTitle = episodeTitle
         self.shift = shift
+        self.providerContext = providerContext
     }
 
     /// Cache key: provider + episode identity.
@@ -164,6 +201,15 @@ public enum DanmakuProviderError: LocalizedError, Sendable, Equatable {
     case invalidResponse
     case httpStatus(Int)
     case serviceMessage(String)
+    /// The service will only answer for a signed-in account. Anonymous
+    /// browsing is the default, so this is a status to report — never a
+    /// reason to fail the whole danmaku pipeline.
+    case requiresLogin(String)
+    /// The work is not licensed in this region.
+    case regionLocked(String)
+    /// The request was rejected by risk control (Bilibili's -412); usually
+    /// a missing or stale cookie/signature rather than a real block.
+    case rejectedByRiskControl
 
     public var errorDescription: String? {
         switch self {
@@ -171,6 +217,12 @@ public enum DanmakuProviderError: LocalizedError, Sendable, Equatable {
         case .invalidResponse: "The danmaku service returned an invalid response."
         case let .httpStatus(status): "The danmaku service returned HTTP \(status)."
         case let .serviceMessage(message): message
+        case let .requiresLogin(message):
+            message.isEmpty ? "This danmaku source requires you to be signed in." : message
+        case let .regionLocked(message):
+            message.isEmpty ? "This title is not available in your region." : message
+        case .rejectedByRiskControl:
+            "The danmaku service rejected the request (risk control). Try again in a moment."
         }
     }
 

@@ -147,3 +147,79 @@ struct DanmakuFileHasherTests {
 
 import CryptoKit
 typealias CryptoKitInsecureMD5 = CryptoKit.Insecure.MD5
+
+/// Multi-source bindings: with dandanplay and Bilibili both enabled, one
+/// media file carries one binding per provider (migration v7).
+@Suite struct DanmakuMultiSourceBindingTests {
+    private func makeDatabase() throws -> LibraryDatabase {
+        try LibraryDatabase(inMemory: true)
+    }
+
+    @Test func keepsOneBindingPerProviderForTheSameFile() async throws {
+        let database = try makeDatabase()
+        let fileID = UUID()
+
+        try await database.saveDanmakuMatch(DanmakuMatchBinding(
+            mediaFileID: fileID, providerID: "dandanplay", episodeID: 1_001,
+            animeTitle: "Show", episodeTitle: "1", isManual: false
+        ))
+        try await database.saveDanmakuMatch(DanmakuMatchBinding(
+            mediaFileID: fileID, providerID: "bilibili", episodeID: 500_001,
+            animeTitle: "Show", episodeTitle: "1 第1话", isManual: true,
+            providerContext: BilibiliDanmakuContext(cid: 500_001, aid: 900_001).encoded()
+        ))
+
+        let bindings = try await database.danmakuMatches(mediaFileID: fileID)
+        #expect(bindings.count == 2)
+        #expect(Set(bindings.map(\.providerID)) == ["dandanplay", "bilibili"])
+
+        // The opaque provider state survives the round trip, so a later
+        // fetch can send pid without searching again.
+        let bilibili = try #require(try await database.danmakuMatch(mediaFileID: fileID, providerID: "bilibili"))
+        #expect(BilibiliDanmakuContext.decode(bilibili.providerContext)?.aid == 900_001)
+        #expect(bilibili.isManual)
+    }
+
+    @Test func rebindingOneProviderLeavesTheOtherAlone() async throws {
+        let database = try makeDatabase()
+        let fileID = UUID()
+        try await database.saveDanmakuMatch(DanmakuMatchBinding(
+            mediaFileID: fileID, providerID: "dandanplay", episodeID: 1_001,
+            animeTitle: "Show", episodeTitle: "1", isManual: false
+        ))
+        try await database.saveDanmakuMatch(DanmakuMatchBinding(
+            mediaFileID: fileID, providerID: "bilibili", episodeID: 500_001,
+            animeTitle: "Show", episodeTitle: "1", isManual: false
+        ))
+
+        // The user corrects the Bilibili match in the match sheet.
+        try await database.saveDanmakuMatch(DanmakuMatchBinding(
+            mediaFileID: fileID, providerID: "bilibili", episodeID: 500_007,
+            animeTitle: "Show", episodeTitle: "7", isManual: true
+        ))
+        #expect(try await database.danmakuMatch(mediaFileID: fileID, providerID: "bilibili")?.episodeID == 500_007)
+        #expect(try await database.danmakuMatch(mediaFileID: fileID, providerID: "dandanplay")?.episodeID == 1_001)
+
+        try await database.removeDanmakuMatch(mediaFileID: fileID, providerID: "bilibili")
+        let remaining = try await database.danmakuMatches(mediaFileID: fileID)
+        #expect(remaining.map(\.providerID) == ["dandanplay"])
+    }
+
+    @Test func cachesArePerProviderSoBothSourcesCoexist() async throws {
+        let database = try makeDatabase()
+        try await database.saveDanmakuCache(DanmakuCacheEntry(
+            providerID: "dandanplay", episodeID: 7, animeTitle: "Show", episodeTitle: "1",
+            comments: [DanmakuComment(id: "d1", time: 1, text: "from dandanplay", mode: .scroll, source: "dandanplay")]
+        ))
+        // Same numeric id on the other service must not collide.
+        try await database.saveDanmakuCache(DanmakuCacheEntry(
+            providerID: "bilibili", episodeID: 7, animeTitle: "Show", episodeTitle: "1",
+            comments: [DanmakuComment(id: "b1", time: 2, text: "from bilibili", mode: .top, source: "bilibili")]
+        ))
+
+        #expect(try await database.danmakuCache(providerID: "dandanplay", episodeID: 7)?.comments.first?.text == "from dandanplay")
+        let bilibili = try #require(try await database.danmakuCache(providerID: "bilibili", episodeID: 7))
+        #expect(bilibili.comments.first?.source == "bilibili")
+        #expect(bilibili.comments.first?.mode == .top)
+    }
+}

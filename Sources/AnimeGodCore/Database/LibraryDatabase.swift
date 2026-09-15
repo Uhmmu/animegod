@@ -773,41 +773,59 @@ public actor LibraryDatabase {
         }
     }
 
-    /// The provider episode a media file was matched to, if any.
-    public func danmakuMatch(mediaFileID: UUID) throws -> DanmakuMatchBinding? {
+    /// Every provider binding for a media file, newest match first.
+    /// With more than one danmaku source enabled a file carries one binding
+    /// per provider.
+    public func danmakuMatches(mediaFileID: UUID) throws -> [DanmakuMatchBinding] {
         try database.read { db in
-            guard let row = try Row.fetchOne(
+            try Row.fetchAll(
                 db,
-                sql: "SELECT providerID, episodeID, animeTitle, episodeTitle, shift, isManual, matchedAt FROM danmakuMatch WHERE mediaFileID = ?",
+                sql: """
+                    SELECT providerID, episodeID, animeTitle, episodeTitle, shift, isManual, matchedAt, providerContext
+                    FROM danmakuMatch WHERE mediaFileID = ? ORDER BY matchedAt DESC
+                    """,
                 arguments: [mediaFileID.uuidString]
-            ) else { return nil }
-            return DanmakuMatchBinding(
-                mediaFileID: mediaFileID,
-                providerID: row["providerID"],
-                episodeID: row["episodeID"],
-                animeTitle: row["animeTitle"] ?? "",
-                episodeTitle: row["episodeTitle"] ?? "",
-                shift: row["shift"] ?? 0,
-                isManual: row["isManual"],
-                matchedAt: row["matchedAt"]
-            )
+            ).map { row in
+                DanmakuMatchBinding(
+                    mediaFileID: mediaFileID,
+                    providerID: row["providerID"],
+                    episodeID: row["episodeID"],
+                    animeTitle: row["animeTitle"] ?? "",
+                    episodeTitle: row["episodeTitle"] ?? "",
+                    shift: row["shift"] ?? 0,
+                    isManual: row["isManual"],
+                    matchedAt: row["matchedAt"],
+                    providerContext: row["providerContext"]
+                )
+            }
         }
+    }
+
+    /// The binding for one provider, if the file has one.
+    public func danmakuMatch(mediaFileID: UUID, providerID: String) throws -> DanmakuMatchBinding? {
+        try danmakuMatches(mediaFileID: mediaFileID).first { $0.providerID == providerID }
+    }
+
+    /// The provider episode a media file was matched to, if any. With
+    /// several sources enabled this is the most recent of them.
+    public func danmakuMatch(mediaFileID: UUID) throws -> DanmakuMatchBinding? {
+        try danmakuMatches(mediaFileID: mediaFileID).first
     }
 
     public func saveDanmakuMatch(_ binding: DanmakuMatchBinding) throws {
         try database.write { db in
             try db.execute(sql: """
                 INSERT INTO danmakuMatch
-                    (mediaFileID, providerID, episodeID, animeTitle, episodeTitle, shift, isManual, matchedAt)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(mediaFileID) DO UPDATE SET
-                    providerID = excluded.providerID,
+                    (mediaFileID, providerID, episodeID, animeTitle, episodeTitle, shift, isManual, matchedAt, providerContext)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(mediaFileID, providerID) DO UPDATE SET
                     episodeID = excluded.episodeID,
                     animeTitle = excluded.animeTitle,
                     episodeTitle = excluded.episodeTitle,
                     shift = excluded.shift,
                     isManual = excluded.isManual,
-                    matchedAt = excluded.matchedAt
+                    matchedAt = excluded.matchedAt,
+                    providerContext = excluded.providerContext
                 """, arguments: [
                     binding.mediaFileID.uuidString,
                     binding.providerID,
@@ -816,14 +834,26 @@ public actor LibraryDatabase {
                     binding.episodeTitle,
                     binding.shift,
                     binding.isManual,
-                    binding.matchedAt
+                    binding.matchedAt,
+                    binding.providerContext
                 ])
         }
     }
 
+    /// Forgets every provider binding for a file.
     public func removeDanmakuMatch(mediaFileID: UUID) throws {
         try database.write { db in
             try db.execute(sql: "DELETE FROM danmakuMatch WHERE mediaFileID = ?", arguments: [mediaFileID.uuidString])
+        }
+    }
+
+    /// Forgets one provider's binding, leaving the other sources bound.
+    public func removeDanmakuMatch(mediaFileID: UUID, providerID: String) throws {
+        try database.write { db in
+            try db.execute(
+                sql: "DELETE FROM danmakuMatch WHERE mediaFileID = ? AND providerID = ?",
+                arguments: [mediaFileID.uuidString, providerID]
+            )
         }
     }
 
@@ -1355,6 +1385,35 @@ public actor LibraryDatabase {
                 table.column("completedAt", .datetime)
             }
             try db.create(index: "episodeCache_root", on: "episodeCache", columns: ["libraryRootID"])
+        }
+        migrator.registerMigration("v7_danmaku_sources") { db in
+            // Danmaku can now come from more than one provider at a time, so
+            // a media file needs one binding per provider instead of one in
+            // total. SQLite cannot change a primary key in place; the table
+            // is small and has no foreign keys, so it is rebuilt and the
+            // existing bindings are carried over unchanged.
+            try db.create(table: "danmakuMatch_v7") { table in
+                table.column("mediaFileID", .text).notNull()
+                table.column("providerID", .text).notNull()
+                table.column("episodeID", .integer).notNull()
+                table.column("animeTitle", .text).notNull().defaults(to: "")
+                table.column("episodeTitle", .text).notNull().defaults(to: "")
+                table.column("shift", .double).notNull().defaults(to: 0)
+                table.column("isManual", .boolean).notNull().defaults(to: false)
+                table.column("matchedAt", .datetime).notNull()
+                // Opaque provider state (Bilibili's aid/bvid/duration). The
+                // database never interprets it.
+                table.column("providerContext", .text)
+                table.primaryKey(["mediaFileID", "providerID"])
+            }
+            try db.execute(sql: """
+                INSERT INTO danmakuMatch_v7
+                    (mediaFileID, providerID, episodeID, animeTitle, episodeTitle, shift, isManual, matchedAt)
+                SELECT mediaFileID, providerID, episodeID, animeTitle, episodeTitle, shift, isManual, matchedAt
+                FROM danmakuMatch
+                """)
+            try db.drop(table: "danmakuMatch")
+            try db.rename(table: "danmakuMatch_v7", to: "danmakuMatch")
         }
         return migrator
     }

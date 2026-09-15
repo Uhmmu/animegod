@@ -22,7 +22,8 @@ public struct DanmakuEpisodeSuggestion: Identifiable, Hashable, Sendable {
     public let score: Double
     public let matchedQuery: String
 
-    public var id: Int64 { episode.episodeID }
+    /// Unique across providers — two sources can use the same numeric id.
+    public var id: String { "\(anime.providerID):\(episode.episodeID)" }
 
     public init(
         anime: DanmakuSearchedAnime,
@@ -74,7 +75,9 @@ public enum DanmakuAutoMatcher {
         limit: Int = 12
     ) -> [DanmakuEpisodeSuggestion] {
         let aliases = context.titleCandidates.map(normalized).filter { !$0.isEmpty }
-        var bestByEpisodeID: [Int64: DanmakuEpisodeSuggestion] = [:]
+        // Keyed by provider + episode: the same number means different
+        // episodes on different services.
+        var bestByEpisodeID: [String: DanmakuEpisodeSuggestion] = [:]
 
         for response in responses {
             for (animeIndex, anime) in response.anime.enumerated() {
@@ -100,8 +103,8 @@ public enum DanmakuAutoMatcher {
                         score: total,
                         matchedQuery: response.query
                     )
-                    if suggestion.score > (bestByEpisodeID[episode.episodeID]?.score ?? -.infinity) {
-                        bestByEpisodeID[episode.episodeID] = suggestion
+                    if suggestion.score > (bestByEpisodeID[suggestion.id]?.score ?? -.infinity) {
+                        bestByEpisodeID[suggestion.id] = suggestion
                     }
                 }
             }
@@ -135,27 +138,11 @@ public enum DanmakuAutoMatcher {
     }
 
     private static func normalized(_ title: String) -> String {
-        title.folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive], locale: Locale(identifier: "en_US_POSIX"))
-            .replacingOccurrences(of: #"(?i)\b(?:season|part)\s*\d+\b|第\s*[一二三四五六七八九十百\d]+\s*季"#, with: "", options: .regularExpression)
-            .replacingOccurrences(of: #"[^\p{L}\p{N}]+"#, with: "", options: .regularExpression)
+        DanmakuTitleSimilarity.normalize(title)
     }
 
     private static func titleSimilarity(_ lhs: String, _ rhs: String) -> Double {
-        guard !lhs.isEmpty, !rhs.isEmpty else { return 0 }
-        if lhs == rhs { return 1 }
-        if lhs.contains(rhs) || rhs.contains(lhs) {
-            return 0.82 + 0.16 * Double(min(lhs.count, rhs.count)) / Double(max(lhs.count, rhs.count))
-        }
-        let left = bigrams(lhs)
-        let right = bigrams(rhs)
-        guard !left.isEmpty, !right.isEmpty else { return lhs.first == rhs.first ? 0.4 : 0 }
-        return 2 * Double(left.intersection(right).count) / Double(left.count + right.count)
-    }
-
-    private static func bigrams(_ value: String) -> Set<String> {
-        let characters = Array(value)
-        guard characters.count > 1 else { return Set(characters.map(String.init)) }
-        return Set((0..<(characters.count - 1)).map { String(characters[$0...($0 + 1)]) })
+        DanmakuTitleSimilarity.similarity(lhs, rhs)
     }
 
     private static func episodeRelevance(

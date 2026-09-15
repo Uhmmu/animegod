@@ -152,14 +152,31 @@ struct DanmakuMenuButton: View {
         switch session.phase {
         case .idle: nil
         case .disabled: "Danmaku is off"
-        case .needsConfiguration: "Add your dandanplay AppId/Secret in Settings"
+        case .needsConfiguration: "Add danmaku credentials in Settings, or switch the source to Bilibili"
         case .matching: "Identifying episode…"
         case .loading: session.isReloading ? "Fetching danmaku…" : "Loading danmaku…"
         case let .ready(anime, episode, episodeID, cache):
-            "\(anime) · \(episode) · #\(episodeID) · cache \(cache == .hit ? "HIT" : "MISS")"
+            "\(anime) · \(episode) · #\(episodeID) · cache \(cache == .hit ? "HIT" : "MISS")\(sourceSuffix)"
         case .noMatch: "No file match — choose an automatic suggestion"
         case let .failed(message): message
         }
+    }
+
+    /// With merged sources, says what each pool contributed — the counts
+    /// are pre-deduplication, so they explain the total rather than sum to
+    /// it.
+    private var sourceSuffix: String {
+        var suffix = ""
+        let sources = session.loadedSources
+        if sources.count > 1 {
+            suffix += " · " + sources.map { "\($0.displayName) \($0.commentCount.formatted())" }.joined(separator: " + ")
+        }
+        // One source failing to identify the file is a hint, not a failure:
+        // the others already loaded.
+        if !session.unmatchedSources.isEmpty {
+            suffix += " · no \(session.unmatchedSources.joined(separator: "/")) match"
+        }
+        return suffix
     }
 
     private func binding(_ keyPath: WritableKeyPath<DanmakuDisplaySettings, Bool>) -> Binding<Bool> {
@@ -327,7 +344,7 @@ struct DanmakuMatchSheet: View {
     @State private var isSearchingAutomatically = false
     @State private var didSearchAutomatically = false
     @State private var searchTask: Task<Void, Never>?
-    @State private var expandedAnimeID: Int64?
+    @State private var expandedAnimeID: String?
     @State private var pendingEpisodeID: Int64?
 
     var body: some View {
@@ -379,7 +396,7 @@ struct DanmakuMatchSheet: View {
 
             if isSearchingAutomatically {
                 Spacer()
-                ProgressView("Finding the closest episodes on 弹弹play…")
+                ProgressView("Finding the closest episodes on \(sourceLabel)…")
                 Spacer()
             } else if !results.isEmpty {
                 manualResults
@@ -387,7 +404,7 @@ struct DanmakuMatchSheet: View {
                 automaticResults
             } else if isSearching {
                 Spacer()
-                ProgressView("Searching 弹弹play…")
+                ProgressView("Searching \(sourceLabel)…")
                 Spacer()
             } else if results.isEmpty {
                 Spacer()
@@ -429,6 +446,13 @@ struct DanmakuMatchSheet: View {
             }
         }
         .onDisappear { searchTask?.cancel() }
+    }
+
+    /// Names the sources being searched, so the sheet does not claim to be
+    /// querying dandanplay when Bilibili is the active source.
+    private var sourceLabel: String {
+        let names = session.activeProviderDisplayNames
+        return names.isEmpty ? "danmaku sources" : names.joined(separator: " + ")
     }
 
     private var automaticResults: some View {
@@ -477,7 +501,7 @@ struct DanmakuMatchSheet: View {
 
     private var manualResults: some View {
         List(results) { anime in
-            DisclosureGroup(isExpanded: binding(for: anime.animeID)) {
+            DisclosureGroup(isExpanded: binding(for: anime.id)) {
                 ForEach(anime.episodes, id: \.episodeID) { episode in
                     Button { select(episode, in: anime) } label: {
                         HStack {
@@ -495,6 +519,7 @@ struct DanmakuMatchSheet: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(anime.animeTitle).font(.body.weight(.medium))
                     HStack(spacing: 6) {
+                        if !anime.providerID.isEmpty { Text(anime.providerID) }
                         if !anime.typeDescription.isEmpty { Text(anime.typeDescription) }
                         Text("\(anime.episodes.count) episodes")
                     }
@@ -508,7 +533,7 @@ struct DanmakuMatchSheet: View {
         .listStyle(.inset)
     }
 
-    private func binding(for animeID: Int64) -> Binding<Bool> {
+    private func binding(for animeID: String) -> Binding<Bool> {
         Binding(
             get: { expandedAnimeID == animeID },
             set: { expanded in
@@ -518,7 +543,7 @@ struct DanmakuMatchSheet: View {
     }
 
     private func toggle(_ anime: DanmakuSearchedAnime) {
-        withAnimation { expandedAnimeID = expandedAnimeID == anime.animeID ? nil : anime.animeID }
+        withAnimation { expandedAnimeID = expandedAnimeID == anime.id ? nil : anime.id }
     }
 
     private func beginSearch() {
@@ -533,7 +558,7 @@ struct DanmakuMatchSheet: View {
             let found = await session.search(query: trimmed)
             guard !Task.isCancelled else { return }
             results = found
-            expandedAnimeID = found.first?.animeID
+            expandedAnimeID = found.first?.id
             isSearching = false
         }
     }
@@ -572,11 +597,18 @@ struct DanmakuMatchSheet: View {
 
     private func select(_ episode: DanmakuSearchedEpisode, in anime: DanmakuSearchedAnime) {
         pendingEpisodeID = episode.episodeID
+        // The result carries the provider that returned it: with several
+        // sources enabled, binding it to the wrong one would fetch a
+        // different service's episode id.
+        let providerID = anime.providerID.isEmpty
+            ? (session.activeProviderIDs.first ?? "dandanplay")
+            : anime.providerID
         session.matchManually(to: DanmakuEpisodeRef(
-            providerID: "dandanplay",
+            providerID: providerID,
             episodeID: episode.episodeID,
             animeTitle: anime.animeTitle,
-            episodeTitle: episode.episodeTitle
+            episodeTitle: episode.episodeTitle,
+            providerContext: episode.providerContext
         ))
     }
 }

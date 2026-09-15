@@ -81,12 +81,15 @@ public struct DandanplayDanmakuProvider: DanmakuProvider {
                 typeDescription: anime.typeDescription ?? "",
                 episodes: (anime.episodes ?? []).map {
                     DanmakuSearchedEpisode(episodeID: $0.episodeId, episodeTitle: $0.episodeTitle ?? "")
-                }
+                },
+                providerID: metadata.id
             )
         }
     }
 
-    public func fetchComments(episodeID: Int64) async throws -> [DanmakuComment] {
+    /// dandanplay identifies an episode entirely by its own episode id, so
+    /// the fetch context is unused here.
+    public func fetchComments(episodeID: Int64, context: DanmakuFetchContext = .none) async throws -> [DanmakuComment] {
         var components = URLComponents(
             url: baseURL.appending(path: "api/v2/comment/\(episodeID)"), resolvingAgainstBaseURL: false
         )!
@@ -238,7 +241,8 @@ public struct DandanplayDanmakuProvider: DanmakuProvider {
                     text: text,
                     mode: mode,
                     color: color & 0xFFFFFF,
-                    senderID: String(fields[3])
+                    senderID: String(fields[3]),
+                    source: "dandanplay"
                 )
             }
         }

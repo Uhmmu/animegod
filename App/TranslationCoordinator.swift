@@ -55,6 +55,20 @@ enum KeychainStore {
             KeychainStore.save(appID, account: appIDAccount, service: danmakuService)
             KeychainStore.save(appSecret, account: appSecretAccount, service: danmakuService)
         }
+
+        /// The optional Bilibili login cookie. Anonymous access is the
+        /// default and works for most titles; a `SESSDATA` only widens what
+        /// the account may see. It is a session credential, so it lives in
+        /// the Keychain beside the other secrets and is never logged.
+        static let bilibiliSessDataAccount = "bilibili-sessdata"
+
+        static func loadBilibiliSessData() -> String? {
+            KeychainStore.load(account: bilibiliSessDataAccount, service: danmakuService)
+        }
+
+        static func saveBilibiliSessData(_ value: String) {
+            KeychainStore.save(value, account: bilibiliSessDataAccount, service: danmakuService)
+        }
     }
 }
 

@@ -40,6 +40,8 @@ public struct DanmakuMatchBinding: Codable, Sendable, Equatable {
     public let shift: Double
     public let isManual: Bool
     public let matchedAt: Date
+    /// See `DanmakuMatchCandidate.providerContext`.
+    public let providerContext: String?
 
     public init(
         mediaFileID: UUID,
@@ -49,7 +51,8 @@ public struct DanmakuMatchBinding: Codable, Sendable, Equatable {
         episodeTitle: String,
         shift: Double = 0,
         isManual: Bool,
-        matchedAt: Date = .now
+        matchedAt: Date = .now,
+        providerContext: String? = nil
     ) {
         self.mediaFileID = mediaFileID
         self.providerID = providerID
@@ -59,6 +62,7 @@ public struct DanmakuMatchBinding: Codable, Sendable, Equatable {
         self.shift = shift
         self.isManual = isManual
         self.matchedAt = matchedAt
+        self.providerContext = providerContext
     }
 
     public var episodeRef: DanmakuEpisodeRef {
@@ -67,7 +71,8 @@ public struct DanmakuMatchBinding: Codable, Sendable, Equatable {
             episodeID: episodeID,
             animeTitle: animeTitle,
             episodeTitle: episodeTitle,
-            shift: shift
+            shift: shift,
+            providerContext: providerContext
         )
     }
 
@@ -80,7 +85,8 @@ public struct DanmakuMatchBinding: Codable, Sendable, Equatable {
             episodeTitle: episodeRef.episodeTitle,
             shift: episodeRef.shift,
             isManual: isManual,
-            matchedAt: matchedAt
+            matchedAt: matchedAt,
+            providerContext: episodeRef.providerContext
         )
     }
 }

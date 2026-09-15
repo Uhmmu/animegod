@@ -12,6 +12,19 @@ final class DanmakuSession: ObservableObject {
         case hit, miss
     }
 
+    /// What one provider contributed to the current episode.
+    struct SourceSummary: Equatable, Identifiable {
+        let providerID: String
+        let displayName: String
+        let animeTitle: String
+        let episodeTitle: String
+        let episodeID: Int64
+        let commentCount: Int
+        let cache: CacheState
+
+        var id: String { providerID }
+    }
+
     enum Phase: Equatable {
         case idle
         case disabled
@@ -47,6 +60,14 @@ final class DanmakuSession: ObservableObject {
     /// The current episode's comments with the provider shift applied,
     /// sorted by time — the manager panel's data source.
     @Published private(set) var comments: [DanmakuComment] = []
+    /// One entry per provider that contributed to the loaded episode. With
+    /// a single source this has one element; with merged sources it shows
+    /// what each side supplied, before deduplication.
+    @Published private(set) var loadedSources: [SourceSummary] = []
+    /// Providers that are active but could not identify this file. Surfaced
+    /// as a hint, never as a failure: one source missing must not take the
+    /// others down with it.
+    @Published private(set) var unmatchedSources: [String] = []
 
     let canvas = DanmakuCanvas(frame: .zero)
     private var preferences: DanmakuPreferences?
@@ -93,7 +114,7 @@ final class DanmakuSession: ObservableObject {
                 phase = .ready(anime: ready.anime, episode: ready.episode, episodeID: ready.episodeID, cache: ready.cache)
             } else if let request = currentRequest {
                 // Danmaku was off before this file's pipeline ever ran.
-                guard preferences.makeProvider() != nil else {
+                guard !preferences.makeProviders().isEmpty else {
                     phase = .needsConfiguration
                     return
                 }
@@ -113,7 +134,7 @@ final class DanmakuSession: ObservableObject {
             return
         }
         canvas.setVisible(true)
-        guard preferences.makeProvider() != nil else {
+        guard !preferences.makeProviders().isEmpty else {
             phase = .needsConfiguration
             return
         }
@@ -145,7 +166,9 @@ final class DanmakuSession: ObservableObject {
         run(request: request, forceRefresh: true)
     }
 
-    /// Manual episode selection from the match sheet.
+    /// Manual episode selection from the match sheet. The binding is saved
+    /// for that episode's own provider, then the whole pipeline re-runs so
+    /// the other active sources keep their existing matches.
     func matchManually(to episodeRef: DanmakuEpisodeRef) {
         guard let request = currentRequest else { return }
         generation = UUID()
@@ -160,35 +183,57 @@ final class DanmakuSession: ObservableObject {
                     mediaFileID: request.mediaFileID, episodeRef: episodeRef, isManual: true
                 ))
             }
-            await self.presentComments(for: episodeRef, forceRefresh: false, token: token)
+            guard token == self.generation else { return }
+            await self.identifyThenPresent(request: request, forceRefresh: false, token: token)
         }
     }
 
+    /// Searches every active source and returns the results together; each
+    /// result carries the provider that can serve it.
     func search(query: String) async -> [DanmakuSearchedAnime] {
-        guard let provider = preferences?.makeProvider() else { return [] }
-        return (try? await provider.searchAnime(query: query)) ?? []
+        var results: [DanmakuSearchedAnime] = []
+        for provider in preferences?.makeProviders() ?? [] {
+            guard !Task.isCancelled else { break }
+            results += (try? await provider.searchAnime(query: query)) ?? []
+        }
+        return results
     }
 
     /// Searches with clean local aliases and returns directly selectable
-    /// episodes ordered by title and episode relevance.
+    /// episodes ordered by title and episode relevance, across every active
+    /// source.
     func automaticSuggestions() async -> [DanmakuEpisodeSuggestion] {
-        guard let request = currentRequest,
-              let provider = preferences?.makeProvider() else { return [] }
+        guard let request = currentRequest else { return [] }
         let context = searchContext(for: request)
         let queries = DanmakuAutoMatcher.searchQueries(for: context)
         var responses: [DanmakuSearchResponse] = []
-        for (index, query) in queries.enumerated() {
-            guard !Task.isCancelled else { return [] }
-            if let anime = try? await provider.searchAnime(query: query) {
-                responses.append(DanmakuSearchResponse(query: query, queryIndex: index, anime: anime))
+        for provider in preferences?.makeProviders() ?? [] {
+            for (index, query) in queries.enumerated() {
+                guard !Task.isCancelled else { return [] }
+                if let anime = try? await provider.searchAnime(query: query) {
+                    responses.append(DanmakuSearchResponse(query: query, queryIndex: index, anime: anime))
+                }
             }
         }
         return DanmakuAutoMatcher.rank(responses: responses, context: context)
     }
 
+    /// The provider ids the current preferences activate, in priority order.
+    var activeProviderIDs: [String] {
+        (preferences?.makeProviders() ?? []).map(\.metadata.id)
+    }
+
+    var activeProviderDisplayNames: [String] {
+        (preferences?.makeProviders() ?? []).map(\.metadata.displayName)
+    }
+
     // MARK: - Flow
 
     private func run(request: EpisodeRequest, forceRefresh: Bool) {
+        // Another file's per-source breakdown must not linger on screen
+        // while this one is identified.
+        loadedSources = []
+        unmatchedSources = []
         generation = UUID()
         let token = generation
         isReloading = true
@@ -208,88 +253,173 @@ final class DanmakuSession: ObservableObject {
     }
 
     private func identifyThenPresent(request: EpisodeRequest, forceRefresh: Bool, token: UUID) async {
-        // An existing binding (this file, or its earlier match) short-circuits
-        // identification entirely — the common path after the first watch.
-        if let database,
-           let binding = try? await database.danmakuMatch(mediaFileID: request.mediaFileID),
-           token == generation {
-            await presentComments(for: binding.episodeRef, forceRefresh: forceRefresh, token: token)
-            return
-        }
-        guard token == generation else { return }
-        guard let provider = preferences?.makeProvider() else {
+        let providers = preferences?.makeProviders() ?? []
+        guard !providers.isEmpty else {
             phase = .needsConfiguration
             return
         }
-
         phase = .matching
-        // File identity per the official spec: MD5 of the first 16 MB,
-        // computed off the main actor. Hashing is skipped for small files.
-        let fileURL = request.fileURL
-        let fileHash = await Task.detached(priority: .utility) {
-            try? DanmakuFileHasher.hashFile(at: fileURL)
-        }.value
 
+        // dandanplay identifies by file hash; Bilibili has no such API and
+        // matches on metadata instead, so the hash is computed at most once
+        // and only when a provider can use it.
+        var fileHash: String?
+        if providers.contains(where: { $0.metadata.id == "dandanplay" }) {
+            let fileURL = request.fileURL
+            fileHash = await Task.detached(priority: .utility) {
+                try? DanmakuFileHasher.hashFile(at: fileURL)
+            }.value
+        }
         guard token == generation else { return }
+
+        var refs: [(provider: any DanmakuProvider, ref: DanmakuEpisodeRef)] = []
+        var unmatched: [String] = []
+        for provider in providers {
+            guard token == generation else { return }
+            if let ref = await resolveRef(
+                provider: provider, request: request, fileHash: fileHash, token: token
+            ) {
+                refs.append((provider, ref))
+            } else {
+                unmatched.append(provider.metadata.displayName)
+            }
+        }
+        guard token == generation else { return }
+        unmatchedSources = unmatched
+        guard !refs.isEmpty else {
+            phase = .noMatch
+            return
+        }
+        await presentComments(for: refs, request: request, forceRefresh: forceRefresh, token: token)
+    }
+
+    /// Finds the episode one provider should serve: an existing binding
+    /// first — the common path after the first watch — then identification.
+    private func resolveRef(
+        provider: any DanmakuProvider,
+        request: EpisodeRequest,
+        fileHash: String?,
+        token: UUID
+    ) async -> DanmakuEpisodeRef? {
+        let providerID = provider.metadata.id
+        if let database,
+           let binding = try? await database.danmakuMatch(mediaFileID: request.mediaFileID, providerID: providerID) {
+            return binding.episodeRef
+        }
+        guard token == generation else { return nil }
         do {
             let result = try await provider.match(
                 fileName: request.fileName,
                 fileHash: fileHash,
                 fileSize: request.fileSize,
-                videoDuration: request.duration > 0 ? request.duration : nil
+                videoDuration: request.duration > 0 ? request.duration : nil,
+                searchContext: searchContext(for: request)
             )
-            guard token == generation else { return }
-            guard let best = result.best else {
-                phase = .noMatch
-                return
-            }
-            if let database {
-                try? await database.saveDanmakuMatch(DanmakuMatchBinding(
-                    mediaFileID: request.mediaFileID,
-                    providerID: provider.metadata.id,
-                    episodeID: best.episodeID,
-                    animeTitle: best.animeTitle,
-                    episodeTitle: best.episodeTitle,
-                    shift: best.shift,
-                    isManual: false
-                ))
-            }
+            // An unconfident result is offered in the match sheet but only
+            // bound automatically by providers whose ambiguity means
+            // "the same episode, listed twice".
+            guard let best = result.best,
+                  result.isMatched || provider.bindsAmbiguousMatches else { return nil }
             let ref = DanmakuEpisodeRef(
-                providerID: provider.metadata.id,
+                providerID: providerID,
                 episodeID: best.episodeID,
                 animeTitle: best.animeTitle,
                 episodeTitle: best.episodeTitle,
-                shift: best.shift
+                shift: best.shift,
+                providerContext: best.providerContext
             )
-            await presentComments(for: ref, forceRefresh: forceRefresh, token: token)
+            if let database {
+                try? await database.saveDanmakuMatch(
+                    DanmakuMatchBinding(mediaFileID: request.mediaFileID, episodeRef: ref, isManual: false)
+                )
+            }
+            return ref
         } catch {
-            guard token == generation else { return }
-            // Automatic identification is best-effort: wrong or missing
-            // matches fall back to manual selection, never to an error.
-            phase = .noMatch
+            // Automatic identification is best-effort: a provider that
+            // errors out simply contributes nothing this time.
+            return nil
         }
     }
 
-    private func presentComments(for ref: DanmakuEpisodeRef, forceRefresh: Bool, token: UUID) async {
+    /// Loads every resolved source (cache first) and hands the merged list
+    /// to the renderer.
+    private func presentComments(
+        for refs: [(provider: any DanmakuProvider, ref: DanmakuEpisodeRef)],
+        request: EpisodeRequest,
+        forceRefresh: Bool,
+        token: UUID
+    ) async {
         guard token == generation else { return }
         phase = .loading
 
+        var summaries: [SourceSummary] = []
+        var lists: [[DanmakuComment]] = []
+        var lastError: Error?
+
+        for (provider, ref) in refs {
+            guard token == generation else { return }
+            let loaded = await load(provider: provider, ref: ref, request: request, forceRefresh: forceRefresh)
+            switch loaded {
+            case let .success(comments, cache, animeTitle, episodeTitle):
+                lists.append(shifted(comments, by: ref.shift))
+                summaries.append(SourceSummary(
+                    providerID: ref.providerID,
+                    displayName: provider.metadata.displayName,
+                    animeTitle: animeTitle,
+                    episodeTitle: episodeTitle,
+                    episodeID: ref.episodeID,
+                    commentCount: comments.count,
+                    cache: cache
+                ))
+            case let .failure(error):
+                lastError = error
+            }
+        }
+        guard token == generation else { return }
+
+        guard let primary = summaries.first else {
+            show([])
+            loadedSources = []
+            phase = .failed(lastError?.localizedDescription ?? "Danmaku could not be loaded.")
+            return
+        }
+        loadedSources = summaries
+        // Sources are merged in preference order, so the first provider's
+        // copy of a duplicated comment is the one that survives.
+        show(DanmakuCommentMerger.merge(lists))
+        markReady(
+            anime: primary.animeTitle,
+            episode: primary.episodeTitle,
+            episodeID: primary.episodeID,
+            cache: summaries.allSatisfy { $0.cache == .hit } ? .hit : .miss
+        )
+    }
+
+    private enum SourceLoad {
+        case success(comments: [DanmakuComment], cache: CacheState, animeTitle: String, episodeTitle: String)
+        case failure(Error)
+    }
+
+    private func load(
+        provider: any DanmakuProvider,
+        ref: DanmakuEpisodeRef,
+        request: EpisodeRequest,
+        forceRefresh: Bool
+    ) async -> SourceLoad {
         // Cache first: offline replays work, and ordinary playback never
         // hits the API twice for the same episode.
         if !forceRefresh, let database,
-           let cached = try? await database.danmakuCache(providerID: ref.providerID, episodeID: ref.episodeID),
-           token == generation {
-            show(cached.comments, shift: ref.shift)
-            markReady(anime: cached.animeTitle, episode: cached.episodeTitle, episodeID: ref.episodeID, cache: .hit)
-            return
-        }
-        guard token == generation, let provider = preferences?.makeProvider() else {
-            if token == generation { phase = .needsConfiguration }
-            return
+           let cached = try? await database.danmakuCache(providerID: ref.providerID, episodeID: ref.episodeID) {
+            return .success(
+                comments: cached.comments, cache: .hit,
+                animeTitle: cached.animeTitle, episodeTitle: cached.episodeTitle
+            )
         }
         do {
-            let comments = try await provider.fetchComments(episodeID: ref.episodeID)
-            guard token == generation else { return }
+            let comments = try await provider.fetchComments(
+                for: ref,
+                mediaDuration: request.duration > 0 ? request.duration : nil
+            )
             if let database {
                 try? await database.saveDanmakuCache(DanmakuCacheEntry(
                     providerID: ref.providerID,
@@ -299,40 +429,46 @@ final class DanmakuSession: ObservableObject {
                     comments: comments
                 ))
             }
-            show(comments, shift: ref.shift)
-            markReady(anime: ref.animeTitle, episode: ref.episodeTitle, episodeID: ref.episodeID, cache: .miss)
+            return .success(
+                comments: comments, cache: .miss,
+                animeTitle: ref.animeTitle, episodeTitle: ref.episodeTitle
+            )
         } catch {
-            guard token == generation else { return }
             // A stale cache still beats nothing when the network is down.
             if let database,
                let cached = try? await database.danmakuCache(providerID: ref.providerID, episodeID: ref.episodeID) {
-                show(cached.comments, shift: ref.shift)
-                markReady(anime: cached.animeTitle, episode: cached.episodeTitle, episodeID: ref.episodeID, cache: .hit)
-                return
+                return .success(
+                    comments: cached.comments, cache: .hit,
+                    animeTitle: cached.animeTitle, episodeTitle: cached.episodeTitle
+                )
             }
-            show([], shift: 0)
-            phase = .failed(error.localizedDescription)
+            return .failure(error)
         }
     }
 
-    /// Bakes the provider shift in once and hands the same sorted list to
-    /// the renderer and the manager panel.
-    private func show(_ raw: [DanmakuComment], shift: Double) {
-        var baked: [DanmakuComment] = raw
-        if shift != 0 {
-            baked = raw.map { (comment: DanmakuComment) -> DanmakuComment in
-                DanmakuComment(
-                    id: comment.id, time: comment.time + shift, text: comment.text,
-                    mode: comment.mode, color: comment.color,
-                    senderID: comment.senderID, timestamp: comment.timestamp
-                )
-            }
+    /// Applies a provider's reported time shift before merging, so every
+    /// source is on the same timeline.
+    private func shifted(_ comments: [DanmakuComment], by shift: Double) -> [DanmakuComment] {
+        guard shift != 0 else { return comments }
+        return comments.map { comment in
+            DanmakuComment(
+                id: comment.id, time: comment.time + shift, text: comment.text,
+                mode: comment.mode, color: comment.color,
+                senderID: comment.senderID, timestamp: comment.timestamp, source: comment.source
+            )
         }
+    }
+
+    /// Hands the same sorted list to the renderer and the manager panel.
+    /// Provider shifts are already baked in by `shifted(_:by:)`, because
+    /// merging requires every source to share one timeline.
+    private func show(_ comments: [DanmakuComment]) {
+        var baked = comments
         baked.sort { (lhs: DanmakuComment, rhs: DanmakuComment) -> Bool in
             if lhs.time != rhs.time { return lhs.time < rhs.time }
             return lhs.id < rhs.id
         }
-        comments = baked
+        self.comments = baked
         canvas.setComments(baked, shift: 0)
     }
 

@@ -110,14 +110,26 @@ in-player Danmaku Manager for browsing, searching, and blocking comments.
   against the player's own clock. Pausing freezes comments immediately;
   seeking, changing speed, and resuming keep the video and comments together.
   It never touches the HDR/EDR video pipeline.
-- Official **dandanplay Open Danmaku API**: automatic episode identification
-  plus a metadata-assisted episode chooser that opens directly from the
-  danmaku button. Suggestions are ranked by title, episode number, and media
-  type, so release filenames do not need to be copied into a search box.
-  Manual title search remains available for unusual releases.
+- Two sources, selectable in Settings — **dandanplay**, **Bilibili**, or both
+  merged:
+  - Official **dandanplay Open Danmaku API**: automatic episode identification
+    by file hash, plus a metadata-assisted episode chooser that opens directly
+    from the danmaku button. Suggestions are ranked by title, episode number,
+    and media type, so release filenames do not need to be copied into a
+    search box. Manual title search remains available for unusual releases.
+  - **Bilibili**: no account needed. Because Bilibili has no file-identity
+    API, episodes are found by title and episode number, then read from the
+    official protobuf segment endpoint for that episode's own `cid` —
+    including the correct part of a multi-part submission. Titles a
+    dandanplay search cannot place often still resolve here. An optional
+    `SESSDATA` cookie (Settings, stored in the Keychain) only widens what
+    your account may see; region-locked or members-only titles report that
+    and leave playback untouched.
+  - **Merged**: both pools are fetched and combined, with comments that
+    appear in both shown once.
 - Downloaded comments are cached in the local database by provider and episode
   for offline replay and to avoid repeated requests. Use **Refresh Danmaku**
-  when you explicitly want a fresh copy from dandanplay.
+  when you explicitly want a fresh copy.
 - Player-bar controls: on/off (`D`), opacity, font size, line spacing,
   display area and max lines, scrolling speed, max simultaneous comments,
   per-mode and colored-comment filters, ±10 s timing offset, refresh, and
@@ -177,4 +189,4 @@ local SQLite database (`~/Library/Containers/com.uhmmu.AnimeGod/Data/…`);
 cached episode files sit in the same container's Application Support folder.
 Nothing is uploaded. Network is used only for the metadata providers you
 invoke, the Bangumi charts section, the translation provider you configure,
-and the dandanplay danmaku API when danmaku is enabled.
+and the danmaku sources you enable (dandanplay and/or Bilibili).

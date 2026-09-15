@@ -7,6 +7,16 @@ struct SettingsView: View {
     @State private var savedFeedback = false
     @State private var danmakuSavedFeedback = false
 
+    /// Explains what each source costs the viewer, since "both" doubles the
+    /// requests per episode and can double-show a popular comment.
+    private var sourceExplanation: String {
+        switch danmaku.source {
+        case .dandanplay: "dandanplay identifies the file by hash — the most accurate match when the release is known."
+        case .bilibili: "Bilibili matches by title and episode number, and reads the official danmaku pool for that episode."
+        case .both: "Both pools are fetched and merged; comments that appear in both are shown once, keeping the dandanplay copy."
+        }
+    }
+
     var body: some View {
         Form {
             Section("Translation") {
@@ -49,8 +59,23 @@ struct SettingsView: View {
             }
 
             Section("Danmaku") {
+                Picker("Source", selection: $danmaku.source) {
+                    ForEach(DanmakuSourceSelection.allCases) { source in
+                        Text(source.displayName).tag(source)
+                    }
+                }
+                Text(sourceExplanation)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
                 TextField("dandanplay AppId", text: $danmaku.appID, prompt: Text("from dev.dandanplay.com"))
                 SecureField("dandanplay AppSecret", text: $danmaku.appSecret, prompt: Text("one of the two secrets issued to your app"))
+                SecureField("Bilibili SESSDATA (optional)", text: $danmaku.bilibiliSessData, prompt: Text("only needed for members-only titles"))
+                Picker("Bilibili endpoint", selection: $danmaku.bilibiliEndpoint) {
+                    ForEach(BilibiliSession.SegmentEndpoint.allCases, id: \.self) { endpoint in
+                        Text(endpoint.displayName).tag(endpoint)
+                    }
+                }
                 HStack {
                     Button("Save") {
                         danmaku.saveCredentials()
@@ -63,13 +88,15 @@ struct SettingsView: View {
                             .transition(.opacity)
                     }
                     Spacer()
-                    Text("AnimeGod uses the official dandanplay Open Danmaku API. Create a (free) app at dev.dandanplay.com, then paste its AppId and AppSecret here — both are stored in your macOS Keychain, never in plain text.")
+                    Text("dandanplay uses the official Open Danmaku API — create a (free) app at dev.dandanplay.com and paste its AppId and AppSecret. Bilibili needs no account: it is read anonymously, and a SESSDATA cookie only widens what your account may see. Everything here is stored in your macOS Keychain, never in plain text.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.trailing)
                 }
-                if danmaku.appID.isEmpty && danmaku.appSecret.isEmpty {
-                    Text("Without credentials the player still works — danmaku simply stays unavailable until they are configured.")
+                if danmaku.source != .bilibili, !danmaku.isDandanplayConfigured {
+                    Text(danmaku.source == .both
+                         ? "Without dandanplay credentials only the Bilibili source runs."
+                         : "Without credentials the player still works — danmaku simply stays unavailable until they are configured.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
