@@ -4,6 +4,7 @@ import SwiftUI
 struct SettingsView: View {
     @ObservedObject var translation: TranslationCoordinator
     @ObservedObject var danmaku: DanmakuPreferences
+    @ObservedObject var torrentSources: TorrentSourcePreferences
     @State private var savedFeedback = false
     @State private var danmakuSavedFeedback = false
 
@@ -100,6 +101,25 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+            }
+
+            Section("Release Sources") {
+                ForEach(TorrentSourceID.allCases) { source in
+                    Toggle(isOn: Binding(
+                        get: { torrentSources.enabledSources.contains(source) },
+                        set: { torrentSources.set(source, enabled: $0) }
+                    )) {
+                        HStack {
+                            Text(source.displayName)
+                            Text(source.homepage.host() ?? "")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                Text("Find Releases searches the enabled anime indexes at once and merges listings of the same torrent. Only anime indexes are offered; adult, game and manga listings are filtered out.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)

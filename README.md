@@ -46,6 +46,29 @@ in-player Danmaku Manager for browsing, searching, and blocking comments.
 - Rename a folder on disk, rescan, and your bindings follow the file —
   identity migration keeps metadata, personal entries, and history attached.
 
+### Find releases
+- **Find Releases** (Discover sidebar, or the toolbar of any anime) searches
+  ten anime torrent indexes at once — 动漫花园, 蜜柑计划, 萌番组, Anime
+  Garden, ACG.RIP, 末日动漫, Nyaa (anime category), AnimeTosho, SubsPlease,
+  TokyoTosho — and merges listings of the same torrent across sites
+  (hex/base32 info hashes unified; sources, trackers and `.torrent` links
+  combined). Only anime indexes are offered; adult, game and manga listings
+  are dropped while parsing.
+- From an anime page the search runs every known name (Bangumi Chinese and
+  original titles, AniList romaji, folder title) together, and releases that
+  bring an episode your library lacks are tagged **New**; **Missing
+  Episodes** keeps only those.
+- Each title is parsed for fansub, episode or batch range, resolution,
+  codec, source, and subtitle languages/style (简/繁/日, 内嵌/内封/外挂).
+  Filter by type, resolution, subtitles and group; sort by best match,
+  newest, seeders or size; unrelated listings are hidden by default.
+- Results stream in as each source answers; a slow or blocked site never
+  holds up the others. **Source Details** shows every source's status and
+  time, and **Retry Failed** re-runs only what failed.
+- Per release: open in your torrent app, copy magnet link(s), save a
+  `.torrent` (verified against its info hash), or open the listing page.
+  Recent searches are remembered.
+
 ### Bangumi charts
 - **Bangumi Charts** browses every site-wide ranking Bangumi publishes: all
   five channels (anime, books, music, games, live action) and every filter
@@ -189,4 +212,5 @@ local SQLite database (`~/Library/Containers/com.uhmmu.AnimeGod/Data/…`);
 cached episode files sit in the same container's Application Support folder.
 Nothing is uploaded. Network is used only for the metadata providers you
 invoke, the Bangumi charts section, the translation provider you configure,
-and the danmaku sources you enable (dandanplay and/or Bilibili).
+the danmaku sources you enable (dandanplay and/or Bilibili), and the release
+sources you search.

@@ -34,6 +34,11 @@ final class AppModel: ObservableObject {
     /// Local episode copies: auto-cached while playing from an external
     /// drive, manually cacheable, playable when the drive is unplugged.
     let episodeCache = EpisodeCacheStore()
+    /// Which anime indexes release searches use, plus recent searches.
+    let torrentSources: TorrentSourcePreferences
+    /// The sidebar's release search, kept alive so results survive switching
+    /// sections.
+    let releaseSearch: TorrentSearchModel
     /// Read access for player-owned subsystems (danmaku cache/match).
     var libraryDatabase: LibraryDatabase? { database }
     private let metadataProviders: [MetadataProviderID: any MetadataProvider] = [
@@ -47,6 +52,9 @@ final class AppModel: ObservableObject {
     private var shoutboxUpgradeAttempts: Set<UUID> = []
 
     init() {
+        let torrentSources = TorrentSourcePreferences()
+        self.torrentSources = torrentSources
+        releaseSearch = TorrentSearchModel(preferences: torrentSources)
         // Republish translation and danmaku preference state so views
         // observing only AppModel update while batches/settings change.
         translation.objectWillChange

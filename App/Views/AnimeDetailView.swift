@@ -7,6 +7,7 @@ struct AnimeDetailView: View {
     @State private var episodes: [EpisodeMedia] = []
     @State private var showingMatch = false
     @State private var showingProfile = false
+    @State private var showingReleases = false
     @State private var communityKind: CommunityPostKind = .shoutbox
     @State private var communityProvider: MetadataProviderID = .bangumi
     @State private var expandedCategories: Set<EpisodeCategory> = [.main]
@@ -25,6 +26,22 @@ struct AnimeDetailView: View {
             $0.kind == communityKind && $0.provider == communityProvider
         }
     }
+    /// Every name the title is known by — Bangumi's Chinese and original
+    /// names, AniList's romaji, and the local folder title — so fansubs that
+    /// label releases differently are all found.
+    private var releaseQueries: [String] {
+        var names: [String] = []
+        for name in metadataSources.flatMap({ [$0.title, $0.originalTitle] }) + [metadata?.title ?? "", anime.title] {
+            // Commas separate queries, so one inside a title becomes a space.
+            let trimmed = name.replacingOccurrences(of: #"[,，]"#, with: " ", options: .regularExpression)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty,
+                  !names.contains(where: { $0.caseInsensitiveCompare(trimmed) == .orderedSame }) else { continue }
+            names.append(trimmed)
+        }
+        return Array(names.prefix(4))
+    }
+
     private var communityKinds: [CommunityPostKind] {
         communityProvider == .bangumi ? [.shoutbox, .review, .discussion] : [.review]
     }
@@ -41,6 +58,10 @@ struct AnimeDetailView: View {
         }
         .navigationTitle(metadata?.title ?? anime.title)
         .toolbar {
+            Button { showingReleases = true } label: {
+                Label("Find Releases", systemImage: "arrow.down.circle")
+            }
+            .help("Search anime torrent indexes for this title")
             Button { showingProfile = true } label: {
                 Label("Edit My Entry", systemImage: "person.crop.circle.badge.checkmark")
             }
@@ -52,6 +73,15 @@ struct AnimeDetailView: View {
             MetadataMatchView(anime: anime)
                 .environmentObject(model)
                 .frame(minWidth: 700, minHeight: 520)
+        }
+        .sheet(isPresented: $showingReleases) {
+            AnimeReleaseSearchSheet(
+                title: metadata?.title ?? anime.title,
+                queries: releaseQueries,
+                ownedEpisodes: Set(episodes.filter { $0.episode.kind == .regular }.compactMap(\.episode.number)),
+                preferences: model.torrentSources
+            )
+            .frame(minWidth: 980, minHeight: 620)
         }
         .sheet(isPresented: $showingProfile) {
             AnimeProfileEditor(anime: anime, profile: model.profile(for: anime.id))

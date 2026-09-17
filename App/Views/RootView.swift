@@ -5,6 +5,7 @@ private enum SidebarItem: Hashable {
     case library
     case continueWatching
     case bangumiCharts
+    case releases
     case rankings
     case diary
     case statistics
@@ -28,6 +29,7 @@ struct RootView: View {
                 }
                 Section("Discover") {
                     Label("Bangumi Charts", systemImage: "chart.bar.doc.horizontal").tag(SidebarItem.bangumiCharts)
+                    Label("Find Releases", systemImage: "arrow.down.circle").tag(SidebarItem.releases)
                 }
                 Section("Personal") {
                     Label("My Rankings", systemImage: "list.number").tag(SidebarItem.rankings)
@@ -51,12 +53,13 @@ struct RootView: View {
                 case .library: LibraryView()
                 case .continueWatching: ContinueWatchingView()
                 case .bangumiCharts: BangumiChartsView()
+                case .releases: ReleaseSearchView(search: model.releaseSearch).navigationTitle("Find Releases")
                 case .rankings: RankingsView()
                 case .diary: DiaryView()
                 case .statistics: StatisticsView()
                 case .folders: LibraryRootsView()
                 case .episodeCache: EpisodeCacheView(cache: model.episodeCache)
-                case .settings: SettingsView(translation: model.translation, danmaku: model.danmakuPreferences)
+                case .settings: SettingsView(translation: model.translation, danmaku: model.danmakuPreferences, torrentSources: model.torrentSources)
                 case nil: ContentUnavailableView("Choose a section", systemImage: "sidebar.left")
                 }
             }

@@ -226,3 +226,59 @@ struct TorrentFileTests {
         #expect(throws: TorrentFile.ParseError.self) { try TorrentFile(data: Self.bencode(deep)) }
     }
 }
+
+struct TorrentResultFilterTests {
+    private func result(_ title: String, hash: String, category: TorrentCategory = .episode, team: String? = nil, queries: [String] = ["BanG Dream! Ave Mujica"]) -> TorrentSearchResult {
+        var observation = TorrentObservation(source: .nyaa, title: title, infoHash: TorrentInfoHash(hash)!, category: category, team: team)
+        observation.query = queries[0]
+        return TorrentResultMerger.merge([observation], queries: queries)[0]
+    }
+
+    private var sample: [TorrentSearchResult] {
+        [
+            result("[LoliHouse] BanG Dream! Ave Mujica - 05 [WebRip 1080p HEVC-10bit AAC][简繁内封字幕]", hash: "1111111111111111111111111111111111111111"),
+            result("[Prejudice-Studio] BanG Dream! Ave Mujica [01-13][WEB-DL 2160P][简日内嵌]", hash: "2222222222222222222222222222222222222222", category: .batch),
+            result("[SubsPlease] BanG Dream! Ave Mujica - 06 (720p) [ABCDEF12].mkv", hash: "3333333333333333333333333333333333333333"),
+            result("Ave Mujica - The Die is Cast S01 1080p WEB", hash: "4444444444444444444444444444444444444444"),
+            result("(C108) Some Doujin Anthology [English].zip", hash: "5555555555555555555555555555555555555555"),
+            result("[JMAX] BanG Dream! Ave Mujica Best Album [FLAC]", hash: "6666666666666666666666666666666666666666", category: .music)
+        ]
+    }
+
+    @Test func defaultFilterHidesMusicAndUnrelatedListings() {
+        let visible = TorrentResultFilter().apply(sample).map(\.infoHash.hex.first)
+        #expect(Set(visible) == ["1", "2", "3", "4"])
+    }
+
+    @Test func filtersByResolutionSubtitleGroupAndBatch() {
+        var filter = TorrentResultFilter()
+        filter.resolutions = ["1080p"]
+        #expect(Set(filter.apply(sample).map(\.infoHash.hex.first)) == ["1", "4"])
+
+        filter = TorrentResultFilter(subtitleLanguages: [.japanese])
+        #expect(filter.apply(sample).map(\.infoHash.hex.first) == ["2"])
+
+        filter = TorrentResultFilter(groups: ["SubsPlease"])
+        #expect(filter.apply(sample).map(\.infoHash.hex.first) == ["3"])
+
+        filter = TorrentResultFilter(batchMode: .batchesOnly)
+        #expect(filter.apply(sample).map(\.infoHash.hex.first) == ["2"])
+
+        filter = TorrentResultFilter(text: "subsplease 06")
+        #expect(filter.apply(sample).map(\.infoHash.hex.first) == ["3"])
+    }
+
+    @Test func missingEpisodesOnlyKeepsBatchesWithGaps() {
+        let filter = TorrentResultFilter(ownedEpisodes: Set((1...12).map(Double.init)), missingEpisodesOnly: true)
+        // Episodes 5 and 6 are owned; the 01–13 batch still brings episode 13;
+        // the release without an episode number can't be ruled out.
+        #expect(Set(filter.apply(sample).map(\.infoHash.hex.first)) == ["2", "4"])
+        #expect(!TorrentResultFilter.hasMissingEpisode(TorrentReleaseInfo(firstEpisode: 1, lastEpisode: 12), owned: Set((1...12).map(Double.init))))
+    }
+
+    @Test func facetsCountGroupsAndOrderResolutions() {
+        let facets = TorrentResultFacets(results: sample)
+        #expect(facets.resolutions == ["2160p", "1080p", "720p"])
+        #expect(facets.groups.map(\.name).contains("LoliHouse"))
+    }
+}

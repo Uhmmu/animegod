@@ -1,6 +1,6 @@
 # Anime Torrent Search and Download Plan
 
-Status: **Phase 1 implemented** (search core); phases 2–5 pending
+Status: **Phases 1–2 implemented** (search core + UI); phases 3–5 pending
 
 This plan ports the useful parts of the separate `magnet-crawler` project
 (Python + Flask + pywebview + libtorrent) into AnimeGod as native Swift, keeps
@@ -144,9 +144,11 @@ twice.
 ## 7. Phases
 
 1. Core: hashes, bencode, merger, relevance, coordinator, 10 providers, tests.
-2. App: "Downloads" sidebar section with search, filters, source details,
-   history; "Find Releases" on anime detail; magnet copy / open / save
-   `.torrent`.
+2. App: "Find Releases" sidebar section with search, filters, source
+   details, history; "Find Releases" on anime detail; magnet copy / open /
+   save `.torrent`. *(Done: `App/Torrent/TorrentSearchModel.swift`,
+   `App/Views/ReleaseSearchView.swift`; the entitlement moved from
+   `files.user-selected.read-only` to `read-write` for saving.)*
 3. Download engine per §5, download-folder memory, `v8_torrents`.
 4. Play-while-downloading and library auto-binding.
 5. Subscriptions.

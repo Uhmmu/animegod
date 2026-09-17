@@ -42,6 +42,18 @@ public struct TorrentSearchSnapshot: Sendable {
     var observations: [TorrentObservation] = []
 
     public var canRetry: Bool { isFinished && pairs.contains { $0.status.isRetryable } }
+
+    /// The snapshot as it stands once its consumer stopped listening: a
+    /// cancelled stream delivers no final snapshot of its own.
+    public func cancelled() -> TorrentSearchSnapshot {
+        var copy = self
+        for index in copy.pairs.indices where copy.pairs[index].status.isActive {
+            copy.pairs[index].status = .cancelled
+        }
+        copy.isFinished = true
+        return copy
+    }
+
     public var completedPairs: Int { pairs.filter { !$0.status.isActive }.count }
 }
 
