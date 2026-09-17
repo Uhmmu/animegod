@@ -76,10 +76,12 @@ struct AnimeDetailView: View {
         }
         .sheet(isPresented: $showingReleases) {
             AnimeReleaseSearchSheet(
+                anime: anime,
                 title: metadata?.title ?? anime.title,
                 queries: releaseQueries,
                 ownedEpisodes: Set(episodes.filter { $0.episode.kind == .regular }.compactMap(\.episode.number)),
-                preferences: model.torrentSources
+                preferences: model.torrentSources,
+                downloads: model.downloads
             )
             .frame(minWidth: 980, minHeight: 620)
         }

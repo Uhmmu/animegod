@@ -282,3 +282,87 @@ struct TorrentResultFilterTests {
         #expect(facets.groups.map(\.name).contains("LoliHouse"))
     }
 }
+
+struct TorrentDownloadRecordTests {
+    private func makeDatabase() throws -> LibraryDatabase {
+        try LibraryDatabase(inMemory: true)
+    }
+
+    @Test func storesUpdatesAndRemovesDownloads() async throws {
+        let database = try makeDatabase()
+        let record = TorrentDownloadRecord(
+            infoHash: "6E54509DE959FBE569C135B4F46B35789D53AAA6",
+            title: "Ave Mujica 01-13",
+            magnet: "magnet:?xt=urn:btih:6e54509de959fbe569c135b4f46b35789d53aaa6",
+            savePath: "/Users/someone/Downloads",
+            animeTitle: "BanG Dream! Ave Mujica",
+            totalBytes: 10_093_172_736,
+            isSequential: true
+        )
+        try await database.saveTorrentDownload(record)
+
+        var stored = try #require(try await database.torrentDownloads().first)
+        #expect(stored.infoHash == "6e54509de959fbe569c135b4f46b35789d53aaa6", "hashes are normalised")
+        #expect(stored.isSequential)
+        #expect(stored.completedAt == nil)
+
+        // Metadata arrives late; nil fields must not wipe what is known.
+        let finished = Date(timeIntervalSince1970: 1_786_600_000)
+        try await database.updateTorrentDownload(
+            infoHash: stored.infoHash.uppercased(),
+            title: nil,
+            totalBytes: 10_000,
+            completedAt: finished,
+            isSequential: nil
+        )
+        stored = try #require(try await database.torrentDownloads().first)
+        #expect(stored.title == "Ave Mujica 01-13")
+        #expect(stored.totalBytes == 10_000)
+        #expect(stored.completedAt == finished)
+        #expect(stored.isSequential)
+
+        // Completion is stamped once: a later update does not move it.
+        try await database.updateTorrentDownload(infoHash: stored.infoHash, title: nil, totalBytes: nil, completedAt: .now, isSequential: nil)
+        #expect(try await database.torrentDownloads().first?.completedAt == finished)
+
+        try await database.removeTorrentDownload(infoHash: stored.infoHash)
+        #expect(try await database.torrentDownloads().isEmpty)
+    }
+
+    @Test func savingTwiceKeepsTheAnimeBinding() async throws {
+        let database = try makeDatabase()
+        // The binding is a real foreign key, so the anime has to exist.
+        let root = LibraryRoot(displayName: "Anime", lastKnownPath: "/Anime")
+        try await database.save(root: root)
+        try await database.importScan(.init(root: root, files: [
+            ScannedMediaFile(
+                relativePath: "Ave Mujica/05.mkv",
+                fileSize: 1,
+                modifiedAt: .now,
+                parsed: ParsedAnimeFilename(title: "Ave Mujica", episode: 5, episodeText: "05", confidence: 0.9)
+            )
+        ], skippedUnreadableCount: 0))
+        let animeID = try #require(try await database.library().first?.anime.id)
+        try await database.saveTorrentDownload(TorrentDownloadRecord(
+            infoHash: "938762a9ee0278dfcbd269badd8c064b5e18a90d",
+            title: "Episode 5",
+            magnet: "magnet:?xt=urn:btih:938762a9ee0278dfcbd269badd8c064b5e18a90d",
+            savePath: "/tmp",
+            animeID: animeID,
+            animeTitle: "Ave Mujica",
+            episodeLabel: "05"
+        ))
+        // A later save without the binding (a plain re-add) keeps it.
+        try await database.saveTorrentDownload(TorrentDownloadRecord(
+            infoHash: "938762a9ee0278dfcbd269badd8c064b5e18a90d",
+            title: "Episode 5",
+            magnet: "magnet:?xt=urn:btih:938762a9ee0278dfcbd269badd8c064b5e18a90d",
+            savePath: "/tmp/other"
+        ))
+        let stored = try #require(try await database.torrentDownloads().first)
+        #expect(stored.animeID == animeID)
+        #expect(stored.animeTitle == "Ave Mujica")
+        #expect(stored.episodeLabel == "05")
+        #expect(stored.savePath == "/tmp/other")
+    }
+}

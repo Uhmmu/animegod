@@ -994,6 +994,92 @@ public actor LibraryDatabase {
         )
     }
 
+    // MARK: - Torrent downloads
+
+    /// Newest first, which is the order the Downloads list shows.
+    public func torrentDownloads() throws -> [TorrentDownloadRecord] {
+        try database.read { db in
+            try Row.fetchAll(db, sql: "SELECT * FROM torrentDownload ORDER BY addedAt DESC")
+                .map(Self.decodeTorrentDownload)
+        }
+    }
+
+    public func saveTorrentDownload(_ record: TorrentDownloadRecord) throws {
+        try database.write { db in
+            try db.execute(sql: """
+                INSERT INTO torrentDownload
+                    (infoHash, title, magnet, savePath, animeID, animeTitle, episodeLabel,
+                     totalBytes, addedAt, completedAt, isSequential)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(infoHash) DO UPDATE SET
+                    title = excluded.title,
+                    magnet = excluded.magnet,
+                    savePath = excluded.savePath,
+                    animeID = COALESCE(excluded.animeID, torrentDownload.animeID),
+                    animeTitle = COALESCE(excluded.animeTitle, torrentDownload.animeTitle),
+                    episodeLabel = COALESCE(excluded.episodeLabel, torrentDownload.episodeLabel),
+                    totalBytes = excluded.totalBytes,
+                    completedAt = excluded.completedAt,
+                    isSequential = excluded.isSequential
+                """, arguments: [
+                    record.infoHash,
+                    record.title,
+                    record.magnet,
+                    record.savePath,
+                    record.animeID?.uuidString,
+                    record.animeTitle,
+                    record.episodeLabel,
+                    record.totalBytes,
+                    record.addedAt,
+                    record.completedAt,
+                    record.isSequential
+                ])
+        }
+    }
+
+    /// Progress the engine reports: the name and size only become known once
+    /// metadata arrives, and completion is stamped once.
+    public func updateTorrentDownload(
+        infoHash: String,
+        title: String?,
+        totalBytes: Int64?,
+        completedAt: Date?,
+        isSequential: Bool?
+    ) throws {
+        try database.write { db in
+            try db.execute(sql: """
+                UPDATE torrentDownload
+                SET title = COALESCE(?, title),
+                    totalBytes = COALESCE(?, totalBytes),
+                    completedAt = COALESCE(completedAt, ?),
+                    isSequential = COALESCE(?, isSequential)
+                WHERE infoHash = ?
+                """, arguments: [title, totalBytes, completedAt, isSequential, infoHash.lowercased()])
+        }
+    }
+
+    public func removeTorrentDownload(infoHash: String) throws {
+        try database.write { db in
+            try db.execute(sql: "DELETE FROM torrentDownload WHERE infoHash = ?", arguments: [infoHash.lowercased()])
+        }
+    }
+
+    private static func decodeTorrentDownload(_ row: Row) -> TorrentDownloadRecord {
+        TorrentDownloadRecord(
+            infoHash: row["infoHash"],
+            title: row["title"],
+            magnet: row["magnet"],
+            savePath: row["savePath"],
+            animeID: (row["animeID"] as String?).flatMap(UUID.init(uuidString:)),
+            animeTitle: row["animeTitle"],
+            episodeLabel: row["episodeLabel"],
+            totalBytes: row["totalBytes"],
+            addedAt: row["addedAt"],
+            completedAt: row["completedAt"],
+            isSequential: row["isSequential"]
+        )
+    }
+
     // MARK: - Translation cache
 
     public func cachedTranslations(provider: String, targetLanguage: String, texts: [String]) throws -> [Int: String] {
@@ -1414,6 +1500,27 @@ public actor LibraryDatabase {
                 """)
             try db.drop(table: "danmakuMatch")
             try db.rename(table: "danmakuMatch_v7", to: "danmakuMatch")
+        }
+        migrator.registerMigration("v8_torrent_downloads") { db in
+            // What the embedded BitTorrent engine is downloading, from the
+            // library's point of view. Resume data and piece state stay with
+            // the engine; this is the row the Downloads list is built from.
+            // Deleting an anime only clears the binding — the files and the
+            // download itself are the user's.
+            try db.create(table: "torrentDownload") { table in
+                table.column("infoHash", .text).primaryKey()
+                table.column("title", .text).notNull()
+                table.column("magnet", .text).notNull()
+                table.column("savePath", .text).notNull()
+                table.column("animeID", .text).references("anime", onDelete: .setNull)
+                table.column("animeTitle", .text)
+                table.column("episodeLabel", .text)
+                table.column("totalBytes", .integer).notNull().defaults(to: 0)
+                table.column("addedAt", .datetime).notNull()
+                table.column("completedAt", .datetime)
+                table.column("isSequential", .boolean).notNull().defaults(to: false)
+            }
+            try db.create(index: "torrentDownload_anime", on: "torrentDownload", columns: ["animeID"])
         }
         return migrator
     }

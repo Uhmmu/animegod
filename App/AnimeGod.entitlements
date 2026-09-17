@@ -13,6 +13,10 @@
 	<true/>
 	<key>com.apple.security.network.client</key>
 	<true/>
+	<!-- The embedded BitTorrent engine listens for incoming peers; being
+	     connectable is the single biggest factor in download speed. -->
+	<key>com.apple.security.network.server</key>
+	<true/>
 	<!-- MPVKit embeds LuaJIT for mpv's built-in scripts. Under the hardened
 	     runtime, LuaJIT's generated code is otherwise killed as an invalid
 	     executable page as soon as playback initializes. -->

@@ -5,3 +5,6 @@ AnimeGod.xcodeproj/
 *.xcuserstate
 xcuserdata/
 
+
+# Vendored native dependencies built by scripts/build-libtorrent.sh
+Vendor/

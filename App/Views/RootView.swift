@@ -11,6 +11,7 @@ private enum SidebarItem: Hashable {
     case statistics
     case folders
     case episodeCache
+    case downloads
     case settings
 }
 
@@ -39,6 +40,8 @@ struct RootView: View {
                 Section("Sources") {
                     Label("Library Folders", systemImage: "externaldrive").tag(SidebarItem.folders)
                     Label("Episode Cache", systemImage: "arrow.down.circle.dotted").tag(SidebarItem.episodeCache)
+                    Label("Downloads", systemImage: "arrow.down.to.line").tag(SidebarItem.downloads)
+                        .badge(model.downloads.activeCount)
                 }
                 Section("App") {
                     Label("Settings", systemImage: "gearshape").tag(SidebarItem.settings)
@@ -53,12 +56,14 @@ struct RootView: View {
                 case .library: LibraryView()
                 case .continueWatching: ContinueWatchingView()
                 case .bangumiCharts: BangumiChartsView()
-                case .releases: ReleaseSearchView(search: model.releaseSearch).navigationTitle("Find Releases")
+                case .releases: ReleaseSearchView(search: model.releaseSearch, downloads: model.downloads)
+                        .navigationTitle("Find Releases")
                 case .rankings: RankingsView()
                 case .diary: DiaryView()
                 case .statistics: StatisticsView()
                 case .folders: LibraryRootsView()
                 case .episodeCache: EpisodeCacheView(cache: model.episodeCache)
+                case .downloads: DownloadsView(downloads: model.downloads)
                 case .settings: SettingsView(translation: model.translation, danmaku: model.danmakuPreferences, torrentSources: model.torrentSources)
                 case nil: ContentUnavailableView("Choose a section", systemImage: "sidebar.left")
                 }

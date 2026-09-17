@@ -34,6 +34,8 @@ final class AppModel: ObservableObject {
     /// Local episode copies: auto-cached while playing from an external
     /// drive, manually cacheable, playable when the drive is unplugged.
     let episodeCache = EpisodeCacheStore()
+    /// The embedded BitTorrent engine and the downloads it is running.
+    let downloads = TorrentDownloadManager()
     /// Which anime indexes release searches use, plus recent searches.
     let torrentSources: TorrentSourcePreferences
     /// The sidebar's release search, kept alive so results survive switching
@@ -66,6 +68,10 @@ final class AppModel: ObservableObject {
             .sink { [weak self] _ in self?.objectWillChange.send() }
             .store(in: &cancellables)
         episodeCache.objectWillChange
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &cancellables)
+        downloads.objectWillChange
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.objectWillChange.send() }
             .store(in: &cancellables)
@@ -442,6 +448,7 @@ final class AppModel: ObservableObject {
             self.database = database
             roots = try await database.libraryRoots()
             await episodeCache.prepare(database: database)
+            await downloads.attach(database: database)
             await refreshRootAvailability()
             await reloadLibrary()
         } catch {

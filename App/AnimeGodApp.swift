@@ -1,14 +1,34 @@
+import AppKit
 import SwiftUI
+
+/// Quitting has to reach the BitTorrent engine: resume data is written on
+/// the way out so downloads continue instead of re-checking from scratch.
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    @MainActor static var model: AppModel?
+
+    func applicationWillTerminate(_ notification: Notification) {
+        MainActor.assumeIsolated { Self.model?.downloads.shutdown() }
+    }
+}
 
 @main
 struct AnimeGodApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var model = AppModel()
+
+    init() {
+        // The headless engine check runs before any scene exists: building
+        // AppModel would read the Keychain, which blocks a build that is not
+        // the installed, trusted copy.
+        if TorrentEngineSmokeTest.isRequested { TorrentEngineSmokeTest.runIfRequested() }
+    }
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environmentObject(model)
                 .frame(minWidth: 900, minHeight: 620)
+                .task { AppDelegate.model = model }
         }
         .windowToolbarStyle(.unified)
         Window("Player", id: "player") {

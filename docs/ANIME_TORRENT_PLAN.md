@@ -1,6 +1,6 @@
 # Anime Torrent Search and Download Plan
 
-Status: **Phases 1–2 implemented** (search core + UI); phases 3–5 pending
+Status: **Phases 1–3 implemented** (search core, UI, embedded downloads); phases 4–5 pending
 
 This plan ports the useful parts of the separate `magnet-crawler` project
 (Python + Flask + pywebview + libtorrent) into AnimeGod as native Swift, keeps
@@ -149,6 +149,14 @@ twice.
    save `.torrent`. *(Done: `App/Torrent/TorrentSearchModel.swift`,
    `App/Views/ReleaseSearchView.swift`; the entitlement moved from
    `files.user-selected.read-only` to `read-write` for saving.)*
-3. Download engine per §5, download-folder memory, `v8_torrents`.
+3. Download engine per §5, download-folder memory, `v8_torrents`. *(Done:
+   `scripts/build-libtorrent.sh` builds libtorrent 2.0.14 + OpenSSL 3.5.8 as
+   Universal static libraries into `Vendor/` (gitignored, not committed);
+   `App/Torrent/Engine/AGTorrentEngine.{h,mm}` is the Objective-C++ bridge;
+   `TorrentDownloadManager` + `DownloadFolderStore` + `DownloadsView` are the
+   Swift side; migration `v8_torrent_downloads` remembers downloads. The
+   sandbox gained `network.server` for incoming peers. Verified offline with
+   `-smokeTorrentLoopback`: one engine seeds, another downloads, bytes match,
+   resume data is written on shutdown.)*
 4. Play-while-downloading and library auto-binding.
 5. Subscriptions.

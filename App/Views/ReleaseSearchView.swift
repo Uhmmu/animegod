@@ -7,11 +7,19 @@ import SwiftUI
 struct ReleaseSearchView: View {
     @ObservedObject var search: TorrentSearchModel
     @ObservedObject private var preferences: TorrentSourcePreferences
+    /// The embedded engine. Absent only in previews, where downloading is
+    /// simply unavailable.
+    @ObservedObject var downloads: TorrentDownloadManager
+    /// Set when the search was opened from an anime, so downloads are bound
+    /// to that title.
+    let anime: Anime?
     @State private var selection: Set<TorrentInfoHash> = []
     @State private var showingSourceDetails = false
 
-    init(search: TorrentSearchModel) {
+    init(search: TorrentSearchModel, downloads: TorrentDownloadManager, anime: Anime? = nil) {
         self.search = search
+        self.downloads = downloads
+        self.anime = anime
         preferences = search.preferences
     }
 
@@ -308,7 +316,7 @@ struct ReleaseSearchView: View {
             contextMenu(for: results.filter { hashes.contains($0.infoHash) })
         } primaryAction: { hashes in
             if let result = results.first(where: { hashes.contains($0.infoHash) }) {
-                search.openMagnet(result)
+                downloads.download(result, anime: anime)
             }
         }
     }
@@ -316,7 +324,13 @@ struct ReleaseSearchView: View {
     @ViewBuilder
     private func contextMenu(for selected: [TorrentSearchResult]) -> some View {
         if selected.count == 1, let result = selected.first {
-            Button("Open in Torrent App") { search.openMagnet(result) }
+            Button("Download") { downloads.download(result, anime: anime) }
+            Button("Download and Play While Downloading") {
+                downloads.download(result, anime: anime, sequential: true)
+            }
+            .help("Downloads the pieces in order so the episode can be played before it finishes")
+            Divider()
+            Button("Open in Another Torrent App") { search.openMagnet(result) }
             Button("Copy Magnet Link") { search.copyMagnet(result) }
             Button("Save Torrent File…") { search.saveTorrent(result) }
             Divider()
@@ -335,6 +349,9 @@ struct ReleaseSearchView: View {
                 Button("Only Show \(group)") { search.filter.groups = [group] }
             }
         } else if selected.count > 1 {
+            Button("Download \(selected.count) Releases") {
+                for result in selected { downloads.download(result, anime: anime) }
+            }
             Button("Copy \(selected.count) Magnet Links") { search.copyMagnets(selected) }
         }
     }
@@ -493,9 +510,20 @@ struct AnimeReleaseSearchSheet: View {
     @StateObject private var search: TorrentSearchModel
     @Environment(\.dismiss) private var dismiss
     let title: String
+    let anime: Anime
+    @ObservedObject var downloads: TorrentDownloadManager
 
-    init(title: String, queries: [String], ownedEpisodes: Set<Double>, preferences: TorrentSourcePreferences) {
+    init(
+        anime: Anime,
+        title: String,
+        queries: [String],
+        ownedEpisodes: Set<Double>,
+        preferences: TorrentSourcePreferences,
+        downloads: TorrentDownloadManager
+    ) {
+        self.anime = anime
         self.title = title
+        self.downloads = downloads
         _search = StateObject(wrappedValue: TorrentSearchModel(
             preferences: preferences,
             queries: queries,
@@ -505,7 +533,7 @@ struct AnimeReleaseSearchSheet: View {
 
     var body: some View {
         NavigationStack {
-            ReleaseSearchView(search: search)
+            ReleaseSearchView(search: search, downloads: downloads, anime: anime)
                 .navigationTitle("Releases for \(title)")
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) {

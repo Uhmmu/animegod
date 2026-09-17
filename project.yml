@@ -38,5 +38,17 @@ targets:
         CODE_SIGN_ENTITLEMENTS: App/AnimeGod.entitlements
         ENABLE_HARDENED_RUNTIME: YES
         SWIFT_STRICT_CONCURRENCY: complete
+        # Embedded BitTorrent engine: libtorrent + OpenSSL are built as
+        # Universal static libraries by scripts/build-libtorrent.sh into
+        # Vendor/ (gitignored). The defines must match how the library was
+        # compiled, or its public headers describe a different ABI.
+        SWIFT_OBJC_BRIDGING_HEADER: App/Torrent/Engine/AnimeGod-Bridging-Header.h
+        CLANG_CXX_LANGUAGE_STANDARD: gnu++17
+        CLANG_CXX_LIBRARY: libc++
+        HEADER_SEARCH_PATHS: $(SRCROOT)/Vendor/libtorrent/include
+        LIBRARY_SEARCH_PATHS: $(SRCROOT)/Vendor/libtorrent/lib
+        # SystemConfiguration: libtorrent watches for IP changes through it.
+        OTHER_LDFLAGS: -ltorrent-rasterbar -lssl -lcrypto -framework SystemConfiguration
+        GCC_PREPROCESSOR_DEFINITIONS: $(inherited) TORRENT_USE_OPENSSL=1 TORRENT_USE_LIBCRYPTO=1 TORRENT_SSL_PEERS=1 BOOST_ASIO_ENABLE_CANCELIO=1 BOOST_ASIO_HAS_STD_CHRONO=1 BOOST_ASIO_NO_DEPRECATED=1 BOOST_EXCEPTION_DISABLE=1 _FILE_OFFSET_BITS=64
     scheme:
       testTargets: []

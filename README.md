@@ -69,6 +69,25 @@ in-player Danmaku Manager for browsing, searching, and blocking comments.
   `.torrent` (verified against its info hash), or open the listing page.
   Recent searches are remembered.
 
+### Downloads
+- **Built-in BitTorrent engine** (libtorrent, statically linked): downloading
+  a release needs no other app. Downloads resume after a quit, keep their
+  place across restarts, and can be paused, resumed, removed (with or without
+  their files), or re-announced to widen the peer pool.
+- **Downloads** (Sources sidebar) shows progress, speed, seeds/peers, time
+  left, and the download folder. The folder is remembered, and if it is gone
+  when a download starts — an unplugged drive, a deleted folder — the next
+  usable folder is used instead and says so, falling back to the app's own
+  folder.
+- **Connectivity is visible**, because it is what limits BitTorrent speed:
+  DHT node count and whether UPnP/NAT-PMP opened the port. If the port could
+  not be mapped, the panel explains what forwarding it would gain.
+- **Download in order** fetches pieces sequentially so an episode can be
+  played before the whole release finishes.
+- Tuned like magnet-crawler's engine: DHT with several bootstrap nodes, local
+  peer discovery, PEX, announce-to-all-trackers, encryption allowed but not
+  forced, IPv4 and IPv6, and community trackers added to every task.
+
 ### Bangumi charts
 - **Bangumi Charts** browses every site-wide ranking Bangumi publishes: all
   five channels (anime, books, music, games, live action) and every filter
@@ -212,5 +231,7 @@ local SQLite database (`~/Library/Containers/com.uhmmu.AnimeGod/Data/…`);
 cached episode files sit in the same container's Application Support folder.
 Nothing is uploaded. Network is used only for the metadata providers you
 invoke, the Bangumi charts section, the translation provider you configure,
-the danmaku sources you enable (dandanplay and/or Bilibili), and the release
-sources you search.
+the danmaku sources you enable (dandanplay and/or Bilibili), the release
+sources you search, and the BitTorrent swarms of downloads you start —
+BitTorrent is peer-to-peer, so peers you exchange data with see your IP
+address, as with any torrent client.
