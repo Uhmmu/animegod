@@ -22,6 +22,7 @@ struct AnimeGodApp: App {
         // the installed, trusted copy.
         if TorrentEngineSmokeTest.isRequested { TorrentEngineSmokeTest.runIfRequested() }
         if SubscriptionSmokeTest.isRequested { SubscriptionSmokeTest.run() }
+        if FolderAccessSmokeTest.isRequested { FolderAccessSmokeTest.run() }
     }
 
     var body: some Scene {

@@ -116,6 +116,10 @@ typedef NS_ENUM(NSInteger, AGTorrentState) {
 /// Prioritises the pieces of one file so it can be played while downloading.
 - (void)prioritiseFileForPlayback:(NSInteger)fileIndex forInfoHash:(NSString *)infoHash;
 
+/// Moves a task's files to another folder without interrupting it —
+/// libtorrent relocates the storage and keeps seeding from the new place.
+- (void)moveStorage:(NSString *)infoHash toFolder:(NSURL *)folder;
+
 - (AGTorrentSessionInfo *)sessionInfo;
 
 /// Builds `.torrent` data for a local file or folder. Used by the headless

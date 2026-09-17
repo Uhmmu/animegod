@@ -504,6 +504,7 @@ final class AppModel: ObservableObject {
             let database = try LibraryDatabase(url: applicationSupport.appending(path: "library.sqlite"))
             self.database = database
             roots = try await database.libraryRoots()
+            downloads.folders.updateLibraryRoots(roots)
             await episodeCache.prepare(database: database)
             await downloads.attach(database: database)
             // A finished download inside a library folder becomes a normal

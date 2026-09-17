@@ -41,10 +41,15 @@ struct RootView: View {
                 Section("Sources") {
                     Label("Library Folders", systemImage: "externaldrive").tag(SidebarItem.folders)
                     Label("Episode Cache", systemImage: "arrow.down.circle.dotted").tag(SidebarItem.episodeCache)
-                    Label("Downloads", systemImage: "arrow.down.to.line").tag(SidebarItem.downloads)
+                    // `.tag` has to be the outermost modifier: a `.badge`
+                    // applied after it wraps the row and the list stops
+                    // matching the selection, so the section does nothing.
+                    Label("Downloads", systemImage: "arrow.down.to.line")
                         .badge(model.downloads.activeCount)
-                    Label("Subscriptions", systemImage: "bell").tag(SidebarItem.subscriptions)
+                        .tag(SidebarItem.downloads)
+                    Label("Subscriptions", systemImage: "bell")
                         .badge(model.subscriptions.enabledCount)
+                        .tag(SidebarItem.subscriptions)
                 }
                 Section("App") {
                     Label("Settings", systemImage: "gearshape").tag(SidebarItem.settings)

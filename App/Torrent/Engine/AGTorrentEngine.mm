@@ -541,6 +541,15 @@ static NSString *AGHexFromHandle(lt::torrent_handle const &handle) {
     }
 }
 
+- (void)moveStorage:(NSString *)infoHash toFolder:(NSURL *)folder {
+    lt::torrent_handle handle = [self handleForInfoHash:infoHash];
+    if (!handle.is_valid()) { return; }
+    // dont_replace keeps any file that already exists at the destination,
+    // so a half-moved task never overwrites good data with a partial copy.
+    handle.move_storage(folder.path.UTF8String, lt::move_flags_t::dont_replace);
+    handle.save_resume_data(lt::torrent_handle::save_info_dict);
+}
+
 // MARK: - Reading state
 
 - (AGTorrentSnapshot *)snapshotFromStatus:(lt::torrent_status const &)status {

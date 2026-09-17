@@ -9,6 +9,14 @@
          folders are still only ever read. -->
     <key>com.apple.security.files.user-selected.read-write</key>
     <true/>
+	<!-- AnimeGod is distributed outside the Mac App Store. Keep external
+	     volumes writable across launches even when a previously issued
+	     security-scoped bookmark can no longer be resolved. Directory
+	     exceptions must end with a slash. -->
+	<key>com.apple.security.temporary-exception.files.absolute-path.read-write</key>
+	<array>
+		<string>/Volumes/</string>
+	</array>
 	<key>com.apple.security.files.bookmarks.app-scope</key>
 	<true/>
 	<key>com.apple.security.network.client</key>

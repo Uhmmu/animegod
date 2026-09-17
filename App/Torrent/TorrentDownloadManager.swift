@@ -66,6 +66,8 @@ final class TorrentDownloadManager: ObservableObject {
     @Published private(set) var items: [TorrentDownloadItem] = []
     @Published private(set) var sessionInfo: AGTorrentSessionInfo?
     @Published var errorMessage: String?
+    /// Short-lived note about what just happened (a move, a folder change).
+    @Published var statusMessage: String?
     /// Called once per download when it completes, so the library can pick
     /// the files up.
     var onDownloadFinished: ((TorrentDownloadRecord) -> Void)?
@@ -96,6 +98,11 @@ final class TorrentDownloadManager: ObservableObject {
         if !records.isEmpty {
             folders.restoreAccess()
             startEngineIfNeeded()
+            // One-shot maintenance: relocate existing tasks into the folder
+            // now configured, without interrupting them.
+            if ProcessInfo.processInfo.arguments.contains("-moveDownloadsToCurrentFolder") {
+                moveAllToCurrentFolder()
+            }
         }
     }
 
@@ -230,6 +237,30 @@ final class TorrentDownloadManager: ObservableObject {
             )
         }
         refresh()
+    }
+
+    /// Moves a task's files into the current download folder, keeping it
+    /// seeding. Used when the folder changes after a download started.
+    func moveToCurrentFolder(_ item: TorrentDownloadItem) {
+        let destination = folders.folderForNewDownload()
+        guard destination.path != (item.snapshot?.savePath ?? item.record.savePath) else { return }
+        guard let engine else {
+            errorMessage = "The download engine is not running, so files cannot be moved."
+            return
+        }
+        engine.moveStorage(item.record.infoHash, toFolder: destination)
+        var record = item.record
+        record.savePath = destination.path
+        records[record.infoHash] = record
+        let saved = record
+        Task { try? await database?.saveTorrentDownload(saved) }
+        statusMessage = "Moving “\(item.title)” to \(destination.lastPathComponent)…"
+        refresh()
+    }
+
+    /// Moves every task that is not already in the current folder.
+    func moveAllToCurrentFolder() {
+        for item in items { moveToCurrentFolder(item) }
     }
 
     func reannounce(_ item: TorrentDownloadItem) {

@@ -1,3 +1,4 @@
+import AnimeGodCore
 import AppKit
 import Foundation
 
@@ -13,6 +14,10 @@ final class DownloadFolderStore: ObservableObject {
     struct Folder: Identifiable, Hashable {
         var path: String
         var bookmark: Data?
+        /// Set when this is a library folder: the sandbox access comes from
+        /// the library's own bookmark, and finished downloads are picked up
+        /// by the next scan without the user adding anything.
+        var libraryRootID: UUID?
         var id: String { path }
         var url: URL { URL(fileURLWithPath: path) }
         var displayName: String { url.lastPathComponent }
@@ -31,6 +36,11 @@ final class DownloadFolderStore: ObservableObject {
 
     /// Started security scopes, kept open for as long as the app runs.
     private var openScopes: [String: URL] = [:]
+    /// Library folders, which can be downloaded into using the access the
+    /// library already has. Supplied by AppModel as roots change.
+    @Published private(set) var libraryFolders: [Folder] = []
+    private var libraryAccess: [UUID: ScopedLibraryAccess] = [:]
+    private var roots: [LibraryRoot] = []
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -47,6 +57,21 @@ final class DownloadFolderStore: ObservableObject {
     }
 
     var isUsingDefaultFolder: Bool { currentFolder.path == Self.defaultFolderURL.path }
+
+    /// Whether a folder can actually be written to right now.
+    func isWritable(_ folder: Folder) -> Bool { accessibleURL(for: folder) != nil }
+
+    /// Keeps the list of library folders that can be downloaded into.
+    func updateLibraryRoots(_ roots: [LibraryRoot]) {
+        self.roots = roots
+        libraryFolders = roots.map { root in
+            Folder(path: root.lastKnownPath, bookmark: nil, libraryRootID: root.id)
+        }
+        // A remembered library folder keeps working across launches.
+        if let rootID = currentFolder.libraryRootID, let match = libraryFolders.first(where: { $0.libraryRootID == rootID }) {
+            currentFolder = match
+        }
+    }
 
     // MARK: - Choosing
 
@@ -70,7 +95,7 @@ final class DownloadFolderStore: ObservableObject {
 
     func select(_ folder: Folder) {
         guard let usable = resolve(folder) else {
-            fallbackNotice = "“\(folder.displayName)” is not available right now."
+            fallbackNotice = Self.reasonUnusable(folder)
             return
         }
         currentFolder = usable
@@ -86,13 +111,14 @@ final class DownloadFolderStore: ObservableObject {
             fallbackNotice = nil
             return url
         }
+        let reason = Self.reasonUnusable(currentFolder)
         for folder in recentFolders where folder.path != currentFolder.path {
             if let url = accessibleURL(for: folder) {
-                fallbackNotice = "“\(currentFolder.displayName)” is unavailable — downloading to “\(folder.displayName)” instead."
+                fallbackNotice = "\(reason) Downloading to “\(folder.displayName)” instead."
                 return url
             }
         }
-        fallbackNotice = "“\(currentFolder.displayName)” is unavailable — downloading to the app's own folder instead."
+        fallbackNotice = "\(reason) Downloading to the app's own folder instead."
         return Self.defaultFolderURL
     }
 
@@ -113,12 +139,42 @@ final class DownloadFolderStore: ObservableObject {
         return url
     }
 
+    /// Why a folder cannot be used, in terms the user can act on. A library
+    /// folder bookmarked while the app was read-only stays read-only even
+    /// after the entitlement changed, and only re-picking it in the open
+    /// panel grants write access.
+    private static func reasonUnusable(_ folder: Folder) -> String {
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: folder.path, isDirectory: &isDirectory) else {
+            return "“\(folder.displayName)” is not there right now — is the drive plugged in?"
+        }
+        guard isDirectory.boolValue else { return "“\(folder.displayName)” is not a folder." }
+        if folder.libraryRootID != nil {
+            return "AnimeGod can read “\(folder.displayName)” but not write to it: this library folder was authorised for reading only. Use “Choose Folder…” and pick it again to allow downloads into it."
+        }
+        return "AnimeGod is not allowed to write to “\(folder.displayName)”. Use “Choose Folder…” and pick it again."
+    }
+
     private func resolve(_ folder: Folder) -> Folder? {
         guard accessibleURL(for: folder) != nil else { return nil }
         return folder
     }
 
     private func resolveURL(for folder: Folder) -> URL? {
+        // The signed app has a read-write exception for /Volumes/. Resolve
+        // these folders by path first so access survives relaunches even if
+        // an older security-scoped bookmark is stale or cannot be reopened.
+        // The sandbox still enforces that this exception cannot escape the
+        // external-volume root.
+        if Self.isOnExternalVolume(folder.url) { return folder.url.standardizedFileURL }
+        if let rootID = folder.libraryRootID {
+            // Downloading into the library uses the library's own access.
+            if let access = libraryAccess[rootID] { return access.url }
+            guard let root = roots.first(where: { $0.id == rootID }),
+                  let access = try? ScopedLibraryAccess(root: root) else { return nil }
+            libraryAccess[rootID] = access
+            return access.url
+        }
         if let open = openScopes[folder.path] { return open }
         // The container folder needs no bookmark.
         if folder.bookmark == nil { return folder.url }
@@ -134,6 +190,11 @@ final class DownloadFolderStore: ObservableObject {
         return url
     }
 
+    private static func isOnExternalVolume(_ url: URL) -> Bool {
+        let path = url.standardizedFileURL.path
+        return path == "/Volumes" || path.hasPrefix("/Volumes/")
+    }
+
     private func remember(_ folder: Folder) {
         recentFolders.removeAll { $0.path == folder.path }
         recentFolders.insert(folder, at: 0)
@@ -145,7 +206,11 @@ final class DownloadFolderStore: ObservableObject {
         if let stored = defaults.array(forKey: Self.foldersKey) as? [[String: Any]] {
             recentFolders = stored.compactMap { entry in
                 guard let path = entry["path"] as? String else { return nil }
-                return Folder(path: path, bookmark: entry["bookmark"] as? Data)
+                return Folder(
+                    path: path,
+                    bookmark: entry["bookmark"] as? Data,
+                    libraryRootID: (entry["libraryRootID"] as? String).flatMap(UUID.init(uuidString:))
+                )
             }
         }
         if let path = defaults.string(forKey: Self.currentKey),
@@ -158,6 +223,7 @@ final class DownloadFolderStore: ObservableObject {
         let encoded = recentFolders.map { folder -> [String: Any] in
             var entry: [String: Any] = ["path": folder.path]
             if let bookmark = folder.bookmark { entry["bookmark"] = bookmark }
+            if let rootID = folder.libraryRootID { entry["libraryRootID"] = rootID.uuidString }
             return entry
         }
         defaults.set(encoded, forKey: Self.foldersKey)

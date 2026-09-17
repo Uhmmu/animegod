@@ -23,6 +23,9 @@ struct DownloadsView: View {
             if let notice = folders.fallbackNotice {
                 notice_(notice, icon: "externaldrive.trianglebadge.exclamationmark", tint: .orange)
             }
+            if let status = downloads.statusMessage {
+                notice_(status, icon: "info.circle", tint: .secondary) { downloads.statusMessage = nil }
+            }
             if let error = downloads.errorMessage {
                 notice_(error, icon: "exclamationmark.triangle.fill", tint: .red) {
                     downloads.errorMessage = nil
@@ -57,17 +60,33 @@ struct DownloadsView: View {
         HStack(spacing: 12) {
             Menu {
                 Button("Choose Folder…") { folders.chooseFolder() }
+                if !folders.libraryFolders.isEmpty {
+                    Section("Library Folders") {
+                        ForEach(folders.libraryFolders) { folder in
+                            // A folder added before downloads existed was
+                            // authorised read-only; saying so here beats
+                            // failing after the user picks it.
+                            let writable = folders.isWritable(folder)
+                            Button(writable ? folder.path : "\(folder.path) — read-only, re-pick to allow") {
+                                folders.select(folder)
+                            }
+                        }
+                    }
+                }
                 if !folders.recentFolders.isEmpty {
-                    Divider()
-                    ForEach(folders.recentFolders) { folder in
-                        Button(folder.path) { folders.select(folder) }
+                    Section("Recent") {
+                        ForEach(folders.recentFolders) { folder in
+                            Button(folder.path) { folders.select(folder) }
+                        }
                     }
                 }
             } label: {
                 Label(folders.currentFolder.displayName, systemImage: "folder")
             }
             .fixedSize()
-            .help("Downloads are saved to \(folders.currentFolder.path)")
+            .help(folders.currentFolder.libraryRootID != nil
+                  ? "Downloads are saved to \(folders.currentFolder.path) and scanned into the library when they finish"
+                  : "Downloads are saved to \(folders.currentFolder.path)")
 
             if let info = downloads.sessionInfo, info.isRunning {
                 Label(
@@ -147,6 +166,7 @@ struct DownloadsView: View {
                     DownloadRow(item: item, downloads: downloads) { confirmingRemoval = item }
                         .padding(.vertical, 4)
                         .environmentObject(model)
+                        .environmentObject(folders)
                 }
             }
             .listStyle(.inset)
@@ -156,6 +176,7 @@ struct DownloadsView: View {
 
 private struct DownloadRow: View {
     @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var folders: DownloadFolderStore
     let item: TorrentDownloadItem
     @ObservedObject var downloads: TorrentDownloadManager
     let remove: () -> Void
@@ -211,6 +232,9 @@ private struct DownloadRow: View {
                 }
             }
             Button("Show in Finder") { downloads.revealInFinder(item) }
+            if (item.snapshot?.savePath ?? item.record.savePath) != folders.currentFolder.path {
+                Button("Move to \(folders.currentFolder.displayName)") { downloads.moveToCurrentFolder(item) }
+            }
             Button(item.record.isSequential ? "Download in Any Order" : "Download in Order") {
                 downloads.setSequential(!item.record.isSequential, for: item)
             }

@@ -74,6 +74,12 @@ in-player Danmaku Manager for browsing, searching, and blocking comments.
   a release needs no other app. Downloads resume after a quit, keep their
   place across restarts, and can be paused, resumed, removed (with or without
   their files), or re-announced to widen the peer pool.
+- **Downloads can go straight into a library folder**, so a finished
+  download is scanned in as a normal episode without moving anything. The
+  folder menu lists library folders alongside recent ones, and a task can be
+  moved to another folder later without interrupting it.
+- **Downloading titles appear in the library immediately**, with an App
+  Store-style progress ring that fills as the download completes.
 - **Downloads** (Sources sidebar) shows progress, speed, seeds/peers, time
   left, and the download folder. The folder is remembered, and if it is gone
   when a download starts — an unplugged drive, a deleted folder — the next
