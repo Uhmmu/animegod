@@ -13,12 +13,20 @@ struct ReleaseSearchView: View {
     /// Set when the search was opened from an anime, so downloads are bound
     /// to that title.
     let anime: Anime?
+    @ObservedObject var subscriptions: TorrentSubscriptionManager
     @State private var selection: Set<TorrentInfoHash> = []
     @State private var showingSourceDetails = false
+    @State private var newSubscription: TorrentSubscription?
 
-    init(search: TorrentSearchModel, downloads: TorrentDownloadManager, anime: Anime? = nil) {
+    init(
+        search: TorrentSearchModel,
+        downloads: TorrentDownloadManager,
+        subscriptions: TorrentSubscriptionManager,
+        anime: Anime? = nil
+    ) {
         self.search = search
         self.downloads = downloads
+        self.subscriptions = subscriptions
         self.anime = anime
         preferences = search.preferences
     }
@@ -49,6 +57,11 @@ struct ReleaseSearchView: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 6)
+            }
+        }
+        .sheet(item: $newSubscription) { draft in
+            SubscriptionEditor(subscription: draft) { saved in
+                Task { await subscriptions.save(saved) }
             }
         }
         .sheet(isPresented: $showingSourceDetails) {
@@ -102,6 +115,18 @@ struct ReleaseSearchView: View {
             .fixedSize()
             .help("Which anime indexes to search")
 
+            if search.snapshot != nil {
+                Button {
+                    newSubscription = TorrentSubscriptionManager.subscription(
+                        from: search,
+                        anime: anime,
+                        title: anime?.title ?? TorrentSearchCoordinator.splitQueries(search.queryText).first ?? ""
+                    )
+                } label: {
+                    Image(systemName: "bell.badge")
+                }
+                .help("Follow this search: download new episodes matching the current filters automatically")
+            }
             if search.isSearching {
                 Button("Stop") { search.cancel() }
             } else {
@@ -512,6 +537,7 @@ struct AnimeReleaseSearchSheet: View {
     let title: String
     let anime: Anime
     @ObservedObject var downloads: TorrentDownloadManager
+    @ObservedObject var subscriptions: TorrentSubscriptionManager
 
     init(
         anime: Anime,
@@ -519,11 +545,13 @@ struct AnimeReleaseSearchSheet: View {
         queries: [String],
         ownedEpisodes: Set<Double>,
         preferences: TorrentSourcePreferences,
-        downloads: TorrentDownloadManager
+        downloads: TorrentDownloadManager,
+        subscriptions: TorrentSubscriptionManager
     ) {
         self.anime = anime
         self.title = title
         self.downloads = downloads
+        self.subscriptions = subscriptions
         _search = StateObject(wrappedValue: TorrentSearchModel(
             preferences: preferences,
             queries: queries,
@@ -533,7 +561,7 @@ struct AnimeReleaseSearchSheet: View {
 
     var body: some View {
         NavigationStack {
-            ReleaseSearchView(search: search, downloads: downloads, anime: anime)
+            ReleaseSearchView(search: search, downloads: downloads, subscriptions: subscriptions, anime: anime)
                 .navigationTitle("Releases for \(title)")
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) {

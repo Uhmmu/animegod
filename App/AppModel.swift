@@ -36,6 +36,8 @@ final class AppModel: ObservableObject {
     let episodeCache = EpisodeCacheStore()
     /// The embedded BitTorrent engine and the downloads it is running.
     let downloads = TorrentDownloadManager()
+    /// Standing rules that download new episodes on their own.
+    let subscriptions: TorrentSubscriptionManager
     /// Which anime indexes release searches use, plus recent searches.
     let torrentSources: TorrentSourcePreferences
     /// The sidebar's release search, kept alive so results survive switching
@@ -57,6 +59,7 @@ final class AppModel: ObservableObject {
         let torrentSources = TorrentSourcePreferences()
         self.torrentSources = torrentSources
         releaseSearch = TorrentSearchModel(preferences: torrentSources)
+        subscriptions = TorrentSubscriptionManager(preferences: torrentSources)
         // Republish translation and danmaku preference state so views
         // observing only AppModel update while batches/settings change.
         translation.objectWillChange
@@ -72,6 +75,10 @@ final class AppModel: ObservableObject {
             .sink { [weak self] _ in self?.objectWillChange.send() }
             .store(in: &cancellables)
         downloads.objectWillChange
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &cancellables)
+        subscriptions.objectWillChange
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.objectWillChange.send() }
             .store(in: &cancellables)
@@ -504,6 +511,12 @@ final class AppModel: ObservableObject {
             downloads.onDownloadFinished = { [weak self] record in
                 Task { await self?.downloadFinished(savePath: record.savePath) }
             }
+            subscriptions.ownedEpisodesProvider = { [weak self] animeID in
+                guard let self, let database = self.database else { return [] }
+                let episodes = (try? await database.episodes(animeID: animeID)) ?? []
+                return Set(episodes.filter { $0.episode.kind == .regular }.compactMap(\.episode.number))
+            }
+            await subscriptions.attach(database: database, downloads: downloads)
             await refreshRootAvailability()
             await reloadLibrary()
         } catch {

@@ -12,6 +12,7 @@ private enum SidebarItem: Hashable {
     case folders
     case episodeCache
     case downloads
+    case subscriptions
     case settings
 }
 
@@ -42,6 +43,8 @@ struct RootView: View {
                     Label("Episode Cache", systemImage: "arrow.down.circle.dotted").tag(SidebarItem.episodeCache)
                     Label("Downloads", systemImage: "arrow.down.to.line").tag(SidebarItem.downloads)
                         .badge(model.downloads.activeCount)
+                    Label("Subscriptions", systemImage: "bell").tag(SidebarItem.subscriptions)
+                        .badge(model.subscriptions.enabledCount)
                 }
                 Section("App") {
                     Label("Settings", systemImage: "gearshape").tag(SidebarItem.settings)
@@ -56,7 +59,7 @@ struct RootView: View {
                 case .library: LibraryView()
                 case .continueWatching: ContinueWatchingView()
                 case .bangumiCharts: BangumiChartsView()
-                case .releases: ReleaseSearchView(search: model.releaseSearch, downloads: model.downloads)
+                case .releases: ReleaseSearchView(search: model.releaseSearch, downloads: model.downloads, subscriptions: model.subscriptions)
                         .navigationTitle("Find Releases")
                 case .rankings: RankingsView()
                 case .diary: DiaryView()
@@ -64,6 +67,7 @@ struct RootView: View {
                 case .folders: LibraryRootsView()
                 case .episodeCache: EpisodeCacheView(cache: model.episodeCache)
                 case .downloads: DownloadsView(downloads: model.downloads)
+                case .subscriptions: SubscriptionsView(subscriptions: model.subscriptions)
                 case .settings: SettingsView(translation: model.translation, danmaku: model.danmakuPreferences, torrentSources: model.torrentSources)
                 case nil: ContentUnavailableView("Choose a section", systemImage: "sidebar.left")
                 }

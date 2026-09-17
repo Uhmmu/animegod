@@ -1,6 +1,6 @@
 # Anime Torrent Search and Download Plan
 
-Status: **Phases 1–4 implemented** (search, UI, downloads, play-while-downloading); phase 5 (subscriptions) pending
+Status: **Complete** — all five phases implemented
 
 This plan ports the useful parts of the separate `magnet-crawler` project
 (Python + Flask + pywebview + libtorrent) into AnimeGod as native Swift, keeps
@@ -167,4 +167,13 @@ twice.
    Verified that sequential download really fills the file front-to-back:
    the first MiB of a partially downloaded Debian ISO matched the same range
    fetched over HTTP, byte for byte.)*
-5. Subscriptions.
+5. Subscriptions. *(Done: `TorrentSubscription` + `TorrentSubscriptionMatcher`
+   in Core with tests, migration `v9_torrent_subscriptions` (rules + a match
+   log that outlives downloads), `TorrentSubscriptionManager` checking every
+   30 minutes, `SubscriptionsView` with an activity log, and a one-click
+   "follow this search" button. Two rules came out of dry runs against live
+   data (`-smokeSubscription`): a subscription follows what appears **after**
+   it is created — without that, subscribing mid-season queued 37 episodes at
+   once — and seeders outrank relevance when picking unattended, because a
+   dead release never finishes. Fansub matching is substring-based so a rule
+   naming one group matches a collaboration.)*

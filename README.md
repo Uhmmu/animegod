@@ -95,6 +95,24 @@ in-player Danmaku Manager for browsing, searching, and blocking comments.
   peer discovery, PEX, announce-to-all-trackers, encryption allowed but not
   forced, IPv4 and IPv6, and community trackers added to every task.
 
+### Subscriptions
+- **Follow a show** and new episodes download by themselves. A rule is a
+  fansub, a resolution, a subtitle language, keywords to require or avoid,
+  and an episode floor — the quickest way to make one is the bell button in
+  Find Releases, once the filters show exactly what you want.
+- **Following means from now on**: a new subscription takes what appears
+  after it was created, so subscribing mid-season does not pull down every
+  episode already out. Backfilling is a deliberate switch.
+- **One release per episode**, never one already in your library or
+  downloaded before, and a release nobody seeds loses to one with peers.
+  Releases with no episode number are only taken when the rule names a
+  fansub or keyword, so a season pack is never grabbed by accident.
+- Collaborations count: a rule naming `LoliHouse` matches
+  `[喵萌奶茶屋&LoliHouse]`, which is how fansubs actually release.
+- Enabled rules are checked every 30 minutes, and every action is listed
+  under **Recent Activity** — automatic downloading is only comfortable when
+  it is easy to see and easy to switch off.
+
 ### Bangumi charts
 - **Bangumi Charts** browses every site-wide ranking Bangumi publishes: all
   five channels (anime, books, music, games, live action) and every filter

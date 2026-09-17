@@ -1080,6 +1080,135 @@ public actor LibraryDatabase {
         )
     }
 
+    // MARK: - Torrent subscriptions
+
+    public func torrentSubscriptions() throws -> [TorrentSubscription] {
+        try database.read { db in
+            try Row.fetchAll(db, sql: "SELECT * FROM torrentSubscription ORDER BY createdAt")
+                .map(Self.decodeSubscription)
+        }
+    }
+
+    public func saveTorrentSubscription(_ subscription: TorrentSubscription) throws {
+        try database.write { db in
+            try db.execute(sql: """
+                INSERT INTO torrentSubscription
+                    (id, animeID, title, queries, sources, releaseGroup, resolution, subtitleLanguages,
+                     includeKeywords, excludeKeywords, minimumEpisode, includesBatches,
+                     includesExistingReleases, isEnabled, createdAt, lastCheckedAt, lastMatchedAt)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    animeID = excluded.animeID,
+                    title = excluded.title,
+                    queries = excluded.queries,
+                    sources = excluded.sources,
+                    releaseGroup = excluded.releaseGroup,
+                    resolution = excluded.resolution,
+                    subtitleLanguages = excluded.subtitleLanguages,
+                    includeKeywords = excluded.includeKeywords,
+                    excludeKeywords = excluded.excludeKeywords,
+                    minimumEpisode = excluded.minimumEpisode,
+                    includesBatches = excluded.includesBatches,
+                    includesExistingReleases = excluded.includesExistingReleases,
+                    isEnabled = excluded.isEnabled,
+                    lastCheckedAt = excluded.lastCheckedAt,
+                    lastMatchedAt = excluded.lastMatchedAt
+                """, arguments: [
+                    subscription.id.uuidString,
+                    subscription.animeID?.uuidString,
+                    subscription.title,
+                    Self.joinList(subscription.queries),
+                    Self.joinList(subscription.sources.map(\.rawValue).sorted()),
+                    subscription.group,
+                    subscription.resolution,
+                    Self.joinList(subscription.subtitleLanguages.map(\.rawValue).sorted()),
+                    Self.joinList(subscription.includeKeywords),
+                    Self.joinList(subscription.excludeKeywords),
+                    subscription.minimumEpisode,
+                    subscription.includesBatches,
+                    subscription.includesExistingReleases,
+                    subscription.isEnabled,
+                    subscription.createdAt,
+                    subscription.lastCheckedAt,
+                    subscription.lastMatchedAt
+                ])
+        }
+    }
+
+    public func removeTorrentSubscription(id: UUID) throws {
+        try database.write { db in
+            try db.execute(sql: "DELETE FROM torrentSubscription WHERE id = ?", arguments: [id.uuidString])
+        }
+    }
+
+    /// Info hashes a subscription already downloaded, so a check never
+    /// fetches the same release twice.
+    public func torrentSubscriptionMatches(subscriptionID: UUID) throws -> [TorrentSubscriptionMatch] {
+        try database.read { db in
+            try Row.fetchAll(
+                db,
+                sql: "SELECT * FROM torrentSubscriptionMatch WHERE subscriptionID = ? ORDER BY matchedAt DESC",
+                arguments: [subscriptionID.uuidString]
+            ).map(Self.decodeSubscriptionMatch)
+        }
+    }
+
+    public func recordTorrentSubscriptionMatch(_ match: TorrentSubscriptionMatch) throws {
+        try database.write { db in
+            try db.execute(sql: """
+                INSERT INTO torrentSubscriptionMatch (subscriptionID, infoHash, title, episode, matchedAt)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(subscriptionID, infoHash) DO NOTHING
+                """, arguments: [
+                    match.subscriptionID.uuidString,
+                    match.infoHash,
+                    match.title,
+                    match.episode,
+                    match.matchedAt
+                ])
+        }
+    }
+
+    private static func joinList(_ values: [String]) -> String {
+        values.map { $0.replacingOccurrences(of: "\n", with: " ") }.joined(separator: "\n")
+    }
+
+    private static func splitList(_ value: String?) -> [String] {
+        (value ?? "").split(separator: "\n").map(String.init).filter { !$0.isEmpty }
+    }
+
+    private static func decodeSubscription(_ row: Row) -> TorrentSubscription {
+        TorrentSubscription(
+            id: UUID(uuidString: row["id"])!,
+            animeID: (row["animeID"] as String?).flatMap(UUID.init(uuidString:)),
+            title: row["title"],
+            queries: splitList(row["queries"]),
+            sources: Set(splitList(row["sources"]).compactMap(TorrentSourceID.init(rawValue:))),
+            group: row["releaseGroup"],
+            resolution: row["resolution"],
+            subtitleLanguages: Set(splitList(row["subtitleLanguages"]).compactMap(TorrentSubtitleLanguage.init(rawValue:))),
+            includeKeywords: splitList(row["includeKeywords"]),
+            excludeKeywords: splitList(row["excludeKeywords"]),
+            minimumEpisode: row["minimumEpisode"],
+            includesBatches: row["includesBatches"],
+            includesExistingReleases: row["includesExistingReleases"],
+            isEnabled: row["isEnabled"],
+            createdAt: row["createdAt"],
+            lastCheckedAt: row["lastCheckedAt"],
+            lastMatchedAt: row["lastMatchedAt"]
+        )
+    }
+
+    private static func decodeSubscriptionMatch(_ row: Row) -> TorrentSubscriptionMatch {
+        TorrentSubscriptionMatch(
+            subscriptionID: UUID(uuidString: row["subscriptionID"])!,
+            infoHash: row["infoHash"],
+            title: row["title"],
+            episode: row["episode"],
+            matchedAt: row["matchedAt"]
+        )
+    }
+
     // MARK: - Translation cache
 
     public func cachedTranslations(provider: String, targetLanguage: String, texts: [String]) throws -> [Int: String] {
@@ -1521,6 +1650,40 @@ public actor LibraryDatabase {
                 table.column("isSequential", .boolean).notNull().defaults(to: false)
             }
             try db.create(index: "torrentDownload_anime", on: "torrentDownload", columns: ["animeID"])
+        }
+        migrator.registerMigration("v9_torrent_subscriptions") { db in
+            // Standing rules that download new episodes, and a log of what
+            // each rule already acted on. The log is what stops a release
+            // being fetched twice after its download row is removed, so it
+            // outlives the download itself.
+            try db.create(table: "torrentSubscription") { table in
+                table.column("id", .text).primaryKey()
+                table.column("animeID", .text).references("anime", onDelete: .setNull)
+                table.column("title", .text).notNull()
+                table.column("queries", .text).notNull()
+                table.column("sources", .text).notNull().defaults(to: "")
+                table.column("releaseGroup", .text)
+                table.column("resolution", .text)
+                table.column("subtitleLanguages", .text).notNull().defaults(to: "")
+                table.column("includeKeywords", .text).notNull().defaults(to: "")
+                table.column("excludeKeywords", .text).notNull().defaults(to: "")
+                table.column("minimumEpisode", .double)
+                table.column("includesBatches", .boolean).notNull().defaults(to: false)
+                table.column("includesExistingReleases", .boolean).notNull().defaults(to: false)
+                table.column("isEnabled", .boolean).notNull().defaults(to: true)
+                table.column("createdAt", .datetime).notNull()
+                table.column("lastCheckedAt", .datetime)
+                table.column("lastMatchedAt", .datetime)
+            }
+            try db.create(table: "torrentSubscriptionMatch") { table in
+                table.column("subscriptionID", .text).notNull()
+                    .references("torrentSubscription", onDelete: .cascade)
+                table.column("infoHash", .text).notNull()
+                table.column("title", .text).notNull()
+                table.column("episode", .double)
+                table.column("matchedAt", .datetime).notNull()
+                table.primaryKey(["subscriptionID", "infoHash"])
+            }
         }
         return migrator
     }

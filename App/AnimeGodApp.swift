@@ -21,6 +21,7 @@ struct AnimeGodApp: App {
         // AppModel would read the Keychain, which blocks a build that is not
         // the installed, trusted copy.
         if TorrentEngineSmokeTest.isRequested { TorrentEngineSmokeTest.runIfRequested() }
+        if SubscriptionSmokeTest.isRequested { SubscriptionSmokeTest.run() }
     }
 
     var body: some Scene {

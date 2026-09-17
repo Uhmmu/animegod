@@ -163,7 +163,8 @@ final class TorrentDownloadManager: ObservableObject {
             infoHash: result.infoHash.hex,
             title: result.title,
             trackers: result.trackers,
-            anime: anime,
+            animeID: anime?.id,
+            animeTitle: anime?.title,
             episodeLabel: result.release.episodeLabel,
             sequential: sequential
         )
@@ -174,7 +175,8 @@ final class TorrentDownloadManager: ObservableObject {
         infoHash: String,
         title: String,
         trackers: [String] = [],
-        anime: Anime? = nil,
+        animeID: UUID? = nil,
+        animeTitle: String? = nil,
         episodeLabel: String? = nil,
         sequential: Bool = false
     ) {
@@ -192,8 +194,8 @@ final class TorrentDownloadManager: ObservableObject {
                 title: title,
                 magnet: magnet,
                 savePath: folder.path,
-                animeID: anime?.id,
-                animeTitle: anime?.title,
+                animeID: animeID,
+                animeTitle: animeTitle,
                 episodeLabel: episodeLabel,
                 isSequential: sequential
             )

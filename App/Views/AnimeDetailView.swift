@@ -81,7 +81,8 @@ struct AnimeDetailView: View {
                 queries: releaseQueries,
                 ownedEpisodes: Set(episodes.filter { $0.episode.kind == .regular }.compactMap(\.episode.number)),
                 preferences: model.torrentSources,
-                downloads: model.downloads
+                downloads: model.downloads,
+                subscriptions: model.subscriptions
             )
             .frame(minWidth: 980, minHeight: 620)
         }
