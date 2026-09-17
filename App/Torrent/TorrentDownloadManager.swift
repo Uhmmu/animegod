@@ -66,6 +66,9 @@ final class TorrentDownloadManager: ObservableObject {
     @Published private(set) var items: [TorrentDownloadItem] = []
     @Published private(set) var sessionInfo: AGTorrentSessionInfo?
     @Published var errorMessage: String?
+    /// Called once per download when it completes, so the library can pick
+    /// the files up.
+    var onDownloadFinished: ((TorrentDownloadRecord) -> Void)?
 
     let folders: DownloadFolderStore
     private var database: LibraryDatabase?
@@ -250,6 +253,36 @@ final class TorrentDownloadManager: ObservableObject {
         }
     }
 
+    /// The video file worth offering a Play button for: the largest one,
+    /// once `TorrentPlaybackReadiness` says enough of its beginning is on
+    /// disk.
+    func playableVideoFile(for item: TorrentDownloadItem) -> AGTorrentFileEntry? {
+        guard let file = videoFiles(for: item).first else { return nil }
+        return TorrentPlaybackReadiness.isPlayable(
+            fileLength: file.length,
+            downloadedBytes: file.downloadedBytes,
+            isSequential: item.record.isSequential || item.snapshot?.sequential == true,
+            isComplete: item.isComplete
+        ) ? file : nil
+    }
+
+    /// Opens a file from a download in the player. The engine is told to
+    /// fetch that file's pieces in order and first, so playback stays ahead
+    /// of the download.
+    func play(_ file: AGTorrentFileEntry, of item: TorrentDownloadItem, using model: AppModel) {
+        let url = URL(fileURLWithPath: item.snapshot?.savePath ?? item.record.savePath)
+            .appending(path: file.path)
+        guard FileManager.default.isReadableFile(atPath: url.path) else {
+            errorMessage = "That file is not on disk yet."
+            return
+        }
+        if !item.isComplete {
+            engine?.prioritiseFile(forPlayback: file.index, forInfoHash: item.record.infoHash)
+            setSequential(true, for: item)
+        }
+        model.playFile(at: url, title: file.path, infoHash: item.record.infoHash)
+    }
+
     /// Video files inside a task, largest first — what the user would play.
     func videoFiles(for item: TorrentDownloadItem) -> [AGTorrentFileEntry] {
         let extensions: Set<String> = ["mkv", "mp4", "m4v", "avi", "mov", "webm", "ts", "m2ts"]
@@ -306,6 +339,7 @@ final class TorrentDownloadManager: ObservableObject {
             if let changedSize { record.totalBytes = changedSize }
             if let completedAt { record.completedAt = completedAt }
             records[hash] = record
+            if completedAt != nil { onDownloadFinished?(record) }
             Task { [database] in
                 try? await database?.updateTorrentDownload(
                     infoHash: hash,

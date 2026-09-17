@@ -366,3 +366,39 @@ struct TorrentDownloadRecordTests {
         #expect(stored.savePath == "/tmp/other")
     }
 }
+
+struct TorrentPlaybackReadinessTests {
+    @Test func completedFilesAreAlwaysPlayable() {
+        #expect(TorrentPlaybackReadiness.isPlayable(fileLength: 0, downloadedBytes: 0, isSequential: false, isComplete: true))
+    }
+
+    @Test func randomOrderDownloadsAreNotPlayableEarly() {
+        // Without sequential order the bytes on disk are scattered, so a
+        // half-downloaded file has no usable beginning.
+        #expect(!TorrentPlaybackReadiness.isPlayable(
+            fileLength: 1_000_000_000, downloadedBytes: 500_000_000, isSequential: false, isComplete: false
+        ))
+    }
+
+    @Test func sequentialDownloadsNeedAHeadStart() {
+        let length: Int64 = 1_000_000_000
+        let required = TorrentPlaybackReadiness.requiredHeadBytes(fileLength: length)
+        #expect(required == 32 * 1024 * 1024)
+        #expect(!TorrentPlaybackReadiness.isPlayable(
+            fileLength: length, downloadedBytes: required - 1, isSequential: true, isComplete: false
+        ))
+        #expect(TorrentPlaybackReadiness.isPlayable(
+            fileLength: length, downloadedBytes: required, isSequential: true, isComplete: false
+        ))
+    }
+
+    @Test func smallFilesUseAProportionalHeadStart() {
+        // A 20 MiB extra should not wait for 32 MiB that will never arrive.
+        let length: Int64 = 20 * 1024 * 1024
+        #expect(TorrentPlaybackReadiness.requiredHeadBytes(fileLength: length) == length / 20)
+        #expect(TorrentPlaybackReadiness.isPlayable(
+            fileLength: length, downloadedBytes: length / 20, isSequential: true, isComplete: false
+        ))
+        #expect(TorrentPlaybackReadiness.requiredHeadBytes(fileLength: 0) == .max)
+    }
+}

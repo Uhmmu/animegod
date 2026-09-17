@@ -80,6 +80,10 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
     private var access: ScopedLibraryAccess?
     private let roots: [LibraryRoot]
     private let cache: EpisodeCacheStore?
+    /// Set when playing a file that has no library entry (a download in
+    /// progress). Nothing about such a file is written to the database.
+    let directPlayback: PlayerRequest.DirectPlayback?
+    var isDirectPlayback: Bool { directPlayback != nil }
     let startedAt = Date.now
     private var lastPosition: Double?
     private var watchedDuration: Double = 0
@@ -96,6 +100,7 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
         currentIndex = request.startIndex
         roots = request.roots
         cache = request.cache
+        directPlayback = request.directPlayback
         let episode = request.episode
         currentEpisode = episode
         position = episode.progress?.position ?? 0
@@ -119,6 +124,11 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
     /// source drive serves everything else, and a missing source with no
     /// cache explains what to plug back in.
     private func resolvePlayback(file: MediaFile) -> ResolvedPlayback? {
+        if let directPlayback {
+            // `playedFromCache` also keeps auto-caching away from a file the
+            // library knows nothing about.
+            return ResolvedPlayback(url: directPlayback.url, access: nil, playedFromCache: true)
+        }
         guard let root = roots.first(where: { $0.id == file.libraryRootID }) else {
             errorMessage = "The library folder for this episode is unavailable."
             isLoading = false
@@ -227,6 +237,10 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
 
     private func loadDanmaku(for file: MediaFile, url: URL) {
         guard danmaku.isAttached else { return }
+        // An unfinished download has no stable hash or size to match on, and
+        // matching it would write a binding for a file the library has never
+        // seen.
+        guard !isDirectPlayback else { return }
         let parsed = AnimeFilenameParser().parse(url: url)
         let titles = danmakuAnimeTitleCandidates + [parsed.title]
         danmaku.load(DanmakuSession.EpisodeRequest(
@@ -788,6 +802,8 @@ struct PlayerScreen: View {
             hideTask?.cancel()
             showCursor()
             guard let session = state.endSession() else { return }
+            // A file outside the library has no episode to write history for.
+            guard !state.isDirectPlayback else { return }
             Task {
                 await model.finishPlaybackSession(
                     episode: state.currentEpisode,
@@ -825,6 +841,8 @@ struct PlayerScreen: View {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(10))
                 guard !Task.isCancelled else { break }
+                // A direct file has no episode row to attach progress to.
+                guard !state.isDirectPlayback else { continue }
                 await model.saveProgress(episodeID: state.currentEpisode.id, position: state.position, duration: state.duration)
             }
         }

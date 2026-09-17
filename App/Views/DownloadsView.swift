@@ -5,6 +5,7 @@ import SwiftUI
 /// fast, and whether this Mac is reachable — the single biggest factor in
 /// BitTorrent speed, so it is shown rather than hidden.
 struct DownloadsView: View {
+    @EnvironmentObject private var model: AppModel
     @ObservedObject var downloads: TorrentDownloadManager
     @ObservedObject private var folders: DownloadFolderStore
     @State private var confirmingRemoval: TorrentDownloadItem?
@@ -145,6 +146,7 @@ struct DownloadsView: View {
                 ForEach(downloads.items) { item in
                     DownloadRow(item: item, downloads: downloads) { confirmingRemoval = item }
                         .padding(.vertical, 4)
+                        .environmentObject(model)
                 }
             }
             .listStyle(.inset)
@@ -153,9 +155,17 @@ struct DownloadsView: View {
 }
 
 private struct DownloadRow: View {
+    @EnvironmentObject private var model: AppModel
     let item: TorrentDownloadItem
     @ObservedObject var downloads: TorrentDownloadManager
     let remove: () -> Void
+
+    /// A file can be opened once enough of its start exists. Sequential
+    /// downloads fill the beginning first, so playback catches up with the
+    /// download rather than running past it.
+    private var playableFile: AGTorrentFileEntry? {
+        downloads.playableVideoFile(for: item)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -195,12 +205,22 @@ private struct DownloadRow: View {
             }
         }
         .contextMenu {
+            if let file = playableFile {
+                Button(item.isComplete ? "Play" : "Play While Downloading") {
+                    downloads.play(file, of: item, using: model)
+                }
+            }
             Button("Show in Finder") { downloads.revealInFinder(item) }
             Button(item.record.isSequential ? "Download in Any Order" : "Download in Order") {
                 downloads.setSequential(!item.record.isSequential, for: item)
             }
             Button("Re-announce to Trackers") { downloads.reannounce(item) }
             Divider()
+            if item.isComplete, model.libraryRoot(containing: URL(fileURLWithPath: item.record.savePath)) == nil {
+                Button("Add Download Folder to Library") {
+                    Task { await model.addDownloadFolderToLibrary(URL(fileURLWithPath: item.record.savePath)) }
+                }
+            }
             Button("Copy Magnet Link") {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(item.record.magnet, forType: .string)
@@ -220,6 +240,13 @@ private struct DownloadRow: View {
     @ViewBuilder
     private var controls: some View {
         HStack(spacing: 4) {
+            if let file = playableFile {
+                Button { downloads.play(file, of: item, using: model) } label: {
+                    Image(systemName: "play.fill")
+                }
+                .buttonStyle(.borderless)
+                .help(item.isComplete ? "Play" : "Play now — the rest keeps downloading")
+            }
             if !item.isComplete {
                 Button {
                     item.isPaused ? downloads.resume(item) : downloads.pause(item)

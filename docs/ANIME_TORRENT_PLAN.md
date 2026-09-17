@@ -1,6 +1,6 @@
 # Anime Torrent Search and Download Plan
 
-Status: **Phases 1–3 implemented** (search core, UI, embedded downloads); phases 4–5 pending
+Status: **Phases 1–4 implemented** (search, UI, downloads, play-while-downloading); phase 5 (subscriptions) pending
 
 This plan ports the useful parts of the separate `magnet-crawler` project
 (Python + Flask + pywebview + libtorrent) into AnimeGod as native Swift, keeps
@@ -158,5 +158,13 @@ twice.
    sandbox gained `network.server` for incoming peers. Verified offline with
    `-smokeTorrentLoopback`: one engine seeds, another downloads, bytes match,
    resume data is written on shutdown.)*
-4. Play-while-downloading and library auto-binding.
+4. Play-while-downloading and library auto-binding. *(Done: `PlayerRequest`
+   gained `directPlayback`, which plays a file with no library entry and
+   therefore writes no progress, auto-cache or danmaku match;
+   `TorrentPlaybackReadiness` (Core, tested) decides when a sequential
+   download has enough of its start; a finished download inside a library
+   root is rescanned automatically, and one outside offers to add its folder.
+   Verified that sequential download really fills the file front-to-back:
+   the first MiB of a partially downloaded Debian ISO matched the same range
+   fetched over HTTP, byte for byte.)*
 5. Subscriptions.

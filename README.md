@@ -82,8 +82,15 @@ in-player Danmaku Manager for browsing, searching, and blocking comments.
 - **Connectivity is visible**, because it is what limits BitTorrent speed:
   DHT node count and whether UPnP/NAT-PMP opened the port. If the port could
   not be mapped, the panel explains what forwarding it would gain.
-- **Download in order** fetches pieces sequentially so an episode can be
-  played before the whole release finishes.
+- **Play while downloading**: a sequential download becomes playable once
+  32 MiB of its start is on disk, and the Play button opens it in AnimeGod's
+  own player while the rest keeps arriving. Its file is moved to the front of
+  the queue so playback stays ahead of the download. Such a file has no
+  library entry, so no watch progress, auto-cache or danmaku match is
+  recorded for it — those come once it is in the library.
+- **Finished downloads join the library**: a download saved inside a library
+  folder is rescanned automatically and appears as a normal episode. One
+  saved elsewhere offers "Add Download Folder to Library".
 - Tuned like magnet-crawler's engine: DHT with several bootstrap nodes, local
   peer discovery, PEX, announce-to-all-trackers, encryption allowed but not
   forced, IPv4 and IPv6, and community trackers added to every task.

@@ -154,3 +154,30 @@ public struct TorrentFileFetcher: Sendable {
         throw FetchError.unavailable
     }
 }
+
+/// When a file inside a running download can already be played.
+///
+/// mpv needs the beginning of the file: the container header, and enough
+/// after it to keep decoding while the rest arrives. A sequential download
+/// fills the file front to back, so it becomes playable early; a
+/// random-order one only once it is finished, because the bytes on disk are
+/// scattered.
+public enum TorrentPlaybackReadiness {
+    /// Head start required before opening a sequential download: 32 MiB, or
+    /// 5% for files too small for that to make sense.
+    public static func requiredHeadBytes(fileLength: Int64) -> Int64 {
+        guard fileLength > 0 else { return .max }
+        return min(32 * 1024 * 1024, max(fileLength / 20, 1))
+    }
+
+    public static func isPlayable(
+        fileLength: Int64,
+        downloadedBytes: Int64,
+        isSequential: Bool,
+        isComplete: Bool
+    ) -> Bool {
+        if isComplete { return true }
+        guard isSequential, fileLength > 0 else { return false }
+        return downloadedBytes >= requiredHeadBytes(fileLength: fileLength)
+    }
+}

@@ -1,5 +1,16 @@
 import AnimeGodCore
+import CryptoKit
 import Foundation
+
+private extension URL {
+    var fileSize: Int? { try? resourceValues(forKeys: [.fileSizeKey]).fileSize }
+}
+
+private extension Data {
+    var sha256Hex: String {
+        SHA256.hash(data: self).map { String(format: "%02x", $0) }.joined()
+    }
+}
 
 /// Headless check that the embedded engine really talks to the network:
 ///
@@ -141,15 +152,30 @@ enum TorrentEngineSmokeTest {
             sawPeers = sawPeers || snapshot.connectedPeers > 0
             sawBytes = sawBytes || snapshot.downloadedBytes > 0
             print(String(
-                format: "SMOKE t=%02ds alerts=%d listen=%@ dht=%d port=%@ state=%ld meta=%@ peers=%d/%d rate=%.1f KiB/s got=%lld/%lld",
-                tick, info.alertCount, info.listenError ?? "ok", info.dhtNodes,
+                format: "SMOKE t=%02ds alerts=%d seq=%@ listen=%@ dht=%d port=%@ state=%ld meta=%@ peers=%d/%d rate=%.1f KiB/s got=%lld/%lld",
+                tick, info.alertCount, snapshot.sequential ? "yes" : "no", info.listenError ?? "ok", info.dhtNodes,
                 info.portMapped.map { $0.boolValue ? "open" : "closed" } ?? "pending",
                 snapshot.state.rawValue, snapshot.hasMetadata ? "yes" : "no",
                 snapshot.connectedSeeds, snapshot.connectedPeers,
                 Double(snapshot.downloadRate) / 1024,
                 snapshot.downloadedBytes, snapshot.totalBytes
             ))
-            if sawBytes && snapshot.downloadedBytes > 8 * 1024 * 1024 { break }
+            // Enough that a sequential download has certainly filled the
+            // first mebibyte, which is what playing early depends on.
+            if sawBytes && snapshot.downloadedBytes > 64 * 1024 * 1024 { break }
+        }
+
+        // Sequential download must fill the beginning of the file first —
+        // that is what makes playing before completion possible. The hash of
+        // the first mebibyte can be compared with the same range of the
+        // original file fetched over HTTP.
+        if let largest = try? FileManager.default.contentsOfDirectory(at: saveDirectory, includingPropertiesForKeys: [.fileSizeKey])
+            .max(by: { (($0.fileSize ?? 0) < ($1.fileSize ?? 0)) }),
+           let handle = try? FileHandle(forReadingFrom: largest),
+           let head = try? handle.read(upToCount: 1024 * 1024) {
+            try? handle.close()
+            let zeroes = head.reduce(into: 0) { count, byte in if byte == 0 { count += 1 } }
+            print("SMOKE head file=\(largest.lastPathComponent) bytes=\(head.count) zeroBytes=\(zeroes) sha256=\(head.sha256Hex)")
         }
 
         engine.remove(hash, deleteFiles: true)

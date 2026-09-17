@@ -192,6 +192,56 @@ final class AppModel: ObservableObject {
         playerRequest = PlayerRequest(episodes: list, startIndex: index, roots: roots, cache: episodeCache)
     }
 
+    /// Plays a file straight from disk — a download in progress or one that
+    /// finished outside any library folder. The episode it carries is a
+    /// stand-in for the player's UI only and is never saved.
+    func playFile(at url: URL, title: String, infoHash: String? = nil) {
+        let animeID = UUID()
+        let episode = Episode(animeID: animeID, number: nil, title: title, sortIndex: 0)
+        let file = MediaFile(
+            libraryRootID: UUID(),
+            episodeID: episode.id,
+            relativePath: url.lastPathComponent,
+            fileSize: (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Int64.init) ?? 0,
+            modifiedAt: .now
+        )
+        playerRequest = PlayerRequest(
+            episodes: [EpisodeMedia(episode: episode, mediaFile: file, progress: nil)],
+            startIndex: 0,
+            roots: roots,
+            cache: nil,
+            directPlayback: PlayerRequest.DirectPlayback(url: url, title: title, infoHash: infoHash)
+        )
+    }
+
+    /// The library root a path sits inside, if any.
+    func libraryRoot(containing url: URL) -> LibraryRoot? {
+        let target = url.standardizedFileURL.path
+        return roots.first { root in
+            guard let access = try? ScopedLibraryAccess(root: root) else { return false }
+            defer { access.stop() }
+            let rootPath = access.url.standardizedFileURL.path
+            return target == rootPath || target.hasPrefix(rootPath + "/")
+        }
+    }
+
+    /// A finished download inside a library folder is rescanned so it shows
+    /// up as a normal episode; one outside stays where it is until the user
+    /// adds that folder.
+    func downloadFinished(savePath: String) async {
+        guard let root = libraryRoot(containing: URL(fileURLWithPath: savePath)) else { return }
+        await scan(root)
+    }
+
+    /// Adds a download folder to the library and scans it.
+    func addDownloadFolderToLibrary(_ url: URL) async {
+        if let existing = libraryRoot(containing: url) {
+            await scan(existing)
+        } else {
+            await addLibraryRoot(url)
+        }
+    }
+
     func searchMetadata(_ query: String, provider providerID: MetadataProviderID) async -> [AnimeMetadataCandidate] {
         guard let provider = metadataProviders[providerID] else { return [] }
         do {
@@ -449,6 +499,11 @@ final class AppModel: ObservableObject {
             roots = try await database.libraryRoots()
             await episodeCache.prepare(database: database)
             await downloads.attach(database: database)
+            // A finished download inside a library folder becomes a normal
+            // episode without the user doing anything.
+            downloads.onDownloadFinished = { [weak self] record in
+                Task { await self?.downloadFinished(savePath: record.savePath) }
+            }
             await refreshRootAvailability()
             await reloadLibrary()
         } catch {
@@ -552,12 +607,23 @@ final class AppModel: ObservableObject {
 }
 
 struct PlayerRequest: Identifiable {
+    /// Playing a file that is not in the library — a download still in
+    /// progress. It has no episode row, so nothing about it is written to
+    /// the database: no watch progress, no auto-cache, no danmaku match
+    /// (an unfinished file has no stable identity to match on).
+    struct DirectPlayback {
+        let url: URL
+        let title: String
+        let infoHash: String?
+    }
+
     let id = UUID()
     let episodes: [EpisodeMedia]
     let startIndex: Int
     let roots: [LibraryRoot]
     /// Local episode copies, so playback survives an unplugged drive.
     let cache: EpisodeCacheStore?
+    var directPlayback: DirectPlayback?
 
     var episode: EpisodeMedia { episodes[startIndex] }
 }
