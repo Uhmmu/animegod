@@ -641,6 +641,26 @@ extension PlayerState: SubtitleTrackHost {
     }
 }
 
+/// Re-renders its content only when `key` changes. The player screen
+/// re-renders many times a second while playing (every position update),
+/// and a SwiftUI `Menu` rebuilt while it is open closes its submenus and
+/// drops clicks — so each control-bar menu is keyed on exactly what it
+/// shows. Actions inside keep working: they call into `PlayerState`, a
+/// reference, and SwiftUI state, whose storage outlives any render.
+private struct StableMenu<Content: View>: View, @MainActor Equatable {
+    let key: [AnyHashable]
+    @ViewBuilder let content: () -> Content
+
+    init(_ key: AnyHashable?..., @ViewBuilder content: @escaping () -> Content) {
+        self.key = key.map { $0 ?? AnyHashable("nil") }
+        self.content = content
+    }
+
+    static func == (lhs: StableMenu, rhs: StableMenu) -> Bool { lhs.key == rhs.key }
+
+    var body: some View { content() }
+}
+
 /// Reports raw mouse movement and click gestures inside the video area so
 /// the overlay controls can follow the "appear when needed, disappear when
 /// idle" playback rule. A plain NSView consumes the events, so click handling
@@ -996,26 +1016,30 @@ struct PlayerScreen: View {
                     .help("Next Episode (N)")
 
                 if state.episodes.count > 1 {
-                    episodeMenu
+                    StableMenu(state.currentIndex, state.episodes.count) { episodeMenu }.equatable()
                 }
 
                 Spacer(minLength: 12)
 
                 if !state.chapters.isEmpty {
-                    chapterMenu
+                    StableMenu(state.chapters, state.currentChapter) { chapterMenu }.equatable()
                 }
                 if state.currentEpisode.versions.count > 1 {
-                    versionMenu
+                    StableMenu(state.currentEpisode.mediaFile.id, state.currentEpisode.versions.map(\.id)) { versionMenu }.equatable()
                 }
-                DanmakuMenuButton(
-                    preferences: danmakuPreferences,
-                    session: state.danmaku,
-                    openSettings: { showDanmakuSettings = true },
-                    openMatch: { showDanmakuMatch = true },
-                    openManager: { withAnimation(.easeOut(duration: 0.2)) { showDanmakuManager = true } }
-                )
-                speedMenu
-                audioMenu
+                // Updates itself from the danmaku state it shows.
+                StableMenu {
+                    DanmakuMenuButton(
+                        preferences: danmakuPreferences,
+                        session: state.danmaku,
+                        openSettings: { showDanmakuSettings = true },
+                        openMatch: { showDanmakuMatch = true },
+                        openManager: { withAnimation(.easeOut(duration: 0.2)) { showDanmakuManager = true } }
+                    )
+                }
+                .equatable()
+                StableMenu(state.speed) { speedMenu }.equatable()
+                StableMenu(state.audioTracks, state.audioID) { audioMenu }.equatable()
                 subtitleMenu
                 volumeControl
                 Button { toggleFullscreen() } label: { Image(systemName: "arrow.up.left.and.arrow.down.right") }
@@ -1138,87 +1162,27 @@ struct PlayerScreen: View {
         .help("Chapters")
     }
 
-    /// Subtitles, grouped by where they come from: inside the file, files
-    /// beside it (or chosen by hand), and downloaded online subtitles.
+    /// Built as its own equatable view: this screen re-renders several
+    /// times a second while playing, and a SwiftUI menu rebuilt while it is
+    /// open closes its submenus and drops clicks.
     private var subtitleMenu: some View {
-        let online = state.subtitleTracks.filter { state.subtitles.isOwnDownload($0) }
-        let embedded = state.subtitleTracks.filter { !$0.isExternal }
-        let external = state.subtitleTracks.filter { $0.isExternal && !state.subtitles.isOwnDownload($0) }
-        return Menu {
-            Button { state.selectSubtitle(nil) } label: {
-                if state.subtitleID == nil { Label("Off", systemImage: "checkmark") } else { Text("Off") }
-            }
-            if !embedded.isEmpty {
-                Section("Embedded") { subtitleTrackButtons(embedded) }
-            }
-            if !external.isEmpty {
-                Section("External Files") { subtitleTrackButtons(external) }
-            }
-            if !online.isEmpty {
-                Section("Online") { subtitleTrackButtons(online) }
-            }
-            Divider()
-            Menu("Online Subtitles") {
-                // Never disabled: while a search runs, both open the sheet,
-                // which shows its progress.
-                Button("Auto-Match Chinese Subtitles") {
-                    if state.subtitles.isSearching { showSubtitleSearch = true } else { state.subtitles.autoMatchNow() }
-                }
-                Button("Search Subtitles…") { showSubtitleSearch = true }
-                if !state.subtitles.downloads.isEmpty {
-                    Menu("Downloaded") {
-                        ForEach(state.subtitles.downloads) { record in
-                            Button { state.subtitles.selectDownloaded(record) } label: {
-                                let title = "\(record.displayTitle) · \(Int((record.matchScore * 100).rounded()))%"
-                                if isSelectedDownload(record) { Label(title, systemImage: "checkmark") } else { Text(title) }
-                            }
-                        }
-                        Divider()
-                        Button("Remove Downloads and Search Again") { state.subtitles.researchFromScratch() }
-                        Button("Remove Downloads for This Episode", role: .destructive) {
-                            Task { await state.subtitles.removeDownloads() }
-                        }
-                    }
-                }
-                Divider()
-                Text(SubtitleStatusBadge.statusText(state.subtitles.phase)).foregroundStyle(.secondary)
-            }
-            Divider()
-            Menu("Subtitle Delay") {
-                Button("Earlier 0.5s") { state.nudgeSubtitleDelay(-0.5) }
-                Button("Later 0.5s") { state.nudgeSubtitleDelay(0.5) }
-                Button("Reset") { state.resetSubtitleDelay() }
-                if state.subtitleDelay != 0 {
-                    Text("Current: \(String(format: "%+.1f", state.subtitleDelay))s").foregroundStyle(.secondary)
-                }
-            }
-            Menu("Audio Delay") {
-                Button("Earlier 0.1s") { state.nudgeAudioDelay(-0.1) }
-                Button("Later 0.1s") { state.nudgeAudioDelay(0.1) }
-                Button("Reset") { state.resetAudioDelay() }
-                if state.audioDelay != 0 {
-                    Text("Current: \(String(format: "%+.1f", state.audioDelay))s").foregroundStyle(.secondary)
-                }
-            }
-            Divider()
-            Button("Load External Subtitle…") { chooseExternalSubtitle() }
-        } label: { Image(systemName: "captions.bubble") }
-        .help("Subtitle Tracks, Online Subtitles, Delays, and External Files")
-    }
-
-    @ViewBuilder
-    private func subtitleTrackButtons(_ tracks: [MediaTrack]) -> some View {
-        ForEach(tracks) { track in
-            Button { state.selectSubtitle(track) } label: {
-                if state.subtitleID == track.id { Label(track.displayName, systemImage: "checkmark") }
-                else { Text(track.displayName) }
-            }
-        }
-    }
-
-    private func isSelectedDownload(_ record: SubtitleDownloadRecord) -> Bool {
-        guard let current = state.subtitleTracks.first(where: { $0.id == state.subtitleID }) else { return false }
-        return state.subtitles.download(for: current)?.id == record.id
+        SubtitleMenuButton(
+            session: state.subtitles,
+            tracks: state.subtitleTracks,
+            selectedID: state.subtitleID,
+            subtitleDelay: state.subtitleDelay,
+            audioDelay: state.audioDelay,
+            actions: SubtitleMenuButton.Actions(
+                select: { [state] in state.selectSubtitle($0) },
+                nudgeSubtitleDelay: { [state] in state.nudgeSubtitleDelay($0) },
+                resetSubtitleDelay: { [state] in state.resetSubtitleDelay() },
+                nudgeAudioDelay: { [state] in state.nudgeAudioDelay($0) },
+                resetAudioDelay: { [state] in state.resetAudioDelay() },
+                openSearch: { showSubtitleSearch = true },
+                loadExternalFile: { chooseExternalSubtitle() }
+            )
+        )
+        .equatable()
     }
 
     private var speedMenu: some View {

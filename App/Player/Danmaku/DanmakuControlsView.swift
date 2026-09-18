@@ -1,4 +1,5 @@
 import AnimeGodCore
+import Combine
 import SwiftUI
 
 /// Non-intrusive danmaku status shown only when danmaku needs user
@@ -89,13 +90,29 @@ struct DanmakuDiagnosticsSection: View {
 /// selection; the menu still provides the toggle, filters, and settings.
 struct DanmakuMenuButton: View {
     @ObservedObject var preferences: DanmakuPreferences
-    @ObservedObject var session: DanmakuSession
+    /// Not observed as a whole: the session publishes renderer statistics
+    /// every second, which would rebuild the menu while it is open. Only
+    /// the properties the menu shows trigger a re-render (`revision`).
+    let session: DanmakuSession
     let openSettings: () -> Void
     let openMatch: () -> Void
     let openManager: () -> Void
+    @State private var revision = 0
+
+    private var shownStateChanges: AnyPublisher<Void, Never> {
+        Publishers.Merge4(
+            session.$phase.removeDuplicates().map { _ in () },
+            session.$isReloading.removeDuplicates().map { _ in () },
+            session.$loadedSources.removeDuplicates().map { _ in () },
+            session.$unmatchedSources.removeDuplicates().map { _ in () }
+        )
+        .dropFirst(4)
+        .eraseToAnyPublisher()
+    }
 
     var body: some View {
-        Menu {
+        let _ = revision
+        return Menu {
             Button {
                 preferences.enabled.toggle()
             } label: {
@@ -141,6 +158,7 @@ struct DanmakuMenuButton: View {
             openMatch()
         }
         .help("Choose the best matching danmaku episode")
+        .onReceive(shownStateChanges) { revision += 1 }
     }
 
     private var isReady: Bool {
