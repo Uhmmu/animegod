@@ -1,79 +1,68 @@
-# AnimeGod 0.2.0
+# AnimeGod 0.2.1
 
-AnimeGod 0.2.0 turns release discovery, downloading, and following a currently
-airing show into one native workflow. It also adds Bilibili as a second
-danmaku source alongside dandanplay.
+AnimeGod 0.2.1 finds Chinese subtitles for videos that have none. It
+identifies the episode and the release being played, searches online subtitle
+sites, and loads a match on its own when it is confident. Player menus now
+stay open during playback, and provider keys are no longer kept in the
+Keychain.
 
-## Find releases across ten anime indexes
+## Online Chinese subtitles
 
-- **Find Releases** searches ten anime-focused indexes at once: 动漫花园,
-  蜜柑计划, 萌番组, Anime Garden, ACG.RIP, 末日动漫, Nyaa's anime
-  category, AnimeTosho, SubsPlease, and TokyoTosho.
-- Results from different sites that point to the same torrent are merged.
-  AnimeGod understands hex and Base32 info hashes and combines the available
-  trackers, torrent files, and source links.
-- Search from an anime page to use its known Chinese, Japanese, romaji, and
-  local-library titles together. Releases containing a missing episode are
-  marked **New**.
-- Filter by episode or batch, resolution, subtitle language and style, or
-  fansub group. Slow and unavailable sources do not hold up the rest, and
-  failed sources can be retried on their own.
+- When a video has no subtitle in your preferred languages (Simplified, then
+  Traditional Chinese by default), AnimeGod identifies the anime, season,
+  episode and release (fansub or encode group, BD or WEB source,
+  resolution), searches every configured subtitle site in parallel, and loads
+  the best result automatically. When no result is confident enough, a small
+  badge offers the candidates instead.
+- Sources: **射手网(伪) assrt.net** (Chinese fansub archive, ASS),
+  **SubDL** (searched by TMDB ID, season and episode), **OpenSubtitles**
+  (exact-file hash matches; SRT only) and **Jimaku** (Japanese, used only
+  when Japanese is a preferred language). Each needs its own API key in
+  Settings → Online Subtitles. One source failing, timing out or hitting its
+  rate limit never affects the others.
+- Matching checks the episode and the release first. Subtitles for a
+  different episode or season, a different title, or a different source (a
+  BD subtitle on a WEB video, or the reverse) are never loaded automatically.
+  Your language and format order (ASS/SSA before SRT) ranks the rest.
+- Library titles and AniList/MAL IDs are mapped to TMDB, IMDb and AniDB IDs,
+  so sites indexed by those find the right show.
+- Season packs and ZIP archives are unpacked to the right episode. GBK, Big5
+  and UTF-16 files are converted to UTF-8, and Simplified and Traditional
+  Chinese are told apart from the text itself. Fonts included in subtitle
+  packs are used for ASS typesetting.
+- The subtitle menu now groups **Embedded**, **External Files** and
+  **Online** tracks. **Online Subtitles** offers Auto-Match, **Search
+  Subtitles…** (language, format, source, group, match score, version and
+  file name) and a list of downloaded subtitles.
+- Downloaded subtitles are cached per episode and reload on replay without
+  another search. The cache can be cleared in Settings.
+- Releases whose names say Chinese subtitles are burned into the picture
+  (for example `[CHT]` or `[简日内嵌]`) are not searched by default. This
+  can be changed in Settings.
 
-## Download without another torrent app
+## Fixes
 
-- A built-in libtorrent engine downloads magnets and `.torrent` files inside
-  AnimeGod. Tasks resume after relaunch and can be paused, re-announced,
-  moved to another folder, or removed with or without their files.
-- The Downloads screen shows progress, speed, connected seeds and peers,
-  estimated time remaining, DHT status, and port-mapping status.
-- Save directly into a library folder and a completed release is scanned into
-  the library automatically. Active downloads also appear in the library
-  immediately with live progress.
-- External-drive download folders under `/Volumes` remain writable across app
-  launches. If a drive is unplugged or a folder is removed, AnimeGod explains
-  the fallback and uses the next available download folder.
-
-## Start watching while it downloads
-
-- Sequential downloads can be played in AnimeGod after the beginning of a
-  video is available. The selected file is prioritised so playback stays
-  ahead of the download when the connection is fast enough.
-- When the completed file enters the library, normal watch progress, episode
-  caching, and danmaku matching take over.
-
-## Subscribe to future episodes
-
-- Create an automatic-download rule from a filtered release search or from
-  the Subscriptions screen. Rules can specify fansub group, resolution,
-  subtitle language, required or excluded words, and a starting episode.
-- New subscriptions follow releases published from that point onward by
-  default, avoiding an accidental whole-season download. Backfilling older
-  episodes is an explicit option.
-- AnimeGod chooses one suitable release per episode, avoids episodes already
-  in the library or download history, and records every decision in Recent
-  Activity. Enabled subscriptions check every 30 minutes while the app runs.
-
-## Bilibili danmaku
-
-- Choose dandanplay, Bilibili, or a merged view of both sources. Comments
-  found in both are shown once.
-- Bilibili matching uses the anime title and episode number, then fetches the
-  correct `cid`, including the selected part of multi-part submissions.
-- No Bilibili account is required. An optional `SESSDATA` cookie can be stored
-  in the Keychain for content visible to your account; region and membership
-  restrictions are reported without interrupting playback.
+- **Player menus:** subtitle, delay, speed, audio, chapter, episode, version
+  and danmaku menus no longer close by themselves or ignore clicks while a
+  video is playing.
+- **External subtitles:** subtitles loaded with **Load External Subtitle…**
+  are no longer lost when entering or leaving full screen, or when the HDR
+  output changes.
+- **Provider keys:** DeepL, dandanplay, Bilibili and subtitle-site keys are
+  now stored in AnimeGod's own local settings instead of the Keychain, so
+  updating the app no longer asks for your password once per key. Keys saved
+  by 0.2.0 stay in the Keychain until you choose **Import Keys Saved in the
+  Keychain** in Settings → Online Subtitles, or enter them again.
 
 ## Compatibility and privacy
 
 - Requires macOS 14 or later. The supplied DMG contains a Universal app for
   Apple silicon and Intel Macs.
-- The app is sandboxed. Version 0.2.0 includes read-write access to mounted
-  volumes so an external drive chosen for downloads remains usable after a
-  relaunch.
-- BitTorrent is a peer-to-peer protocol: peers exchanging data with you can
-  see your IP address, just as they can with any other torrent client.
+- A subtitle search sends the anime's title, IDs, episode number and the
+  video's file name to the subtitle sites you configured. OpenSubtitles also
+  receives a hash computed from 128 KiB of the file.
+- Subtitles are not shown while a video uses the native Dolby Vision
+  (AVFoundation) path. Press ⌘⇧H to switch to mpv.
 - The app is ad-hoc signed but not Developer ID notarized. Depending on macOS
   security settings, the first launch may require right-clicking the app and
   choosing **Open**.
-- Direct MyAnimeList integration still requires an official client ID and is
-  not bundled.

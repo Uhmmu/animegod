@@ -82,17 +82,19 @@ unpreferred language, machine translation.
 
 OpenSubtitles bans applications that ask each user for their own consumer
 key; the key belongs to the app's developer and is supplied through the
-Keychain field or `ANIMEGOD_OPENSUBTITLES_API_KEY`, never the repository.
+Settings field or `ANIMEGOD_OPENSUBTITLES_API_KEY`, never the repository.
 
 ## Configuration
 
 Settings → Online Subtitles: automatic search, burned-in skip, language and
 format order, auto-load threshold, per-provider toggles and keys, cache size
-and "Clear Subtitle Cache". Keys: Keychain service
-`com.uhmmu.AnimeGod.subtitles`, or environment variables
+and "Clear Subtitle Cache". Keys: `credentials.json` in the app container's
+Application Support folder (shared with the DeepL and danmaku credentials;
+not the Keychain, because every ad-hoc-signed build re-prompted for each
+item), or environment variables
 `ANIMEGOD_ASSRT_TOKEN`, `ANIMEGOD_SUBDL_API_KEY`,
 `ANIMEGOD_OPENSUBTITLES_API_KEY` / `_USERNAME` / `_PASSWORD`,
-`ANIMEGOD_JIMAKU_API_KEY` (Keychain wins).
+`ANIMEGOD_JIMAKU_API_KEY` (the saved value wins).
 
 Headless check against the live sites (environment keys only):
 

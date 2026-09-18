@@ -9,10 +9,10 @@ in one fast SwiftUI application.
 > Give a local anime collection memory, structure, context, and history while
 > preserving the speed and quality of a native macOS application.
 
-**Current release: 0.2.0.** Search ten anime torrent indexes, download with the
-built-in BitTorrent engine, start watching before a download finishes, and
-subscribe to future episodes. Bilibili is also available as a second danmaku
-source alongside dandanplay.
+**Current release: 0.2.1.** Videos without Chinese subtitles can now find,
+download and load them automatically from online subtitle sites, matched to
+the episode and the release. Player menus stay open during playback, and
+provider keys no longer ask for your password after every update.
 
 ## Features
 
@@ -139,7 +139,7 @@ source alongside dandanplay.
 ### Translation
 - Independent translation service (`AnimeGodCore/Translation`) with a
   **DeepL-compatible provider**: batched requests, free/pro endpoint
-  auto-detection, API key stored in the macOS Keychain, results cached in the
+  auto-detection, API key stored in AnimeGod's local settings, results cached in the
   local database.
 - Foreign-language reviews show **original text and translation side by
   side** — the original is never replaced.
@@ -196,7 +196,7 @@ source alongside dandanplay.
     official protobuf segment endpoint for that episode's own `cid` —
     including the correct part of a multi-part submission. Titles a
     dandanplay search cannot place often still resolve here. An optional
-    `SESSDATA` cookie (Settings, stored in the Keychain) only widens what
+    `SESSDATA` cookie (Settings, stored locally) only widens what
     your account may see; region-locked or members-only titles report that
     and leave playback untouched.
   - **Merged**: both pools are fetched and combined, with comments that
@@ -210,8 +210,8 @@ source alongside dandanplay.
   episode re-matching — all persisted. Comments in a lane keep a gap, and
   comments that don't fit are dropped instead of overlapping. Requires free
   AppId/AppSecret credentials from
-  [dev.dandanplay.com](https://dev.dandanplay.com), stored in the Keychain
-  via **Settings**.
+  [dev.dandanplay.com](https://dev.dandanplay.com), entered in **Settings**
+  and stored locally.
 - Filters for crowded shows: repeated comments within 10 seconds merge into
   one with a ×N count, a density slider thins the rest evenly (often-repeated
   comments are always kept), long comments can be hidden, and blocked keywords
@@ -228,7 +228,8 @@ source alongside dandanplay.
   episode and release (group, BD/WEB source, resolution), searches the
   configured subtitle sites in parallel, and loads the best match on its own
   — only when it is confident. Otherwise a small badge offers the candidates.
-- Sources, each with its own key in Settings (stored in the Keychain):
+- Sources, each with its own key in Settings (stored in AnimeGod's local
+  settings, not the Keychain):
   **射手网(伪) assrt.net** (Chinese fansub archive, ASS), **SubDL** (searched
   by TMDB ID + season/episode), **OpenSubtitles** (exact-file hash matches;
   SRT only) and **Jimaku** (Japanese, used only when Japanese is preferred).

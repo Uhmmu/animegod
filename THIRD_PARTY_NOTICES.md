@@ -55,3 +55,25 @@ Distribution must preserve the applicable notices and LGPL relinking/replacement
   per-episode and refreshed only on explicit user action; commercial use
   requires separate authorization from dandanplay.
 
+## Online subtitle sources
+
+- 射手网(伪) assrt.net — API documentation: https://assrt.net/api/doc
+  - Usage: searched and downloaded with the user's own API token, at most
+    three searches per episode, within the 20-requests-per-minute quota.
+  - Terms: free for personal use; the credit "字幕服务由assrt.net提供" is
+    shown in the subtitle search sheet and in Settings.
+- SubDL — API documentation: https://subdl.com/api-doc (user's own API key).
+- OpenSubtitles.com — API documentation:
+  https://opensubtitles.stoplight.io/docs/opensubtitles-api (the consumer
+  key and optional account login are entered by the user; downloads count
+  against that account's allowance).
+- Jimaku — API documentation: https://jimaku.cc/api/docs (user's own API key;
+  searched only when Japanese is a preferred language).
+- Usage: searches run for the episode being played; downloaded subtitles are
+  cached locally per episode and are not redistributed.
+
+## Fribb anime-lists
+
+- Source: https://github.com/Fribb/anime-lists (`anime-list-mini.json`)
+- Usage: downloaded at runtime and cached locally to map AniList/MAL IDs to
+  TMDB, IMDb and AniDB IDs for subtitle searches. Not bundled with the app.
