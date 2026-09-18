@@ -34,7 +34,7 @@ private struct DanmakuOverlay: NSViewRepresentable {
 
 @MainActor
 final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
-    private struct SubtitlePreference: Codable {
+    fileprivate struct SubtitlePreference: Codable {
         let isEnabled: Bool
         let mediaFileID: UUID?
         let trackID: Int64?
@@ -42,7 +42,7 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
         let language: String?
     }
 
-    private static let subtitlePreferenceKey = "player.subtitle.preference"
+    fileprivate static let subtitlePreferenceKey = "player.subtitle.preference"
 
     @Published var position: Double
     @Published var duration: Double
@@ -73,6 +73,8 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
     var onFileFinished: (() -> Void)?
     /// Danmaku for this playback window; purely additive to playback.
     let danmaku = DanmakuSession()
+    /// Online subtitles for this playback window; also purely additive.
+    let subtitles = SubtitleSession()
 
     /// Meaningful only while `playbackAvailable` is true.
     private(set) var mediaURL = URL(fileURLWithPath: "/")
@@ -110,6 +112,24 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
             access = resolved.access
             startAutoCacheIfNeeded(for: episode.mediaFile, playedFromCache: resolved.playedFromCache)
         }
+        subtitles.host = self
+        if playbackAvailable { loadSubtitles(for: episode.mediaFile, url: mediaURL) }
+    }
+
+    /// Online subtitles follow the file on screen, like danmaku.
+    private func loadSubtitles(for file: MediaFile, url: URL) {
+        subtitleTracks = []
+        subtitles.load(SubtitleSession.Request(
+            videoURL: url,
+            mediaFileID: isDirectPlayback ? nil : file.id,
+            animeID: isDirectPlayback ? nil : currentEpisode.episode.animeID,
+            // The release name, even when the bytes come from the local
+            // episode cache.
+            fileName: (file.relativePath as NSString).lastPathComponent,
+            fileSize: file.fileSize,
+            episode: currentEpisode.episode.number,
+            episodeKind: currentEpisode.episode.kind
+        ))
     }
 
     /// The outcome of picking where an episode's bytes come from.
@@ -186,6 +206,7 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
         didApplySubtitlePreference = false
         startAutoCacheIfNeeded(for: file, playedFromCache: resolved.playedFromCache)
         loadDanmaku(for: file, url: resolved.url)
+        loadSubtitles(for: file, url: resolved.url)
         controller?.play(url: resolved.url, position: position)
     }
 
@@ -226,6 +247,7 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
         audioDelay = 0
         didApplySubtitlePreference = false
         loadDanmaku(for: episode.mediaFile, url: url)
+        loadSubtitles(for: episode.mediaFile, url: url)
         controller?.play(url: url, position: position)
     }
 
@@ -344,6 +366,7 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
             UserDefaults.standard.set(data, forKey: Self.subtitlePreferenceKey)
         }
         controller?.selectSubtitle(id: track?.id)
+        subtitles.userSelected(track)
     }
 
     func stepChapter(_ offset: Int) {
@@ -404,6 +427,9 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
         self.audioID = audioID
         self.subtitleID = subtitleID
         applySubtitlePreferenceIfNeeded(to: subtitles, currentID: subtitleID)
+        // The first list after the file loaded holds its embedded and
+        // sidecar tracks — what decides whether to search online.
+        self.subtitles.tracksDidUpdate(subtitles, isLoading: isLoading)
     }
 
     private func applySubtitlePreferenceIfNeeded(to tracks: [MediaTrack], currentID: Int64?) {
@@ -570,6 +596,11 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
     func playerLoadingStateDidChange(isLoading: Bool) {
         self.isLoading = isLoading
         if !isLoading { errorMessage = nil }
+        // The native Dolby Vision path publishes no tracks after loading;
+        // mpv does, and its track update carries the decision instead.
+        if !isLoading, controller?.rendersSubtitles == false {
+            subtitles.tracksDidUpdate([], isLoading: false)
+        }
     }
 
     func playerDidFail(message: String) {
@@ -589,6 +620,24 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
             NotificationCenter.default.removeObserver(screenParametersObserver)
         }
         access?.stop()
+    }
+}
+
+extension PlayerState: SubtitleTrackHost {
+    func attachSubtitle(url: URL, title: String, language: String?, select: Bool) {
+        controller?.addSubtitle(url: url, title: title, language: language, select: select)
+    }
+
+    func detachSubtitle(url: URL) {
+        controller?.removeSubtitle(url: url)
+    }
+
+    var rendersSubtitles: Bool { controller?.rendersSubtitles ?? true }
+
+    var userTurnedSubtitlesOff: Bool {
+        guard let data = UserDefaults.standard.data(forKey: Self.subtitlePreferenceKey),
+              let preference = try? JSONDecoder().decode(SubtitlePreference.self, from: data) else { return false }
+        return !preference.isEnabled
     }
 }
 
@@ -658,6 +707,7 @@ struct PlayerScreen: View {
     @State private var showDanmakuSettings = false
     @State private var showDanmakuMatch = false
     @State private var showDanmakuManager = false
+    @State private var showSubtitleSearch = false
     /// A text field in the danmaku manager has focus; single-key player
     /// shortcuts are suspended so typing doesn't pause, seek, or go fullscreen.
     @State private var isTypingInDanmakuManager = false
@@ -678,6 +728,23 @@ struct PlayerScreen: View {
         return [metadata?.title, metadata?.originalTitle, localTitle]
             .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
+    }
+
+    /// What the library knows about the playing work, for subtitle search:
+    /// every provider's titles and the IDs each one reported.
+    private var subtitleWorkContext: SubtitleWorkContext {
+        let animeID = state.currentEpisode.episode.animeID
+        let sources = model.metadataSourcesByAnimeID[animeID] ?? []
+        let titles = danmakuTitleCandidates + sources.flatMap { [$0.title, $0.originalTitle] }
+        let references = sources.flatMap { source in
+            [ExternalAnimeReference(provider: source.provider, externalID: source.externalID)]
+                + (source.externalReferences ?? [])
+        }
+        return SubtitleWorkContext(
+            titles: SubtitleReleaseParsing.distinct(state.isDirectPlayback ? [] : titles),
+            references: state.isDirectPlayback ? [] : references,
+            airDate: sources.compactMap(\.airDate).first
+        )
     }
 
     private var episodeLabel: String {
@@ -709,6 +776,11 @@ struct PlayerScreen: View {
                 preferences: danmakuPreferences,
                 controlsVisible: controlsVisible,
                 openMatch: { showDanmakuMatch = true }
+            )
+            SubtitleStatusBadge(
+                session: state.subtitles,
+                controlsVisible: controlsVisible,
+                openSearch: { showSubtitleSearch = true }
             )
             if state.isLoading {
                 ProgressView("Opening video…")
@@ -779,6 +851,13 @@ struct PlayerScreen: View {
                 }
             )
         }
+        .sheet(isPresented: $showSubtitleSearch) {
+            SubtitleSearchSheet(
+                session: state.subtitles,
+                currentTrackFile: state.subtitleTracks.first { $0.id == state.subtitleID }?.externalFilename,
+                onDismiss: { showSubtitleSearch = false }
+            )
+        }
         .sheet(isPresented: $showDanmakuMatch) {
             DanmakuMatchSheet(
                 session: state.danmaku,
@@ -793,6 +872,8 @@ struct PlayerScreen: View {
             state.updateDanmakuSearchContext(titleCandidates: danmakuTitleCandidates)
             state.danmaku.attach(preferences: model.danmakuPreferences)
             state.loadDanmakuIfNeeded(database: model.libraryDatabase)
+            state.subtitles.updateWorkContext(subtitleWorkContext)
+            state.subtitles.attach(preferences: model.subtitlePreferences, database: model.libraryDatabase)
             revealControls()
             if ProcessInfo.processInfo.arguments.contains("-smokePlayerTest") {
                 scheduleSmokeTest()
@@ -833,6 +914,7 @@ struct PlayerScreen: View {
         }
         .onChange(of: state.currentEpisode.id) { _, _ in
             state.updateDanmakuSearchContext(titleCandidates: danmakuTitleCandidates)
+            state.subtitles.updateWorkContext(subtitleWorkContext)
         }
         .onChange(of: state.paused) { _, _ in
             revealControls()
@@ -1056,15 +1138,47 @@ struct PlayerScreen: View {
         .help("Chapters")
     }
 
+    /// Subtitles, grouped by where they come from: inside the file, files
+    /// beside it (or chosen by hand), and downloaded online subtitles.
     private var subtitleMenu: some View {
-        Menu {
-            Button("Off") { state.selectSubtitle(nil) }
+        let online = state.subtitleTracks.filter { state.subtitles.isOwnDownload($0) }
+        let embedded = state.subtitleTracks.filter { !$0.isExternal }
+        let external = state.subtitleTracks.filter { $0.isExternal && !state.subtitles.isOwnDownload($0) }
+        return Menu {
+            Button { state.selectSubtitle(nil) } label: {
+                if state.subtitleID == nil { Label("Off", systemImage: "checkmark") } else { Text("Off") }
+            }
+            if !embedded.isEmpty {
+                Section("Embedded") { subtitleTrackButtons(embedded) }
+            }
+            if !external.isEmpty {
+                Section("External Files") { subtitleTrackButtons(external) }
+            }
+            if !online.isEmpty {
+                Section("Online") { subtitleTrackButtons(online) }
+            }
             Divider()
-            ForEach(state.subtitleTracks) { track in
-                Button { state.selectSubtitle(track) } label: {
-                    if state.subtitleID == track.id { Label(track.displayName, systemImage: "checkmark") }
-                    else { Text(track.displayName) }
+            Menu("Online Subtitles") {
+                Button("Auto-Match Chinese Subtitles") { state.subtitles.autoMatchNow() }
+                    .disabled(state.subtitles.isSearching)
+                Button("Search Subtitles…") { showSubtitleSearch = true }
+                if !state.subtitles.downloads.isEmpty {
+                    Menu("Downloaded") {
+                        ForEach(state.subtitles.downloads) { record in
+                            Button { state.subtitles.selectDownloaded(record) } label: {
+                                let title = "\(record.displayTitle) · \(Int((record.matchScore * 100).rounded()))%"
+                                if isSelectedDownload(record) { Label(title, systemImage: "checkmark") } else { Text(title) }
+                            }
+                        }
+                        Divider()
+                        Button("Remove Downloads and Search Again") { state.subtitles.researchFromScratch() }
+                        Button("Remove Downloads for This Episode", role: .destructive) {
+                            Task { await state.subtitles.removeDownloads() }
+                        }
+                    }
                 }
+                Divider()
+                Text(SubtitleStatusBadge.statusText(state.subtitles.phase)).foregroundStyle(.secondary)
             }
             Divider()
             Menu("Subtitle Delay") {
@@ -1086,7 +1200,22 @@ struct PlayerScreen: View {
             Divider()
             Button("Load External Subtitle…") { chooseExternalSubtitle() }
         } label: { Image(systemName: "captions.bubble") }
-        .help("Subtitle Track, Delays, and External Files")
+        .help("Subtitle Tracks, Online Subtitles, Delays, and External Files")
+    }
+
+    @ViewBuilder
+    private func subtitleTrackButtons(_ tracks: [MediaTrack]) -> some View {
+        ForEach(tracks) { track in
+            Button { state.selectSubtitle(track) } label: {
+                if state.subtitleID == track.id { Label(track.displayName, systemImage: "checkmark") }
+                else { Text(track.displayName) }
+            }
+        }
+    }
+
+    private func isSelectedDownload(_ record: SubtitleDownloadRecord) -> Bool {
+        guard let current = state.subtitleTracks.first(where: { $0.id == state.subtitleID }) else { return false }
+        return state.subtitles.download(for: current)?.id == record.id
     }
 
     private var speedMenu: some View {
@@ -1135,6 +1264,13 @@ struct PlayerScreen: View {
                 process.waitUntilExit()
             }
             try? await Task.sleep(for: .seconds(4))
+            // AG_SMOKE_SUBTITLE=<file inside the container> adds and selects
+            // a subtitle, so the output shows it surviving the fullscreen
+            // renderer rebuild below.
+            if let path = ProcessInfo.processInfo.environment["AG_SMOKE_SUBTITLE"] {
+                state.attachSubtitle(url: URL(fileURLWithPath: path), title: "Smoke Subtitle", language: "zh-Hans", select: true)
+                try? await Task.sleep(for: .seconds(1))
+            }
             let arguments = ProcessInfo.processInfo.arguments
             if let flag = arguments.firstIndex(of: "-smokeMatch"), flag + 1 < arguments.count,
                let version = state.currentEpisode.versions.first(where: { $0.relativePath.contains(arguments[flag + 1]) }),
@@ -1185,6 +1321,9 @@ struct PlayerScreen: View {
         let renderedText = rendered.map { "\(Int($0.width))x\(Int($0.height))" } ?? "nil"
         let fullscreen = controller?.view.window?.styleMask.contains(.fullScreen) ?? false
         FileHandle.standardError.write(Data("SMOKE \(label): window=\(Int(windowFrame.width))x\(Int(windowFrame.height)) fs=\(fullscreen) view=\(Int(viewBounds.width))x\(Int(viewBounds.height)) drawable=\(Int(drawable.width))x\(Int(drawable.height)) surface=\(renderedText) pos=\(Int(state.position))/\(Int(state.duration)) controls=\(controlsVisible) cursorHidden=\(cursorHiddenByPlayer)\n".utf8))
+        let subtitleTracks = state.subtitleTracks.map { "\($0.id):\($0.title)\($0.isExternal ? ":ext" : "")" }
+        let onScreen = (controller?.currentSubtitleText ?? "").replacingOccurrences(of: "\n", with: " | ")
+        FileHandle.standardError.write(Data("SMOKE \(label) subtitles: sid=\(state.subtitleID.map(String.init) ?? "no") tracks=\(subtitleTracks) text=\"\(onScreen)\" online=\(SubtitleStatusBadge.statusText(state.subtitles.phase))\n".utf8))
         let screen = controller?.view.window?.screen
         FileHandle.standardError.write(Data("SMOKE \(label) color: headroom=\(screen?.maximumExtendedDynamicRangeColorComponentValue ?? 0) potential=\(screen?.maximumPotentialExtendedDynamicRangeColorComponentValue ?? 0) mode=\(state.outputMode) hdrActive=\(state.hdrOutputActive) \(controller?.colorPipelineDiagnostics ?? "nil")\n".utf8))
     }
@@ -1312,6 +1451,8 @@ struct PlayerScreen: View {
                 session: state.danmaku,
                 preferences: danmakuPreferences
             )
+
+            SubtitleDiagnosticsSection(session: state.subtitles)
         }
         .font(.system(size: 11, design: .monospaced))
         .foregroundStyle(.white)

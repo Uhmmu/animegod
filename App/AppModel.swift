@@ -31,6 +31,9 @@ final class AppModel: ObservableObject {
     /// credentials in the Keychain). Owned here so the player and Settings
     /// observe the same instance.
     let danmakuPreferences = DanmakuPreferences()
+    /// Online subtitle settings, provider credentials (Keychain) and the
+    /// subtitle cache, shared by every player window and Settings.
+    let subtitlePreferences = SubtitlePreferences()
     /// Local episode copies: auto-cached while playing from an external
     /// drive, manually cacheable, playable when the drive is unplugged.
     let episodeCache = EpisodeCacheStore()
@@ -67,6 +70,10 @@ final class AppModel: ObservableObject {
             .sink { [weak self] _ in self?.objectWillChange.send() }
             .store(in: &cancellables)
         danmakuPreferences.objectWillChange
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &cancellables)
+        subtitlePreferences.objectWillChange
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.objectWillChange.send() }
             .store(in: &cancellables)

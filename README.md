@@ -222,6 +222,29 @@ source alongside dandanplay.
   Hidden comments show which rule hid them, and blocked keywords and users can
   be managed in the panel or in Danmaku Settings.
 
+### Online subtitles (在线字幕)
+- When a video has no subtitle in your preferred languages (Simplified /
+  Traditional Chinese by default), AnimeGod identifies the anime, season,
+  episode and release (group, BD/WEB source, resolution), searches the
+  configured subtitle sites in parallel, and loads the best match on its own
+  — only when it is confident. Otherwise a small badge offers the candidates.
+- Sources, each with its own key in Settings (stored in the Keychain):
+  **射手网(伪) assrt.net** (Chinese fansub archive, ASS), **SubDL** (searched
+  by TMDB ID + season/episode), **OpenSubtitles** (exact-file hash matches;
+  SRT only) and **Jimaku** (Japanese, used only when Japanese is preferred).
+  One source failing never affects the others.
+- Matching weighs the same episode and a compatible release first — a BD
+  subtitle is never loaded automatically on a WEB video, or vice versa — then
+  your language and format order (ASS/SSA before SRT). Season packs and ZIPs
+  are unpacked to the right episode; GBK/Big5 files are converted to UTF-8.
+- The subtitle menu groups **Embedded**, **External Files** and **Online**
+  tracks, and **Online Subtitles** offers auto-match, **Search Subtitles…**
+  (language, format, provider, group, match %, version, file) and downloaded
+  subtitles. Downloads are cached per episode and reload on replay without a
+  search. ASS is rendered by libass, with fonts from subtitle packs.
+- Releases whose name says Chinese subtitles are burned in (e.g. `[CHT]`,
+  `[简日内嵌]`) are not searched by default; this is a setting.
+
 ### Personal library
 - Watch events are recorded from real playback sessions (sub-15 s touches are
   ignored); 90 % completion marks an episode watched and updates tracking
@@ -263,7 +286,8 @@ local SQLite database (`~/Library/Containers/com.uhmmu.AnimeGod/Data/…`);
 cached episode files sit in the same container's Application Support folder.
 Nothing is uploaded. Network is used only for the metadata providers you
 invoke, the Bangumi charts section, the translation provider you configure,
-the danmaku sources you enable (dandanplay and/or Bilibili), the release
-sources you search, and the BitTorrent swarms of downloads you start —
+the danmaku sources you enable (dandanplay and/or Bilibili), the subtitle
+sites you configure (sent the anime's title, IDs, episode and file name —
+plus a 128 KiB-derived hash for OpenSubtitles), the release sources you search, and the BitTorrent swarms of downloads you start —
 BitTorrent is peer-to-peer, so peers you exchange data with see your IP
 address, as with any torrent client.

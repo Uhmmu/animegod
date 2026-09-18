@@ -7,6 +7,7 @@ import Security
 enum KeychainStore {
     private static let defaultService = "com.uhmmu.AnimeGod.translation"
     private static let danmakuService = "com.uhmmu.AnimeGod.danmaku"
+    private static let subtitleService = "com.uhmmu.AnimeGod.subtitles"
 
     static func save(_ value: String, account: String, service: String = defaultService) {
         let data = Data(value.utf8)
@@ -68,6 +69,50 @@ enum KeychainStore {
 
         static func saveBilibiliSessData(_ value: String) {
             KeychainStore.save(value, account: bilibiliSessDataAccount, service: danmakuService)
+        }
+    }
+}
+
+extension KeychainStore {
+    /// Online subtitle provider credentials. Each value can also come from
+    /// an environment variable (for development builds launched from a
+    /// terminal); the Keychain entry wins when both exist. Nothing here is
+    /// ever logged or written to the repository.
+    enum Subtitles {
+        enum Account: String, CaseIterable {
+            case assrtToken = "assrt-token"
+            case subDLAPIKey = "subdl-api-key"
+            case openSubtitlesAPIKey = "opensubtitles-api-key"
+            case openSubtitlesUsername = "opensubtitles-username"
+            case openSubtitlesPassword = "opensubtitles-password"
+            case jimakuAPIKey = "jimaku-api-key"
+
+            var environmentVariable: String {
+                switch self {
+                case .assrtToken: "ANIMEGOD_ASSRT_TOKEN"
+                case .subDLAPIKey: "ANIMEGOD_SUBDL_API_KEY"
+                case .openSubtitlesAPIKey: "ANIMEGOD_OPENSUBTITLES_API_KEY"
+                case .openSubtitlesUsername: "ANIMEGOD_OPENSUBTITLES_USERNAME"
+                case .openSubtitlesPassword: "ANIMEGOD_OPENSUBTITLES_PASSWORD"
+                case .jimakuAPIKey: "ANIMEGOD_JIMAKU_API_KEY"
+                }
+            }
+        }
+
+        static func load(_ account: Account) -> String {
+            if let stored = KeychainStore.load(account: account.rawValue, service: subtitleService), !stored.isEmpty {
+                return stored
+            }
+            return environment(account)
+        }
+
+        static func environment(_ account: Account) -> String {
+            ProcessInfo.processInfo.environment[account.environmentVariable]?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        }
+
+        static func save(_ value: String, for account: Account) {
+            KeychainStore.save(value, account: account.rawValue, service: subtitleService)
         }
     }
 }

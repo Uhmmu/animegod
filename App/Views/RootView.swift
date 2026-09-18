@@ -73,7 +73,7 @@ struct RootView: View {
                 case .episodeCache: EpisodeCacheView(cache: model.episodeCache)
                 case .downloads: DownloadsView(downloads: model.downloads)
                 case .subscriptions: SubscriptionsView(subscriptions: model.subscriptions)
-                case .settings: SettingsView(translation: model.translation, danmaku: model.danmakuPreferences, torrentSources: model.torrentSources)
+                case .settings: SettingsView(translation: model.translation, danmaku: model.danmakuPreferences, torrentSources: model.torrentSources, subtitles: model.subtitlePreferences, database: model.libraryDatabase)
                 case nil: ContentUnavailableView("Choose a section", systemImage: "sidebar.left")
                 }
             }
