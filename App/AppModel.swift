@@ -28,10 +28,10 @@ final class AppModel: ObservableObject {
     private let scanner = LibraryScanner()
     let translation = TranslationCoordinator()
     /// App-wide danmaku preferences (enabled + presentation + provider
-    /// credentials in the Keychain). Owned here so the player and Settings
+    /// credentials in the local credential file). Owned here so the player and Settings
     /// observe the same instance.
     let danmakuPreferences = DanmakuPreferences()
-    /// Online subtitle settings, provider credentials (Keychain) and the
+    /// Online subtitle settings, provider credentials and the
     /// subtitle cache, shared by every player window and Settings.
     let subtitlePreferences = SubtitlePreferences()
     /// Local episode copies: auto-cached while playing from an external

@@ -17,9 +17,8 @@ struct AnimeGodApp: App {
     @StateObject private var model = AppModel()
 
     init() {
-        // The headless engine check runs before any scene exists: building
-        // AppModel would read the Keychain, which blocks a build that is not
-        // the installed, trusted copy.
+        // The headless engine check runs before any scene exists, so it
+        // never builds AppModel or touches the library.
         if TorrentEngineSmokeTest.isRequested { TorrentEngineSmokeTest.runIfRequested() }
         if SubscriptionSmokeTest.isRequested { SubscriptionSmokeTest.run() }
         if FolderAccessSmokeTest.isRequested { FolderAccessSmokeTest.run() }

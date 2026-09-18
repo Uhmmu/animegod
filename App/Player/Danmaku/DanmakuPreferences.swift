@@ -4,7 +4,7 @@ import Foundation
 /// App-level danmaku preferences: the master switch, which source(s) to
 /// pull from, and presentation settings, persisted in UserDefaults.
 /// Credentials (dandanplay AppId/AppSecret, the optional Bilibili
-/// `SESSDATA`) live in the Keychain — see `KeychainStore.Danmaku`.
+/// `SESSDATA`) live in the local credential file — see `CredentialStore.Danmaku`.
 @MainActor
 final class DanmakuPreferences: ObservableObject {
     private let defaults: UserDefaults
@@ -32,7 +32,7 @@ final class DanmakuPreferences: ObservableObject {
     }
 
     /// AppId/AppSecret fields bound by the Settings UI; saved to the
-    /// Keychain on demand.
+    /// credential file on demand.
     @Published var appID: String
     @Published var appSecret: String
     /// Optional Bilibili login cookie, bound by the Settings UI.
@@ -56,9 +56,9 @@ final class DanmakuPreferences: ObservableObject {
         source = (defaults.string(forKey: "danmaku.source").flatMap(DanmakuSourceSelection.init(rawValue:))) ?? .dandanplay
         bilibiliEndpoint = (defaults.string(forKey: "danmaku.bilibili.endpoint")
             .flatMap(BilibiliSession.SegmentEndpoint.init(rawValue:))) ?? .automatic
-        appID = KeychainStore.Danmaku.loadAppID() ?? ""
-        appSecret = KeychainStore.Danmaku.loadAppSecret() ?? ""
-        let sessData = KeychainStore.Danmaku.loadBilibiliSessData() ?? ""
+        appID = CredentialStore.Danmaku.loadAppID() ?? ""
+        appSecret = CredentialStore.Danmaku.loadAppSecret() ?? ""
+        let sessData = CredentialStore.Danmaku.loadBilibiliSessData() ?? ""
         bilibiliSessData = sessData
 
         bilibiliCookies = BilibiliCookieStore(
@@ -77,12 +77,20 @@ final class DanmakuPreferences: ObservableObject {
     /// True when at least one selected source can actually run.
     var isConfigured: Bool { !makeProviders().isEmpty }
 
+    /// Re-reads the stored credentials (after an import) and applies them.
+    func reloadCredentials() {
+        appID = CredentialStore.Danmaku.loadAppID() ?? ""
+        appSecret = CredentialStore.Danmaku.loadAppSecret() ?? ""
+        bilibiliSessData = CredentialStore.Danmaku.loadBilibiliSessData() ?? ""
+        saveCredentials()
+    }
+
     func saveCredentials() {
         appID = appID.trimmingCharacters(in: .whitespacesAndNewlines)
         appSecret = appSecret.trimmingCharacters(in: .whitespacesAndNewlines)
         bilibiliSessData = bilibiliSessData.trimmingCharacters(in: .whitespacesAndNewlines)
-        KeychainStore.Danmaku.save(appID: appID, appSecret: appSecret)
-        KeychainStore.Danmaku.saveBilibiliSessData(bilibiliSessData)
+        CredentialStore.Danmaku.save(appID: appID, appSecret: appSecret)
+        CredentialStore.Danmaku.saveBilibiliSessData(bilibiliSessData)
         let sessData = bilibiliSessData
         let cookies = bilibiliCookies
         Task { await cookies.apply(user: BilibiliCookieStore.UserCredentials(sessData: sessData.isEmpty ? nil : sessData)) }

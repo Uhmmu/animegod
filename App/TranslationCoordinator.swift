@@ -2,81 +2,142 @@ import AnimeGodCore
 import Foundation
 import Security
 
-/// Stores provider credentials in the macOS Keychain rather than
-/// plain-text preferences.
-enum KeychainStore {
+/// Provider credentials (DeepL, dandanplay, Bilibili, subtitle sites).
+///
+/// Stored in a JSON file inside the app's own sandbox container, readable
+/// only by the user's account — not in the Keychain. AnimeGod is ad-hoc
+/// signed, so every new build is a new code identity to the Keychain and
+/// each stored item asked for the login password again after every
+/// reinstall. The file is never part of the repository and values are never
+/// logged. `importFromKeychain()` moves items saved by earlier builds over,
+/// only when the user asks for it in Settings.
+enum CredentialStore {
     private static let defaultService = "com.uhmmu.AnimeGod.translation"
     private static let danmakuService = "com.uhmmu.AnimeGod.danmaku"
     private static let subtitleService = "com.uhmmu.AnimeGod.subtitles"
 
+    private static let lock = NSLock()
+    nonisolated(unsafe) private static var cache: [String: String]?
+
+    static var fileURL: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appending(path: "AnimeGod/credentials.json")
+    }
+
+    private static func key(_ account: String, _ service: String) -> String { "\(service)/\(account)" }
+
+    /// Callers hold `lock`.
+    private static func values() -> [String: String] {
+        if let cache { return cache }
+        let loaded = (try? Data(contentsOf: fileURL))
+            .flatMap { try? JSONDecoder().decode([String: String].self, from: $0) } ?? [:]
+        cache = loaded
+        return loaded
+    }
+
+    private static func write(_ values: [String: String]) {
+        cache = values
+        let url = fileURL
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        guard let data = try? JSONEncoder().encode(values) else { return }
+        try? data.write(to: url, options: .atomic)
+        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+    }
+
     static func save(_ value: String, account: String, service: String = defaultService) {
-        let data = Data(value.utf8)
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account
-        ]
-        SecItemDelete(query as CFDictionary)
-        guard !value.isEmpty else { return }
-        var attributes = query
-        attributes[kSecValueData as String] = data
-        SecItemAdd(attributes as CFDictionary, nil)
+        lock.lock()
+        defer { lock.unlock() }
+        var stored = values()
+        stored[key(account, service)] = value.isEmpty ? nil : value
+        write(stored)
     }
 
     static func load(account: String, service: String = defaultService) -> String? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
-        var item: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
-              let data = item as? Data else { return nil }
-        return String(data: data, encoding: .utf8)
+        lock.lock()
+        defer { lock.unlock() }
+        return values()[key(account, service)]
     }
 
-    /// Credentials for the dandanplay Open Danmaku API, kept in a separate
-    /// keychain service. Secrets never leave this type except into
-    /// provider construction — and are never logged.
+    /// Every item earlier builds kept in the Keychain.
+    private static var legacyItems: [(account: String, service: String)] {
+        [(TranslationCoordinator.apiKeyAccount, defaultService),
+         (Danmaku.appIDAccount, danmakuService),
+         (Danmaku.appSecretAccount, danmakuService),
+         (Danmaku.bilibiliSessDataAccount, danmakuService)]
+            + Subtitles.Account.allCases.map { ($0.rawValue, subtitleService) }
+    }
+
+    /// Copies credentials saved by earlier builds out of the Keychain (each
+    /// item may ask for the login password one last time), then deletes
+    /// them there. Values already in the file are kept. Returns how many
+    /// were imported.
+    @discardableResult
+    static func importFromKeychain() -> Int {
+        var imported = 0
+        for item in legacyItems {
+            let query: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: item.service,
+                kSecAttrAccount as String: item.account,
+                kSecReturnData as String: true,
+                kSecMatchLimit as String: kSecMatchLimitOne
+            ]
+            var result: CFTypeRef?
+            guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+                  let data = result as? Data,
+                  let value = String(data: data, encoding: .utf8), !value.isEmpty else { continue }
+            if load(account: item.account, service: item.service)?.isEmpty ?? true {
+                save(value, account: item.account, service: item.service)
+                imported += 1
+            }
+            SecItemDelete([
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: item.service,
+                kSecAttrAccount as String: item.account
+            ] as CFDictionary)
+        }
+        return imported
+    }
+
+    /// Credentials for the dandanplay Open Danmaku API. Secrets never leave
+    /// this type except into provider construction — and are never logged.
     enum Danmaku {
         static let appIDAccount = "dandanplay-app-id"
         static let appSecretAccount = "dandanplay-app-secret"
 
         static func loadAppID() -> String? {
-            KeychainStore.load(account: appIDAccount, service: danmakuService)
+            CredentialStore.load(account: appIDAccount, service: danmakuService)
         }
 
         static func loadAppSecret() -> String? {
-            KeychainStore.load(account: appSecretAccount, service: danmakuService)
+            CredentialStore.load(account: appSecretAccount, service: danmakuService)
         }
 
         static func save(appID: String, appSecret: String) {
-            KeychainStore.save(appID, account: appIDAccount, service: danmakuService)
-            KeychainStore.save(appSecret, account: appSecretAccount, service: danmakuService)
+            CredentialStore.save(appID, account: appIDAccount, service: danmakuService)
+            CredentialStore.save(appSecret, account: appSecretAccount, service: danmakuService)
         }
 
         /// The optional Bilibili login cookie. Anonymous access is the
         /// default and works for most titles; a `SESSDATA` only widens what
-        /// the account may see. It is a session credential, so it lives in
-        /// the Keychain beside the other secrets and is never logged.
+        /// the account may see. It is a session credential, stored beside
+        /// the other secrets and never logged.
         static let bilibiliSessDataAccount = "bilibili-sessdata"
 
         static func loadBilibiliSessData() -> String? {
-            KeychainStore.load(account: bilibiliSessDataAccount, service: danmakuService)
+            CredentialStore.load(account: bilibiliSessDataAccount, service: danmakuService)
         }
 
         static func saveBilibiliSessData(_ value: String) {
-            KeychainStore.save(value, account: bilibiliSessDataAccount, service: danmakuService)
+            CredentialStore.save(value, account: bilibiliSessDataAccount, service: danmakuService)
         }
     }
 }
 
-extension KeychainStore {
+extension CredentialStore {
     /// Online subtitle provider credentials. Each value can also come from
     /// an environment variable (for development builds launched from a
-    /// terminal); the Keychain entry wins when both exist. Nothing here is
+    /// terminal); the stored value wins when both exist. Nothing here is
     /// ever logged or written to the repository.
     enum Subtitles {
         enum Account: String, CaseIterable {
@@ -100,7 +161,7 @@ extension KeychainStore {
         }
 
         static func load(_ account: Account) -> String {
-            if let stored = KeychainStore.load(account: account.rawValue, service: subtitleService), !stored.isEmpty {
+            if let stored = CredentialStore.load(account: account.rawValue, service: subtitleService), !stored.isEmpty {
                 return stored
             }
             return environment(account)
@@ -112,7 +173,7 @@ extension KeychainStore {
         }
 
         static func save(_ value: String, for account: Account) {
-            KeychainStore.save(value, account: account.rawValue, service: subtitleService)
+            CredentialStore.save(value, account: account.rawValue, service: subtitleService)
         }
     }
 }
@@ -136,7 +197,7 @@ final class TranslationCoordinator: ObservableObject {
         var id: String { rawValue }
     }
 
-    static let apiKeyAccount = "deepl-api-key"
+    nonisolated static let apiKeyAccount = "deepl-api-key"
     private let defaults = UserDefaults.standard
 
     @Published var provider: Provider
@@ -150,7 +211,7 @@ final class TranslationCoordinator: ObservableObject {
         let language = defaults.string(forKey: "translation.targetLanguage")
             .flatMap(TranslationLanguage.init(rawValue:))
         targetLanguage = language ?? .simplifiedChinese
-        apiKey = KeychainStore.load(account: Self.apiKeyAccount) ?? ""
+        apiKey = CredentialStore.load(account: Self.apiKeyAccount) ?? ""
     }
 
     var isConfigured: Bool {
@@ -160,11 +221,16 @@ final class TranslationCoordinator: ObservableObject {
         }
     }
 
+    /// Re-reads the stored key (after an import).
+    func reloadCredentials() {
+        apiKey = CredentialStore.load(account: Self.apiKeyAccount) ?? ""
+    }
+
     func saveSettings() {
         defaults.set(provider.rawValue, forKey: "translation.provider")
         defaults.set(targetLanguage.rawValue, forKey: "translation.targetLanguage")
         let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        KeychainStore.save(trimmed, account: Self.apiKeyAccount)
+        CredentialStore.save(trimmed, account: Self.apiKeyAccount)
         apiKey = trimmed
         objectWillChange.send()
     }

@@ -4,7 +4,7 @@ import Foundation
 /// App-wide online subtitle settings and the services every player window
 /// shares: the disk cache, the anime ID mapping, the OpenSubtitles login
 /// token, and a per-anime cache of resolved IDs. Settings persist in
-/// UserDefaults; credentials live in the Keychain (`KeychainStore.Subtitles`).
+/// UserDefaults; credentials live in the local credential file (`CredentialStore`).
 @MainActor
 final class SubtitlePreferences: ObservableObject {
     private let defaults: UserDefaults
@@ -32,8 +32,8 @@ final class SubtitlePreferences: ObservableObject {
         didSet { defaults.set(enabledProviders.map(\.rawValue).sorted(), forKey: "subtitles.providers") }
     }
 
-    /// Credential fields bound by Settings; saved to the Keychain on demand.
-    @Published var credentials: [KeychainStore.Subtitles.Account: String]
+    /// Credential fields bound by Settings; saved to the credential file on demand.
+    @Published var credentials: [CredentialStore.Subtitles.Account: String]
 
     let cache: SubtitleCacheStore
     let idMapping: AnimeIDMappingStore
@@ -54,8 +54,8 @@ final class SubtitlePreferences: ObservableObject {
         }
         let stored = defaults.stringArray(forKey: "subtitles.providers")?.compactMap(SubtitleProviderID.init(rawValue:))
         enabledProviders = Set(stored ?? SubtitleProviderID.allCases)
-        credentials = Dictionary(uniqueKeysWithValues: KeychainStore.Subtitles.Account.allCases.map {
-            ($0, KeychainStore.Subtitles.load($0))
+        credentials = Dictionary(uniqueKeysWithValues: CredentialStore.Subtitles.Account.allCases.map {
+            ($0, CredentialStore.Subtitles.load($0))
         })
 
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -65,17 +65,24 @@ final class SubtitlePreferences: ObservableObject {
         MPVPlayerController.subtitleFontsDirectory = cache.fontsDirectory
     }
 
-    func credential(_ account: KeychainStore.Subtitles.Account) -> String {
+    func credential(_ account: CredentialStore.Subtitles.Account) -> String {
         (credentials[account] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// Re-reads the stored credentials (after an import).
+    func reloadCredentials() {
+        credentials = Dictionary(uniqueKeysWithValues: CredentialStore.Subtitles.Account.allCases.map {
+            ($0, CredentialStore.Subtitles.load($0))
+        })
+    }
+
     func saveCredentials() {
-        for account in KeychainStore.Subtitles.Account.allCases {
+        for account in CredentialStore.Subtitles.Account.allCases {
             let value = credential(account)
             credentials[account] = value
-            // An environment-provided value is not copied into the Keychain.
-            if value != KeychainStore.Subtitles.environment(account) || value.isEmpty {
-                KeychainStore.Subtitles.save(value, for: account)
+            // An environment-provided value is not copied into the credential file.
+            if value != CredentialStore.Subtitles.environment(account) || value.isEmpty {
+                CredentialStore.Subtitles.save(value, for: account)
             }
         }
         objectWillChange.send()

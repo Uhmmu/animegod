@@ -9,8 +9,7 @@ import Foundation
 /// Prints the identity, each provider's outcome and the ranked results;
 /// with `-download` it also downloads the best result into a temporary
 /// folder. Keys come from environment variables only — like the other
-/// smoke tests it never touches the Keychain, which would block an
-/// untrusted build. Nothing is written to the library database.
+/// smoke tests it never reads the saved credentials. Nothing is written to the library database.
 enum SubtitleSmokeTest {
     static var isRequested: Bool {
         ProcessInfo.processInfo.arguments.contains("-smokeSubtitles")
@@ -33,7 +32,7 @@ enum SubtitleSmokeTest {
         let titles = Array(rest.dropFirst())
         let url = URL(fileURLWithPath: path)
 
-        func env(_ account: KeychainStore.Subtitles.Account) -> String { KeychainStore.Subtitles.environment(account) }
+        func env(_ account: CredentialStore.Subtitles.Account) -> String { CredentialStore.Subtitles.environment(account) }
         var providers: [any SubtitleProvider] = []
         if !env(.assrtToken).isEmpty { providers.append(AssrtSubtitleProvider(token: env(.assrtToken))) }
         if !env(.subDLAPIKey).isEmpty { providers.append(SubDLSubtitleProvider(apiKey: env(.subDLAPIKey))) }

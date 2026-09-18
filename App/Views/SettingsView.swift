@@ -11,6 +11,7 @@ struct SettingsView: View {
     @State private var danmakuSavedFeedback = false
     @State private var subtitleSavedFeedback = false
     @State private var subtitleCacheBytes: Int64 = 0
+    @State private var keychainImportResult: String?
 
     /// Explains what each source costs the viewer, since "both" doubles the
     /// requests per episode and can double-show a popular comment.
@@ -37,7 +38,7 @@ struct SettingsView: View {
                 }
                 if translation.provider == .deepl {
                     SecureField("DeepL API Key", text: $translation.apiKey, prompt: Text("e.g. 8f2c…:fx"))
-                    Text("A free DeepL API key works with the free endpoint; keys ending in “:fx” are detected automatically. The key is stored in your macOS Keychain.")
+                    Text("A free DeepL API key works with the free endpoint; keys ending in “:fx” are detected automatically. The key is stored in AnimeGod's own local settings.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -93,7 +94,7 @@ struct SettingsView: View {
                             .transition(.opacity)
                     }
                     Spacer()
-                    Text("dandanplay uses the official Open Danmaku API — create a (free) app at dev.dandanplay.com and paste its AppId and AppSecret. Bilibili needs no account: it is read anonymously, and a SESSDATA cookie only widens what your account may see. Everything here is stored in your macOS Keychain, never in plain text.")
+                    Text("dandanplay uses the official Open Danmaku API — create a (free) app at dev.dandanplay.com and paste its AppId and AppSecret. Bilibili needs no account: it is read anonymously, and a SESSDATA cookie only widens what your account may see. Everything here is stored in AnimeGod's own local settings.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.trailing)
@@ -195,7 +196,25 @@ struct SettingsView: View {
                         .transition(.opacity)
                 }
                 Spacer()
-                Text("Keys are stored in your macOS Keychain. \(AssrtSubtitleProvider.attribution).")
+                Text("Keys are stored in AnimeGod's own local settings, not the Keychain. \(AssrtSubtitleProvider.attribution).")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.trailing)
+            }
+
+            HStack {
+                Button("Import Keys Saved in the Keychain") {
+                    let count = CredentialStore.importFromKeychain()
+                    translation.reloadCredentials()
+                    danmaku.reloadCredentials()
+                    subtitles.reloadCredentials()
+                    keychainImportResult = count == 0 ? "Nothing to import." : "Imported \(count) key\(count == 1 ? "" : "s")."
+                }
+                if let keychainImportResult {
+                    Text(keychainImportResult).font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Text("Only for keys saved by earlier builds. macOS may ask for your password once per key; they are then removed from the Keychain.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.trailing)
@@ -271,7 +290,7 @@ struct SettingsView: View {
         }
     }
 
-    private func credentialBinding(_ account: KeychainStore.Subtitles.Account) -> Binding<String> {
+    private func credentialBinding(_ account: CredentialStore.Subtitles.Account) -> Binding<String> {
         Binding(
             get: { subtitles.credentials[account] ?? "" },
             set: { subtitles.credentials[account] = $0 }
