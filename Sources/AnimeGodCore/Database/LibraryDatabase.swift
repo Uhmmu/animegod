@@ -857,6 +857,129 @@ public actor LibraryDatabase {
         }
     }
 
+    // MARK: - Subtitle downloads
+
+    /// Cached online subtitles for one video, the active one first.
+    public func subtitleDownloads(videoKey: String) throws -> [SubtitleDownloadRecord] {
+        try database.read { db in
+            try Row.fetchAll(
+                db,
+                sql: "SELECT * FROM subtitleDownload WHERE videoKey = ? ORDER BY isActive DESC, downloadedAt DESC",
+                arguments: [videoKey]
+            ).compactMap(Self.decodeSubtitleDownload)
+        }
+    }
+
+    public func allSubtitleDownloads() throws -> [SubtitleDownloadRecord] {
+        try database.read { db in
+            try Row.fetchAll(db, sql: "SELECT * FROM subtitleDownload ORDER BY downloadedAt DESC")
+                .compactMap(Self.decodeSubtitleDownload)
+        }
+    }
+
+    /// Saves a download. An active record deactivates the video's others:
+    /// exactly one subtitle is loaded on replay.
+    public func saveSubtitleDownload(_ record: SubtitleDownloadRecord) throws {
+        try database.write { db in
+            if record.isActive {
+                try db.execute(
+                    sql: "UPDATE subtitleDownload SET isActive = 0 WHERE videoKey = ?",
+                    arguments: [record.videoKey]
+                )
+            }
+            try db.execute(sql: """
+                INSERT INTO subtitleDownload
+                    (id, videoKey, animeID, provider, providerSubtitleID, language, format, releaseGroup, source,
+                     releaseName, fileName, relativePath, matchScore, isAutomatic, isActive, videoFileName, downloadedAt)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(videoKey, provider, providerSubtitleID) DO UPDATE SET
+                    language = excluded.language,
+                    format = excluded.format,
+                    releaseGroup = excluded.releaseGroup,
+                    source = excluded.source,
+                    releaseName = excluded.releaseName,
+                    fileName = excluded.fileName,
+                    relativePath = excluded.relativePath,
+                    matchScore = excluded.matchScore,
+                    isAutomatic = excluded.isAutomatic,
+                    isActive = excluded.isActive,
+                    videoFileName = excluded.videoFileName,
+                    downloadedAt = excluded.downloadedAt
+                """, arguments: [
+                    record.id.uuidString,
+                    record.videoKey,
+                    record.animeID?.uuidString,
+                    record.provider.rawValue,
+                    record.providerSubtitleID,
+                    record.language?.rawValue,
+                    record.format.rawValue,
+                    record.releaseGroup,
+                    record.source,
+                    record.releaseName,
+                    record.fileName,
+                    record.relativePath,
+                    record.matchScore,
+                    record.isAutomatic,
+                    record.isActive,
+                    record.videoFileName,
+                    record.downloadedAt
+                ])
+        }
+    }
+
+    /// Marks one download as the video's active subtitle (or clears the
+    /// choice when `id` is nil, e.g. the user picked an embedded track).
+    public func setActiveSubtitleDownload(id: UUID?, videoKey: String) throws {
+        try database.write { db in
+            try db.execute(sql: "UPDATE subtitleDownload SET isActive = 0 WHERE videoKey = ?", arguments: [videoKey])
+            if let id {
+                try db.execute(
+                    sql: "UPDATE subtitleDownload SET isActive = 1 WHERE id = ? AND videoKey = ?",
+                    arguments: [id.uuidString, videoKey]
+                )
+            }
+        }
+    }
+
+    public func removeSubtitleDownloads(videoKey: String) throws {
+        try database.write { db in
+            try db.execute(sql: "DELETE FROM subtitleDownload WHERE videoKey = ?", arguments: [videoKey])
+        }
+    }
+
+    public func removeAllSubtitleDownloads() throws {
+        try database.write { db in
+            try db.execute(sql: "DELETE FROM subtitleDownload")
+        }
+    }
+
+    private static func decodeSubtitleDownload(_ row: Row) -> SubtitleDownloadRecord? {
+        guard let id = UUID(uuidString: row["id"] as String),
+              let provider = SubtitleProviderID(rawValue: row["provider"] as String),
+              let format = SubtitleFormat(rawValue: row["format"] as String) else { return nil }
+        let animeID: String? = row["animeID"]
+        let language: String? = row["language"]
+        return SubtitleDownloadRecord(
+            id: id,
+            videoKey: row["videoKey"],
+            animeID: animeID.flatMap(UUID.init(uuidString:)),
+            provider: provider,
+            providerSubtitleID: row["providerSubtitleID"],
+            language: language.flatMap(SubtitleLanguage.init(rawValue:)),
+            format: format,
+            releaseGroup: row["releaseGroup"],
+            source: row["source"],
+            releaseName: row["releaseName"],
+            fileName: row["fileName"],
+            relativePath: row["relativePath"],
+            matchScore: row["matchScore"],
+            isAutomatic: row["isAutomatic"],
+            isActive: row["isActive"],
+            videoFileName: row["videoFileName"],
+            downloadedAt: row["downloadedAt"]
+        )
+    }
+
     // MARK: - Episode cache
 
     /// All cached episode copies, joined with their library labels for the
@@ -1684,6 +1807,34 @@ public actor LibraryDatabase {
                 table.column("matchedAt", .datetime).notNull()
                 table.primaryKey(["subscriptionID", "infoHash"])
             }
+        }
+        migrator.registerMigration("v10_subtitle_downloads") { db in
+            // Online subtitles downloaded for a video. The files live in the
+            // subtitle cache directory; these rows are what lets a replay load
+            // them without searching again. `videoKey` is "media:<uuid>" for a
+            // library file and "file:<name>" for direct playback, so there is
+            // deliberately no foreign key; `animeID` only groups the cache.
+            try db.create(table: "subtitleDownload") { table in
+                table.column("id", .text).primaryKey()
+                table.column("videoKey", .text).notNull()
+                table.column("animeID", .text).references("anime", onDelete: .setNull)
+                table.column("provider", .text).notNull()
+                table.column("providerSubtitleID", .text).notNull()
+                table.column("language", .text)
+                table.column("format", .text).notNull()
+                table.column("releaseGroup", .text)
+                table.column("source", .text)
+                table.column("releaseName", .text)
+                table.column("fileName", .text).notNull()
+                table.column("relativePath", .text).notNull()
+                table.column("matchScore", .double).notNull()
+                table.column("isAutomatic", .boolean).notNull().defaults(to: false)
+                table.column("isActive", .boolean).notNull().defaults(to: false)
+                table.column("videoFileName", .text).notNull()
+                table.column("downloadedAt", .datetime).notNull()
+                table.uniqueKey(["videoKey", "provider", "providerSubtitleID"])
+            }
+            try db.create(index: "subtitleDownload_video", on: "subtitleDownload", columns: ["videoKey"])
         }
         return migrator
     }
