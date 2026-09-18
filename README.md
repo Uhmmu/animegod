@@ -9,9 +9,10 @@ in one fast SwiftUI application.
 > Give a local anime collection memory, structure, context, and history while
 > preserving the speed and quality of a native macOS application.
 
-**Current release: 0.1.4.** This release keeps crowded danmaku readable with
-tighter layout, duplicate merging, density and keyword filters, and adds an
-in-player Danmaku Manager for browsing, searching, and blocking comments.
+**Current release: 0.2.0.** Search ten anime torrent indexes, download with the
+built-in BitTorrent engine, start watching before a download finishes, and
+subscribe to future episodes. Bilibili is also available as a second danmaku
+source alongside dandanplay.
 
 ## Features
 
