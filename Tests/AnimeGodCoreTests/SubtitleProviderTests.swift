@@ -142,6 +142,20 @@ struct SubtitleProviderTests {
         #expect(hosts.dropFirst(2).allSatisfy { $0 == "alternate.example" })
     }
 
+    @Test func assrtFailsFastOnceEveryHostWasUnreachable() async {
+        SubtitleMockURLProtocol.reset()
+        let provider = AssrtSubtitleProvider(
+            token: "t", session: SubtitleMockURLProtocol.makeSession(),
+            baseURLs: [URL(string: "https://down-a.example/v1")!, URL(string: "https://down-b.example/v1")!]
+        )
+        await #expect(throws: URLError.self) { try await provider.search(query) }
+        let firstAttempt = SubtitleMockURLProtocol.requests.count
+        #expect(firstAttempt == 2)
+        // The next search does not wait on the same dead hosts again.
+        await #expect(throws: URLError.self) { try await provider.search(query) }
+        #expect(SubtitleMockURLProtocol.requests.count == firstAttempt)
+    }
+
     @Test func assrtDownloadsTheEpisodeFileFromTheListedArchive() async throws {
         SubtitleMockURLProtocol.reset()
         SubtitleMockURLProtocol.route("sub/detail", json: """

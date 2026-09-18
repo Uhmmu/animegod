@@ -127,7 +127,8 @@ public struct SubtitleManager: Sendable {
             switch error.code {
             case .notConnectedToInternet, .networkConnectionLost: return "No network connection."
             case .timedOut: return "Timed out."
-            case .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed: return "The service is unreachable."
+            case .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed:
+                return "The service is unreachable from this network."
             default: return error.localizedDescription
             }
         }

@@ -114,6 +114,9 @@ public struct AssrtSubtitleProvider: SubtitleProvider {
     }
 
     private func request<Value: Decodable & AssrtStatus>(_ endpoint: String, _ parameters: [String: String]) async throws -> Value {
+        // Every host was unreachable moments ago: fail at once instead of
+        // spending the search's time budget on the same timeouts again.
+        if await hosts.isUnreachable { throw URLError(.cannotConnectToHost) }
         let preferred = await hosts.preferredIndex
         let order = [preferred] + baseURLs.indices.filter { $0 != preferred }
         var lastError: Error = SubtitleProviderError.invalidResponse
@@ -128,6 +131,7 @@ public struct AssrtSubtitleProvider: SubtitleProvider {
                 lastError = error
             }
         }
+        await hosts.markUnreachable()
         throw lastError
     }
 
@@ -242,8 +246,17 @@ public struct AssrtSubtitleProvider: SubtitleProvider {
 actor AssrtHostMemory {
     static let shared = AssrtHostMemory()
     private(set) var preferredIndex = 0
+    private var unreachableUntil: Date?
 
-    func remember(_ index: Int) { preferredIndex = index }
+    var isUnreachable: Bool { unreachableUntil.map { $0 > .now } ?? false }
+
+    func remember(_ index: Int) {
+        preferredIndex = index
+        unreachableUntil = nil
+    }
+
+    /// No host answered; retried after five minutes.
+    func markUnreachable() { unreachableUntil = Date.now.addingTimeInterval(300) }
 }
 
 // MARK: - Wire format

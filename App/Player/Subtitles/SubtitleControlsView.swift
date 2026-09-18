@@ -129,7 +129,8 @@ struct SubtitleSearchSheet: View {
         }
         .frame(minWidth: 860, minHeight: 520)
         .onAppear {
-            if session.lastReport == nil { runSearch() }
+            // An automatic search already running fills the sheet itself.
+            if session.lastReport == nil, !session.isSearching { runSearch() }
         }
         .onDisappear { searchTask?.cancel() }
         .onChange(of: session.phase) { _, phase in
@@ -263,7 +264,6 @@ struct SubtitleSearchSheet: View {
                 Toggle("All languages", isOn: $allLanguages)
                     .toggleStyle(.checkbox)
                 Button("Search", action: runSearch)
-                    .disabled(session.isSearching)
             }
             HStack {
                 statusLine

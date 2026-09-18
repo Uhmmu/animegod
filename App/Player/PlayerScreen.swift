@@ -1159,8 +1159,11 @@ struct PlayerScreen: View {
             }
             Divider()
             Menu("Online Subtitles") {
-                Button("Auto-Match Chinese Subtitles") { state.subtitles.autoMatchNow() }
-                    .disabled(state.subtitles.isSearching)
+                // Never disabled: while a search runs, both open the sheet,
+                // which shows its progress.
+                Button("Auto-Match Chinese Subtitles") {
+                    if state.subtitles.isSearching { showSubtitleSearch = true } else { state.subtitles.autoMatchNow() }
+                }
                 Button("Search Subtitles…") { showSubtitleSearch = true }
                 if !state.subtitles.downloads.isEmpty {
                     Menu("Downloaded") {
@@ -1269,6 +1272,28 @@ struct PlayerScreen: View {
             // renderer rebuild below.
             if let path = ProcessInfo.processInfo.environment["AG_SMOKE_SUBTITLE"] {
                 state.attachSubtitle(url: URL(fileURLWithPath: path), title: "Smoke Subtitle", language: "zh-Hans", select: true)
+                try? await Task.sleep(for: .seconds(1))
+            }
+            // AG_SMOKE_SUBTITLE_SEARCH=1 opens the Search Subtitles sheet and
+            // reports what the configured providers returned.
+            if ProcessInfo.processInfo.environment["AG_SMOKE_SUBTITLE_SEARCH"] == "1" {
+                showSubtitleSearch = true
+                try? await Task.sleep(for: .seconds(2))
+                var waited = 0
+                while state.subtitles.isSearching, waited < 60 {
+                    try? await Task.sleep(for: .seconds(1))
+                    waited += 1
+                }
+                let sheet = state.controller?.view.window?.attachedSheet != nil
+                let report = state.subtitles.lastReport
+                let outcomes = report?.outcomes.map { "\($0.key.rawValue)=\($0.value)" }.sorted().joined(separator: " ") ?? "none"
+                FileHandle.standardError.write(Data("SMOKE search sheet presented=\(sheet) results=\(report?.ranked.count ?? -1) outcomes: \(outcomes)\n".utf8))
+                for scored in report?.ranked.prefix(8) ?? [] {
+                    let result = scored.result
+                    FileHandle.standardError.write(Data("SMOKE   \(scored.score.percent)% \(result.languages.map(\.rawValue)) \(result.format?.rawValue ?? "?") \(result.provider.rawValue) \(result.displayGroup ?? "-") warn=\(scored.score.warnings.map(\.rawValue)) \(result.releaseName ?? result.fileName ?? result.title)\n".utf8))
+                }
+                FileHandle.standardError.write(Data("SMOKE identity \(state.subtitles.identity.map { "\($0.titles) \($0.episodeLabel) anilist=\($0.ids.aniListID.map(String.init) ?? "-") tmdb=\($0.ids.tmdbID.map(String.init) ?? "-")" } ?? "nil") phase=\(SubtitleStatusBadge.statusText(state.subtitles.phase))\n".utf8))
+                showSubtitleSearch = false
                 try? await Task.sleep(for: .seconds(1))
             }
             let arguments = ProcessInfo.processInfo.arguments

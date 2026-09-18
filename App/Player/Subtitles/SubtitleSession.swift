@@ -116,6 +116,9 @@ final class SubtitleSession: ObservableObject {
         tracks = []
         identity = nil
         lastReport = nil
+        // A search for the previous file may still be running; its result
+        // is discarded, and it must not leave the controls disabled.
+        isSearching = false
         downloads = []
         announcement = nil
         phase = .waitingForTracks
@@ -198,10 +201,13 @@ final class SubtitleSession: ObservableObject {
     }
 
     /// An embedded or sidecar track (not one of ours) in a preferred
-    /// language. A script-less "Chinese" track counts for either script.
+    /// language. When Chinese is preferred only Chinese counts — a Japanese
+    /// track ranked below it must not stop the search for Chinese. A
+    /// script-less "Chinese" track counts for either script.
     func existingPreferredTrack() -> MediaTrack? {
         guard let preferences else { return nil }
-        let wanted = preferences.ranking.languages
+        let preferred = preferences.ranking.languages
+        let wanted = preferred.contains(where: \.isChinese) ? preferred.filter(\.isChinese) : preferred
         return tracks.first { track in
             guard !isOwnDownload(track),
                   let language = SubtitleLanguage.fromTrack(language: track.language, title: track.title) else { return false }
@@ -225,7 +231,7 @@ final class SubtitleSession: ObservableObject {
     /// "Auto-match Chinese subtitles" from the menu: runs the automatic
     /// flow even when the file already has subtitles.
     func autoMatchNow() {
-        guard preferences != nil, request != nil else { return }
+        guard preferences != nil, request != nil, !isSearching else { return }
         let token = generation
         Task { await runAutomaticSearch(token: token) }
     }
