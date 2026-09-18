@@ -10,6 +10,11 @@ struct MediaTrack: Identifiable, Hashable {
     let type: String
     let title: String
     let language: String?
+    /// Loaded from a separate file (a sidecar picked up by `sub-auto`, a
+    /// user-chosen file, or a downloaded online subtitle).
+    var isExternal = false
+    /// The file an external track was loaded from.
+    var externalFilename: String?
 
     var displayName: String {
         if let language, !language.isEmpty { return "\(title) · \(language)" }
@@ -54,6 +59,24 @@ final class MPVPlayerController: NSViewController {
     weak var delegate: MPVPlayerControllerDelegate?
     var initialURL: URL?
     var initialPosition: Double = 0
+    /// Fonts shipped with downloaded subtitle packs; libass searches it
+    /// before system fonts. Set once at launch, read when mpv starts.
+    static var subtitleFontsDirectory: URL?
+
+    /// External subtitles added to the current file. `loadfile` drops them,
+    /// and a renderer rebuild (fullscreen, HDR change) reloads the file, so
+    /// they are re-added — in the same order, keeping track IDs stable —
+    /// whenever the same file loads again.
+    private struct ExternalSubtitle: Equatable {
+        let url: URL
+        let title: String?
+        let language: String?
+    }
+    private var externalSubtitles: [ExternalSubtitle] = []
+    private var externalSubtitlesURL: URL?
+    /// `sub-add` only works on a loaded file; earlier additions wait for
+    /// `MPV_EVENT_FILE_LOADED`.
+    private var isFileLoaded = false
 
     nonisolated(unsafe) private var mpv: OpaquePointer?
     private let metalLayer = StableMetalLayer()
@@ -216,15 +239,73 @@ final class MPVPlayerController: NSViewController {
     func selectChapter(_ index: Int) { setInt64("chapter", Int64(index)) }
     func stepChapter(_ offset: Int) { command("add", arguments: ["chapter", String(offset)]) }
 
-    /// Registers an external subtitle file with the running player.
-    func addSubtitle(url: URL, title: String? = nil) {
-        var arguments = [url.absoluteString, "auto"]
-        if let title { arguments.append(title) }
-        command("sub-add", arguments: arguments)
+    /// Registers an external subtitle file with the running player,
+    /// selecting it when `select` is true. Added subtitles survive renderer
+    /// rebuilds; with no mpv instance yet (the AVFoundation Dolby Vision
+    /// path) they are remembered and added once mpv plays the file.
+    func addSubtitle(url: URL, title: String? = nil, language: String? = nil, select: Bool = true) {
+        let subtitle = ExternalSubtitle(url: url, title: title, language: language)
+        let isKnown = externalSubtitles.contains { $0.url == url }
+        if !isKnown {
+            externalSubtitlesURL = currentURL
+            externalSubtitles.append(subtitle)
+        }
+        guard mpv != nil, avPlayer == nil, isFileLoaded else { return }
+        if isKnown, let id = trackID(forExternalFile: url) {
+            if select { setInt64("sid", id) }
+            return
+        }
+        // A subtitle that fails to load must never read as playback failing.
+        command("sub-add", arguments: subAddArguments(subtitle, select: select), reportsFailure: false)
+    }
+
+    /// Removes an external subtitle added with `addSubtitle`.
+    func removeSubtitle(url: URL) {
+        externalSubtitles.removeAll { $0.url == url }
+        guard mpv != nil, isFileLoaded, let id = trackID(forExternalFile: url) else { return }
+        command("sub-remove", arguments: [String(id)], reportsFailure: false)
+    }
+
+    /// The text of the subtitle events on screen right now (tags stripped)
+    /// — smoke-test evidence that a loaded track decodes, overlaps included.
+    var currentSubtitleText: String? { mpv == nil ? nil : getString("sub-text") }
+
+    /// True while video is shown by mpv (and therefore libass); the native
+    /// Dolby Vision path renders no subtitles.
+    var rendersSubtitles: Bool { avPlayer == nil }
+
+    private func subAddArguments(_ subtitle: ExternalSubtitle, select: Bool) -> [String] {
+        var arguments = [subtitle.url.path, select ? "select" : "auto"]
+        if subtitle.title != nil || subtitle.language != nil { arguments.append(subtitle.title ?? "") }
+        if let language = subtitle.language { arguments.append(language) }
+        return arguments
+    }
+
+    private func trackID(forExternalFile url: URL) -> Int64? {
+        let count = getInt64("track-list/count") ?? 0
+        for index in 0..<count where getString("track-list/\(index)/type") == "sub" {
+            if getString("track-list/\(index)/external-filename") == url.path {
+                return getInt64("track-list/\(index)/id")
+            }
+        }
+        return nil
+    }
+
+    /// Re-adds this file's external subtitles after `loadfile`.
+    private func restoreExternalSubtitles() {
+        guard let currentURL, externalSubtitlesURL == currentURL else { return }
+        for subtitle in externalSubtitles where trackID(forExternalFile: subtitle.url) == nil {
+            command("sub-add", arguments: subAddArguments(subtitle, select: false), reportsFailure: false)
+        }
     }
 
     /// Replaces the playing file, keeping the mpv instance (and its window) alive.
     func play(url: URL, position: Double) {
+        if url != externalSubtitlesURL {
+            // Another file: its subtitles belong to the previous one.
+            externalSubtitles = []
+            externalSubtitlesURL = url
+        }
         currentURL = url
         playerGeneration = UUID()
         let generation = playerGeneration
@@ -298,6 +379,7 @@ final class MPVPlayerController: NSViewController {
     }
 
     private func setupMPV(allowEDRFallback: Bool = true) {
+        isFileLoaded = false
         configureMetalLayer(metalOutputConfiguration)
         guard let handle = mpv_create() else {
             delegate?.playerDidFail(message: "Could not create the playback engine.")
@@ -322,6 +404,10 @@ final class MPVPlayerController: NSViewController {
         // "subs" folder without requiring the user to load them manually.
         setOption("sub-auto", "fuzzy")
         setOption("sub-file-paths", "subs:subtitles:字幕")
+        if let fonts = Self.subtitleFontsDirectory {
+            try? FileManager.default.createDirectory(at: fonts, withIntermediateDirectories: true)
+            setOption("sub-fonts-dir", fonts.path)
+        }
         var layerPointer = Int64(bitPattern: UInt64(UInt(bitPattern: Unmanaged.passUnretained(metalLayer).toOpaque())))
         let windowStatus = mpv_set_option(handle, "wid", MPV_FORMAT_INT64, &layerPointer)
         guard windowStatus >= 0 else {
@@ -424,8 +510,12 @@ final class MPVPlayerController: NSViewController {
                 default: break
                 }
             case MPV_EVENT_START_FILE:
+                isFileLoaded = false
                 delegate?.playerLoadingStateDidChange(isLoading: true)
             case MPV_EVENT_FILE_LOADED:
+                isFileLoaded = true
+                // Before restoring `sid`: the saved track may be one of them.
+                restoreExternalSubtitles()
                 restorePlaybackStateIfNeeded()
                 delegate?.playerLoadingStateDidChange(isLoading: false)
                 needsTracks = true
@@ -479,7 +569,9 @@ final class MPVPlayerController: NSViewController {
                 id: id,
                 type: type,
                 title: getString("track-list/\(index)/title") ?? fallback,
-                language: getString("track-list/\(index)/lang")
+                language: getString("track-list/\(index)/lang"),
+                isExternal: getFlag("track-list/\(index)/external") ?? false,
+                externalFilename: getString("track-list/\(index)/external-filename")
             )
             if type == "audio" { audio.append(track) }
             if type == "sub" { subtitles.append(track) }
@@ -800,7 +892,7 @@ final class MPVPlayerController: NSViewController {
         return String(cString: value)
     }
 
-    private func command(_ name: String, arguments: [String]) {
+    private func command(_ name: String, arguments: [String], reportsFailure: Bool = true) {
         var strings: [UnsafePointer<CChar>?] = ([name] + arguments).map { value in
             value.withCString { pointer in UnsafePointer(strdup(pointer)) }
         }
@@ -812,7 +904,7 @@ final class MPVPlayerController: NSViewController {
         }
         strings.withUnsafeMutableBufferPointer { buffer in
             let status = mpv_command(mpv, buffer.baseAddress)
-            if status < 0 { delegate?.playerDidFail(message: errorMessage(for: status)) }
+            if status < 0, reportsFailure { delegate?.playerDidFail(message: errorMessage(for: status)) }
         }
     }
 

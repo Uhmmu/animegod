@@ -351,7 +351,7 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
     }
 
     func addExternalSubtitle(url: URL) {
-        controller?.addSubtitle(url: url)
+        controller?.addSubtitle(url: url, select: false)
     }
 
     func playerDidUpdate(position: Double?, duration: Double?, paused: Bool?) {
