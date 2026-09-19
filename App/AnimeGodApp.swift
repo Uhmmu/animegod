@@ -6,6 +6,10 @@ import SwiftUI
 final class AppDelegate: NSObject, NSApplicationDelegate {
     @MainActor static var model: AppModel?
 
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        MainActor.assumeIsolated { AppearanceMode.apply() }
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         MainActor.assumeIsolated { Self.model?.downloads.shutdown() }
     }
@@ -37,6 +41,9 @@ struct AnimeGodApp: App {
             PlayerWindowRoot()
                 .environmentObject(model)
                 .frame(minWidth: 640, minHeight: 400)
+                // The player is a dark surface whatever the app appearance
+                // is; this also covers its menus, sheets and materials.
+                .preferredColorScheme(.dark)
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1120, height: 660)
@@ -72,7 +79,6 @@ struct PlayerWindowRoot: View {
                     systemImage: "play.rectangle.on.rectangle",
                     description: Text("Pick an episode from the library window.")
                 )
-                .foregroundStyle(.white)
             }
         }
         .onDisappear {

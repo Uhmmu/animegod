@@ -12,6 +12,7 @@ struct SettingsView: View {
     @State private var subtitleSavedFeedback = false
     @State private var subtitleCacheBytes: Int64 = 0
     @State private var keychainImportResult: String?
+    @AppStorage(AppearanceMode.storageKey) private var appearance: AppearanceMode = .system
 
     /// Explains what each source costs the viewer, since "both" doubles the
     /// requests per episode and can double-show a popular comment.
@@ -25,6 +26,18 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            Section("Appearance") {
+                Picker("Mode", selection: $appearance) {
+                    ForEach(AppearanceMode.allCases) { mode in
+                        Text(mode.title).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .onChange(of: appearance) { _, mode in AppearanceMode.apply(mode) }
+                Text("The player window always stays dark.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             Section("Translation") {
                 Picker("Provider", selection: $translation.provider) {
                     ForEach(TranslationCoordinator.Provider.allCases) { provider in

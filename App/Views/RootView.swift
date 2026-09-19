@@ -1,7 +1,7 @@
 import AnimeGodCore
 import SwiftUI
 
-private enum SidebarItem: Hashable {
+private enum SidebarItem: String, Hashable, CaseIterable {
     case library
     case continueWatching
     case bangumiCharts
@@ -21,6 +21,7 @@ struct RootView: View {
     @Environment(\.openWindow) private var openWindow
     @State private var selection: SidebarItem? = .library
     @State private var showingMatchReview = false
+    @State private var navigationPath = NavigationPath()
 
     var body: some View {
         NavigationSplitView {
@@ -59,7 +60,7 @@ struct RootView: View {
         } detail: {
             // NavigationLink(value:) inside the detail views needs a stack to
             // push onto; without this wrapper, library cards do nothing.
-            NavigationStack {
+            NavigationStack(path: $navigationPath) {
                 switch selection {
                 case .library: LibraryView()
                 case .continueWatching: ContinueWatchingView()
@@ -109,6 +110,20 @@ struct RootView: View {
         .onChange(of: model.playerRequest?.id) { _, _ in
             guard model.playerRequest != nil else { return }
             openWindow(id: "player")
+        }
+        .task {
+            guard AppearanceSnapshotSmokeTest.isRequested else { return }
+            let sections = SidebarItem.allCases.map(\.rawValue) + ["detail"]
+            await AppearanceSnapshotSmokeTest.run(model: model, sections: sections, openPlayer: { openWindow(id: "player") }) { name in
+                if name == "detail" {
+                    selection = .library
+                    let item = model.library.first { model.metadataByAnimeID[$0.id] != nil } ?? model.library.first
+                    if let anime = item?.anime { navigationPath.append(anime) }
+                } else {
+                    navigationPath = NavigationPath()
+                    selection = SidebarItem(rawValue: name)
+                }
+            }
         }
         .task {
             // The library window owns openWindow, so smoke mode must initiate
