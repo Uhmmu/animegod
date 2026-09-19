@@ -1,5 +1,4 @@
 import AnimeGodCore
-import Combine
 import SwiftUI
 
 /// Non-intrusive danmaku status shown only when danmaku needs user
@@ -86,78 +85,36 @@ struct DanmakuDiagnosticsSection: View {
     }
 }
 
-/// The player-bar danmaku control: the toggle, episode matching, filters,
-/// and settings. A click opens the menu, like every other control in the
-/// bar (a primary action would hide the menu behind a long press).
-struct DanmakuMenuButton: View {
+/// The danmaku bubble in the player bar: the on/off switch, the current
+/// match and its replacement, display filters, and the manager and settings.
+struct DanmakuPanelContent: View {
     @ObservedObject var preferences: DanmakuPreferences
-    /// Not observed as a whole: the session publishes renderer statistics
-    /// every second, which would rebuild the menu while it is open. Only
-    /// the properties the menu shows trigger a re-render (`revision`).
-    let session: DanmakuSession
+    @ObservedObject var session: DanmakuSession
     let openSettings: () -> Void
     let openMatch: () -> Void
     let openManager: () -> Void
-    @State private var revision = 0
-
-    private var shownStateChanges: AnyPublisher<Void, Never> {
-        Publishers.Merge4(
-            session.$phase.removeDuplicates().map { _ in () },
-            session.$isReloading.removeDuplicates().map { _ in () },
-            session.$loadedSources.removeDuplicates().map { _ in () },
-            session.$unmatchedSources.removeDuplicates().map { _ in () }
-        )
-        .dropFirst(4)
-        .eraseToAnyPublisher()
-    }
 
     var body: some View {
-        let _ = revision
-        return Menu {
-            Button {
-                preferences.enabled.toggle()
-            } label: {
-                if preferences.enabled {
-                    Label("Danmaku On", systemImage: "checkmark")
-                } else {
-                    Text("Danmaku Off")
-                }
-            }
-
-            Divider()
-
+        VStack(alignment: .leading, spacing: 0) {
+            PlayerPanelToggleRow(title: "Show Danmaku (D)", isOn: $preferences.enabled)
             if let status = statusLine {
-                Text(status)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                PlayerPanelNote(text: status)
             }
-
-            Button("Match Episode…") { openMatch() }
+            PlayerPanelDivider()
+            PlayerPanelRow(title: "Match Episode…", systemImage: "text.magnifyingglass", action: openMatch)
                 .disabled(session.phase.isActionable == false && isReady == false)
-            Button {
-                session.reload()
-            } label: {
-                Label("Refresh Danmaku", systemImage: "arrow.clockwise")
-            }
+            PlayerPanelRow(title: "Refresh Danmaku", systemImage: "arrow.clockwise") { session.reload() }
                 .disabled(session.phase == .idle || session.phase == .disabled || session.phase == .needsConfiguration)
-
-            Divider()
-
-            Toggle("Hide Scrolling Comments", isOn: binding(\.hideScroll))
-            Toggle("Hide Top Comments", isOn: binding(\.hideTop))
-            Toggle("Hide Bottom Comments", isOn: binding(\.hideBottom))
-            Toggle("Hide Colored Comments", isOn: binding(\.hideColored))
-            Toggle("Merge Duplicate Comments", isOn: binding(\.mergeDuplicates))
-
-            Divider()
-
-            Button("Manage Danmaku… (M)") { openManager() }
-            Button("Danmaku Settings…") { openSettings() }
-        } label: {
-            Image(systemName: preferences.enabled ? "text.bubble.fill" : "text.bubble")
+            PlayerPanelDivider()
+            PlayerPanelToggleRow(title: "Hide Scrolling Comments", isOn: binding(\.hideScroll))
+            PlayerPanelToggleRow(title: "Hide Top Comments", isOn: binding(\.hideTop))
+            PlayerPanelToggleRow(title: "Hide Bottom Comments", isOn: binding(\.hideBottom))
+            PlayerPanelToggleRow(title: "Hide Colored Comments", isOn: binding(\.hideColored))
+            PlayerPanelToggleRow(title: "Merge Duplicate Comments", isOn: binding(\.mergeDuplicates))
+            PlayerPanelDivider()
+            PlayerPanelRow(title: "Manage Danmaku… (M)", systemImage: "list.bullet.rectangle", action: openManager)
+            PlayerPanelRow(title: "Danmaku Settings…", systemImage: "gearshape", action: openSettings)
         }
-        .help("Danmaku (D toggles, M manages)")
-        .onReceive(shownStateChanges) { revision += 1 }
     }
 
     private var isReady: Bool {

@@ -323,7 +323,57 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
 
     func setSpeed(_ value: Double) {
         speed = value
+        danmaku.playbackSample(position: position, speed: value, paused: paused)
         controller?.setSpeed(value)
+    }
+
+    // MARK: Hold-to-scan (← / → held down)
+
+    enum HoldMode { case fastForward, rewind }
+
+    struct HoldIndicator: Equatable {
+        let title: String
+        let symbol: String
+    }
+
+    @Published private(set) var holdIndicator: HoldIndicator?
+    private var holdRestore: (speed: Double, paused: Bool)?
+    private var rewindTask: Task<Void, Never>?
+
+    /// → plays faster while held; ← steps backwards at the same rate while
+    /// paused (mpv has no cheap reverse playback). `endHold` restores speed
+    /// and pause state.
+    func beginHold(_ mode: HoldMode, rate: Double) {
+        endHold()
+        holdRestore = (speed, paused)
+        let rateText = String(format: "%g×", rate)
+        switch mode {
+        case .fastForward:
+            if paused { togglePause() }
+            setSpeed(rate)
+            holdIndicator = HoldIndicator(title: rateText, symbol: "forward.fill")
+        case .rewind:
+            if !paused { togglePause() }
+            holdIndicator = HoldIndicator(title: rateText, symbol: "backward.fill")
+            let tick = 0.2
+            rewindTask = Task { @MainActor [weak self] in
+                while !Task.isCancelled {
+                    guard let self else { return }
+                    self.seek(to: max(self.position - rate * tick, 0))
+                    try? await Task.sleep(for: .seconds(tick))
+                }
+            }
+        }
+    }
+
+    func endHold() {
+        rewindTask?.cancel()
+        rewindTask = nil
+        guard let restore = holdRestore else { return }
+        holdRestore = nil
+        holdIndicator = nil
+        if abs(speed - restore.speed) > 0.001 { setSpeed(restore.speed) }
+        if paused != restore.paused { togglePause() }
     }
 
     func setVolume(_ value: Double) {
@@ -746,6 +796,11 @@ struct PlayerScreen: View {
     /// shortcuts are suspended so typing doesn't pause, seek, or go fullscreen.
     @State private var isTypingInDanmakuManager = false
     @State private var isFullscreen = false
+    /// The control-bar bubble that is open, and whether it has finished
+    /// growing in (it shrinks back before `openPanel` clears).
+    @State private var openPanel: PlayerPanel?
+    @State private var panelShown = false
+    @State private var arrowKeys = ArrowKeyHold()
     @AppStorage("playerShowsRemainingTime") private var showsRemainingTime = false
 
     init(request: PlayerRequest) {
@@ -804,7 +859,7 @@ struct PlayerScreen: View {
                 .allowsHitTesting(false)
             MouseMovementView(
                 onMove: { revealControls() },
-                onClick: { toggleControls() },
+                onClick: { if openPanel != nil { closePanel() } else { toggleControls() } },
                 onDoubleClick: { toggleFullscreen() }
             )
             DanmakuStatusBadge(
@@ -844,6 +899,18 @@ struct PlayerScreen: View {
                     .animation(.easeOut(duration: 0.2), value: controlsVisible)
                     .onHover { hovering in isHoveringControls = hovering }
             }
+            if let hold = state.holdIndicator {
+                Label(hold.title, systemImage: hold.symbol)
+                    .font(.system(size: 15, weight: .semibold).monospacedDigit())
+                    .foregroundStyle(PlayerChrome.foreground)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 7)
+                    .background(.black.opacity(0.6), in: Capsule())
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .padding(.top, 72)
+                    .allowsHitTesting(false)
+                    .transition(.opacity.combined(with: .scale(scale: 0.9)))
+            }
             VStack {
                 header
                     .opacity(controlsVisible ? 1 : 0)
@@ -879,6 +946,31 @@ struct PlayerScreen: View {
                 .opacity(0.001)
         }
         .background(.black)
+        .overlayPreferenceValue(PlayerPanelAnchorKey.self) { anchors in
+            GeometryReader { proxy in
+                if let panel = openPanel, let anchor = anchors[panel] {
+                    let button = proxy[anchor]
+                    let width = panel.width
+                    let x = min(max(button.midX - width / 2, 10), max(proxy.size.width - width - 10, 10))
+                    PlayerBubble(width: width, tailX: button.midX - x, isShown: panelShown) {
+                        panelContent(panel)
+                    }
+                    .padding(.leading, x)
+                    // Clears the timeline row above the buttons.
+                    .padding(.bottom, max(proxy.size.height - button.minY + 30, 0))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                }
+            }
+        }
+        .background {
+            // Esc closes an open bubble (only claimed while one is open, so
+            // it still leaves full screen otherwise).
+            Button("Close Panel") { closePanel() }
+                .keyboardShortcut(openPanel == nil ? nil : KeyboardShortcut(.escape, modifiers: []))
+                .opacity(0)
+                .accessibilityHidden(true)
+        }
+        .animation(.easeOut(duration: 0.18), value: state.holdIndicator)
         .sheet(isPresented: $showDanmakuSettings) {
             DanmakuSettingsPanel(
                 preferences: danmakuPreferences,
@@ -912,6 +1004,13 @@ struct PlayerScreen: View {
             state.loadDanmakuIfNeeded(database: model.libraryDatabase)
             state.subtitles.updateWorkContext(subtitleWorkContext)
             state.subtitles.attach(preferences: model.subtitlePreferences, database: model.libraryDatabase)
+            arrowKeys.install(
+                window: { [state] in state.controller?.view.window },
+                isSuspended: { isTypingInDanmakuManager },
+                tap: { [state] direction in state.seek(by: direction == .forward ? 10 : -10) },
+                beginHold: { [state] direction, rate in state.beginHold(direction == .forward ? .fastForward : .rewind, rate: rate) },
+                endHold: { [state] in state.endHold() }
+            )
             revealControls()
             if ProcessInfo.processInfo.arguments.contains("-smokePlayerTest") {
                 scheduleSmokeTest()
@@ -919,6 +1018,8 @@ struct PlayerScreen: View {
         }
         .onDisappear {
             hideTask?.cancel()
+            arrowKeys.uninstall()
+            state.endHold()
             showCursor()
             guard let session = state.endSession() else { return }
             // A file outside the library has no episode to write history for.
@@ -945,6 +1046,9 @@ struct PlayerScreen: View {
             revealControls()
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
+            // The key-up that ends a hold may never arrive once we're inactive.
+            arrowKeys.cancel()
+            state.endHold()
             showCursor()
         }
         .onChange(of: state.isLoading) { _, isLoading in
@@ -1066,23 +1170,35 @@ struct PlayerScreen: View {
                 Spacer(minLength: 12)
 
                 if state.currentEpisode.versions.count > 1 {
-                    StableMenu(state.currentEpisode.mediaFile.id, state.currentEpisode.versions.map(\.id)) { versionMenu }.equatable()
+                    PlayerPanelButton(panel: .version, openPanel: openPanel, toggle: togglePanel) {
+                        Image(systemName: "square.stack.3d.up")
+                    }
+                    .help("Video Version")
                 }
-                // Updates itself from the danmaku state it shows.
-                StableMenu {
-                    DanmakuMenuButton(
-                        preferences: danmakuPreferences,
-                        session: state.danmaku,
-                        openSettings: { showDanmakuSettings = true },
-                        openMatch: { showDanmakuMatch = true },
-                        openManager: { withAnimation(.easeOut(duration: 0.2)) { showDanmakuManager = true } }
-                    )
+                PlayerPanelButton(panel: .speed, openPanel: openPanel, toggle: togglePanel) {
+                    Text(speedLabel(state.speed))
+                        .font(PlayerChrome.labelFont)
+                        // Only stands out when playback isn't at normal speed.
+                        .foregroundStyle(abs(state.speed - 1) < 0.01 ? PlayerChrome.foreground : .black)
+                        .frame(minWidth: 30)
+                        .padding(.vertical, 2)
+                        .background(abs(state.speed - 1) < 0.01 ? Color.clear : .white, in: Capsule())
                 }
-                .equatable()
-                subtitleMenu
-                StableMenu(state.audioTracks, state.audioID) { audioMenu }.equatable()
-                StableMenu(state.speed) { speedMenu }.equatable()
+                .help("Playback Speed")
                 PlayerVolumeControl(volume: state.volume) { [state] in state.setVolume($0) }
+                PlayerPanelButton(panel: .audio, openPanel: openPanel, toggle: togglePanel) {
+                    Image(systemName: "waveform")
+                }
+                .help("Audio Track")
+                PlayerPanelButton(panel: .danmaku, openPanel: openPanel, toggle: togglePanel) {
+                    Image(systemName: "text.bubble")
+                        .opacity(danmakuPreferences.enabled ? 1 : 0.45)
+                }
+                .help(danmakuPreferences.enabled ? "Danmaku" : "Danmaku (off)")
+                PlayerPanelButton(panel: .subtitles, openPanel: openPanel, toggle: togglePanel) {
+                    Image(systemName: "captions.bubble")
+                }
+                .help("Subtitles")
                 Button { toggleFullscreen() } label: {
                     Image(systemName: isFullscreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
                 }
@@ -1099,24 +1215,101 @@ struct PlayerScreen: View {
         .background(PlayerChrome.scrim(from: .bottom).allowsHitTesting(false))
     }
 
-    /// Alternative encodes of the same episode (DoVi / SDR / …).
-    private var versionMenu: some View {
-        Menu {
-            ForEach(state.currentEpisode.versions) { file in
-                Button {
-                    state.switchVersion(to: file)
-                } label: {
-                    if file.id == state.currentEpisode.mediaFile.id {
-                        Label(versionLabel(file), systemImage: "checkmark")
-                    } else {
-                        Text(versionLabel(file))
+    private func togglePanel(_ panel: PlayerPanel) {
+        if openPanel == panel {
+            closePanel()
+            return
+        }
+        // Switching bubbles: the new one grows from its own button.
+        openPanel = panel
+        panelShown = false
+        revealControls()
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.72)) { panelShown = true }
+    }
+
+    private func closePanel() {
+        guard let closing = openPanel else { return }
+        withAnimation(.easeIn(duration: 0.14)) {
+            panelShown = false
+        } completion: {
+            // Another bubble may have opened meanwhile.
+            if openPanel == closing, !panelShown { openPanel = nil }
+        }
+        revealControls()
+    }
+
+    /// Closes the bubble, then runs `action` (typically opening a sheet).
+    private func fromPanel(_ action: @escaping () -> Void) -> () -> Void {
+        { closePanel(); action() }
+    }
+
+    @ViewBuilder
+    private func panelContent(_ panel: PlayerPanel) -> some View {
+        switch panel {
+        case .version:
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(state.currentEpisode.versions) { file in
+                    PlayerPanelRow(
+                        title: versionLabel(file),
+                        detail: (file.relativePath as NSString).lastPathComponent,
+                        isSelected: file.id == state.currentEpisode.mediaFile.id
+                    ) { state.switchVersion(to: file) }
+                }
+                PlayerPanelDivider()
+                PlayerPanelNote(text: "EDR displays prefer detected Profile 8 with a compatible base layer; otherwise SDR remains first.")
+            }
+        case .speed:
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach([0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 3.0], id: \.self) { value in
+                    PlayerPanelRow(title: speedLabel(value), isSelected: abs(state.speed - value) < 0.01) {
+                        state.setSpeed(value)
                     }
                 }
+                PlayerPanelDivider()
+                PlayerPanelNote(text: "Hold → for 2×, tap then hold for 3×.")
             }
-        } label: {
-            Image(systemName: "square.stack.3d.up")
+        case .audio:
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(state.audioTracks) { track in
+                    PlayerPanelRow(title: track.displayName, isSelected: state.audioID == track.id) {
+                        state.controller?.selectAudio(id: track.id)
+                    }
+                }
+                if state.audioTracks.isEmpty {
+                    PlayerPanelNote(text: "No audio tracks")
+                }
+                PlayerPanelDivider()
+                PlayerPanelStepperRow(
+                    title: "Audio Delay",
+                    value: state.audioDelay,
+                    step: 0.1,
+                    change: { [state] in state.nudgeAudioDelay($0) },
+                    reset: { [state] in state.resetAudioDelay() }
+                )
+            }
+        case .danmaku:
+            DanmakuPanelContent(
+                preferences: danmakuPreferences,
+                session: state.danmaku,
+                openSettings: fromPanel { showDanmakuSettings = true },
+                openMatch: fromPanel { showDanmakuMatch = true },
+                openManager: fromPanel { withAnimation(.easeOut(duration: 0.2)) { showDanmakuManager = true } }
+            )
+        case .subtitles:
+            SubtitlePanelContent(
+                session: state.subtitles,
+                tracks: state.subtitleTracks,
+                selectedID: state.subtitleID,
+                subtitleDelay: state.subtitleDelay,
+                actions: SubtitlePanelContent.Actions(
+                    select: { [state] in state.selectSubtitle($0) },
+                    nudgeSubtitleDelay: { [state] in state.nudgeSubtitleDelay($0) },
+                    resetSubtitleDelay: { [state] in state.resetSubtitleDelay() },
+                    openSearch: fromPanel { showSubtitleSearch = true },
+                    loadExternalFile: fromPanel { chooseExternalSubtitle() }
+                )
+            )
         }
-        .help("Video Version — EDR displays prefer detected Profile 8 with a compatible base layer; otherwise SDR remains first")
     }
 
     private func versionLabel(_ file: MediaFile) -> String {
@@ -1127,18 +1320,6 @@ struct PlayerScreen: View {
             return ByteCountFormatter.string(fromByteCount: file.fileSize, countStyle: .file)
         }
         return found.map { $0.uppercased() }.joined(separator: " · ")
-    }
-
-    private var audioMenu: some View {
-        Menu {
-            ForEach(state.audioTracks) { track in
-                Button { state.controller?.selectAudio(id: track.id) } label: {
-                    if state.audioID == track.id { Label(track.displayName, systemImage: "checkmark") }
-                    else { Text(track.displayName) }
-                }
-            }
-        } label: { Image(systemName: "waveform") }
-        .help("Audio Track")
     }
 
     private var chapterMenu: some View {
@@ -1158,54 +1339,6 @@ struct PlayerScreen: View {
             Image(systemName: "list.bullet.rectangle")
         }
         .help("Chapters")
-    }
-
-    /// Built as its own equatable view: this screen re-renders several
-    /// times a second while playing, and a SwiftUI menu rebuilt while it is
-    /// open closes its submenus and drops clicks.
-    private var subtitleMenu: some View {
-        SubtitleMenuButton(
-            session: state.subtitles,
-            tracks: state.subtitleTracks,
-            selectedID: state.subtitleID,
-            subtitleDelay: state.subtitleDelay,
-            audioDelay: state.audioDelay,
-            actions: SubtitleMenuButton.Actions(
-                select: { [state] in state.selectSubtitle($0) },
-                nudgeSubtitleDelay: { [state] in state.nudgeSubtitleDelay($0) },
-                resetSubtitleDelay: { [state] in state.resetSubtitleDelay() },
-                nudgeAudioDelay: { [state] in state.nudgeAudioDelay($0) },
-                resetAudioDelay: { [state] in state.resetAudioDelay() },
-                openSearch: { showSubtitleSearch = true },
-                loadExternalFile: { chooseExternalSubtitle() }
-            )
-        )
-        .equatable()
-    }
-
-    private var speedMenu: some View {
-        Menu {
-            ForEach([0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0], id: \.self) { value in
-                Button {
-                    state.setSpeed(value)
-                } label: {
-                    if abs(state.speed - value) < 0.01 {
-                        Label(speedLabel(value), systemImage: "checkmark")
-                    } else {
-                        Text(speedLabel(value))
-                    }
-                }
-            }
-        } label: {
-            Text(speedLabel(state.speed))
-                .font(PlayerChrome.labelFont)
-                // Only stands out when playback isn't at normal speed.
-                .foregroundStyle(abs(state.speed - 1) < 0.01 ? PlayerChrome.foreground : .black)
-                .frame(minWidth: 30)
-                .padding(.vertical, 2)
-                .background(abs(state.speed - 1) < 0.01 ? Color.clear : .white, in: Capsule())
-        }
-        .help("Playback Speed")
     }
 
     private func speedLabel(_ value: Double) -> String {
@@ -1259,6 +1392,32 @@ struct PlayerScreen: View {
                 FileHandle.standardError.write(Data("SMOKE identity \(state.subtitles.identity.map { "\($0.titles) \($0.episodeLabel) anilist=\($0.ids.aniListID.map(String.init) ?? "-") tmdb=\($0.ids.tmdbID.map(String.init) ?? "-")" } ?? "nil") phase=\(SubtitleStatusBadge.statusText(state.subtitles.phase))\n".utf8))
                 showSubtitleSearch = false
                 try? await Task.sleep(for: .seconds(1))
+            }
+            // AG_SMOKE_HOLD=1 runs both arrow-key holds: → must speed up and
+            // restore, ← must move backwards while paused and restore.
+            if ProcessInfo.processInfo.environment["AG_SMOKE_HOLD"] == "1", state.duration > 120 {
+                let start = state.position
+                state.beginHold(.fastForward, rate: 2)
+                try? await Task.sleep(for: .seconds(2))
+                let ffSpeed = state.speed, ffPosition = state.position
+                state.endHold()
+                try? await Task.sleep(for: .milliseconds(300))
+                let afterFF = (state.speed, state.paused)
+                let rewindStart = state.position
+                state.beginHold(.rewind, rate: 3)
+                try? await Task.sleep(for: .seconds(2))
+                let rewindPosition = state.position, rewindPaused = state.paused
+                state.endHold()
+                try? await Task.sleep(for: .milliseconds(500))
+                FileHandle.standardError.write(Data(String(format: "SMOKE hold ff speed=%.1f advanced=%.1fs → restored speed=%.1f paused=%@ · rewind paused=%@ moved=%.1fs → restored paused=%@\n",
+                    ffSpeed, ffPosition - start, afterFF.0, afterFF.1 ? "yes" : "no",
+                    rewindPaused ? "yes" : "no", rewindPosition - rewindStart, state.paused ? "yes" : "no").utf8))
+            }
+            // AG_SMOKE_PANEL=<speed|audio|danmaku|subtitles> opens a bubble
+            // for the capture below.
+            if let name = ProcessInfo.processInfo.environment["AG_SMOKE_PANEL"],
+               let panel = [PlayerPanel.speed, .audio, .danmaku, .subtitles].first(where: { "\($0)" == name }) {
+                togglePanel(panel)
             }
             // AG_SMOKE_SEEK=1 checks the timeline's two seek modes: a
             // keyframe seek (used while dragging) lands near the target, an
@@ -1340,7 +1499,7 @@ struct PlayerScreen: View {
             try? await Task.sleep(for: .seconds(2.8))
             guard !Task.isCancelled else { return }
             // Keep controls available while paused, loading, broken, or hovered.
-            if !state.paused, !state.isLoading, state.errorMessage == nil, !isHoveringControls {
+            if !state.paused, !state.isLoading, state.errorMessage == nil, !isHoveringControls, openPanel == nil {
                 withAnimation { controlsVisible = false }
                 hideCursorIfFullscreen()
             }
@@ -1395,8 +1554,8 @@ struct PlayerScreen: View {
     }
 
     /// ⌘⇧D toggles diagnostics; ⌘⇧H forces SDR without mutating the live
-    /// CAMetalLayer format; ←/→ seek 10 s; D toggles danmaku; M toggles the
-    /// danmaku manager.
+    /// CAMetalLayer format; D toggles danmaku; M toggles the danmaku manager.
+    /// ←/→ are handled by `ArrowKeyHold`, which needs key-up events.
     private var diagnosticsShortcuts: some View {
         Group {
             Button("Toggle Diagnostics") { showDiagnostics.toggle() }
@@ -1405,11 +1564,6 @@ struct PlayerScreen: View {
                 state.toggleForcedSDR()
             }
                 .keyboardShortcut("h", modifiers: [.command, .shift])
-            // Seeking has no on-screen buttons; the arrows still work.
-            Button("Back 10 Seconds") { state.seek(by: -10) }
-                .keyboardShortcut(playerKey(.leftArrow))
-            Button("Forward 10 Seconds") { state.seek(by: 10) }
-                .keyboardShortcut(playerKey(.rightArrow))
             Button("Toggle Danmaku") {
                 danmakuPreferences.enabled.toggle()
             }

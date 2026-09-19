@@ -180,6 +180,33 @@ After a first look, the user asked for a calmer bar, so the layout changed:
 into the container's `tmp/` (`ag_windowed.png`, `ag_fullscreen.png`)
 instead of calling `screencapture`.
 
+Second revision (user feedback):
+- **Order:** right side is speed · volume · audio · danmaku · subtitles ·
+  fullscreen. The version button, when present, comes first. The volume
+  glyph is one notch smaller.
+- **Bubble panels:** the speed / audio / danmaku / subtitle / version
+  `Menu`s became bubbles (`App/Player/Chrome/PlayerPanels.swift`). Each is
+  plain SwiftUI drawn over the video. It grows upward out of its button
+  with a spring, has a tail pointing at the button, and uses a translucent
+  dark material.
+  - Being views rather than `NSMenu`s, they are unaffected by the 25 Hz
+    re-render, so the `StableMenu` / equatable workarounds are gone for
+    them. Only the header's chapter menu still uses `StableMenu`.
+  - An outside click or Esc closes them. Controls don't auto-hide while
+    one is open.
+  - Audio delay moved from the subtitle menu to the audio bubble.
+- **Arrow keys:** `ArrowKeyHold` (local key-down/key-up monitor).
+  - A tap seeks ±10 s on key-up.
+  - Holding → plays at 2×. A tap then hold plays at 3×.
+  - Holding ← steps backwards at the same rate while paused, since mpv has
+    no cheap reverse playback.
+  - Speed and pause state are restored on release, and a small "2×"
+    capsule shows while holding.
+  - `PlayerState.setSpeed` now re-anchors danmaku immediately.
+  - `AG_SMOKE_HOLD=1` measured 3.8 s of video in 2 s at 2×, and −5.9 s in
+    2 s rewinding at 3×. `AG_SMOKE_PANEL=<name>` opens a bubble for
+    captures.
+
 **Done when:** every control keeps its current function and shortcut; menus
 stay open and clickable during playback (regression check for 7ef451d); the
 bar looks the same in light and dark system appearance; and a windowed and a

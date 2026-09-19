@@ -115,9 +115,11 @@ struct PlayerVolumeControl: View {
             } label: {
                 Image(systemName: symbol)
                     .contentTransition(.symbolEffect(.replace))
-                    .frame(width: 26, alignment: .leading)
+                    .frame(width: 22, alignment: .leading)
             }
-            .buttonStyle(PlayerIconButtonStyle())
+            // A notch smaller than the other glyphs: the speaker with its
+            // waves is wider and reads heavier at the same point size.
+            .buttonStyle(PlayerIconButtonStyle(symbolSize: 15))
             .help(volume > 0 ? "Mute" : "Unmute")
 
             if isHovering {

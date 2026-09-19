@@ -86,20 +86,15 @@ struct SubtitleStatusBadge: View {
     }
 }
 
-/// The player's subtitle menu: tracks grouped by where they come from —
-/// inside the file, files beside it (or chosen by hand), downloaded online
-/// subtitles — plus online search, delays and loading a file.
-///
-/// Equatable on purpose: compared by what it shows, it is not rebuilt by
-/// the player's frequent position updates, which would close its submenus
-/// and swallow clicks while it is open.
-struct SubtitleMenuButton: View, @MainActor Equatable {
+/// The subtitle bubble in the player bar: tracks grouped by where they
+/// come from (inside the file, files beside it or chosen by hand,
+/// downloaded online subtitles), plus online search, the subtitle delay and
+/// loading a file.
+struct SubtitlePanelContent: View {
     struct Actions {
         let select: (MediaTrack?) -> Void
         let nudgeSubtitleDelay: (Double) -> Void
         let resetSubtitleDelay: () -> Void
-        let nudgeAudioDelay: (Double) -> Void
-        let resetAudioDelay: () -> Void
         let openSearch: () -> Void
         let loadExternalFile: () -> Void
     }
@@ -108,87 +103,67 @@ struct SubtitleMenuButton: View, @MainActor Equatable {
     let tracks: [MediaTrack]
     let selectedID: Int64?
     let subtitleDelay: Double
-    let audioDelay: Double
     let actions: Actions
-
-    static func == (lhs: SubtitleMenuButton, rhs: SubtitleMenuButton) -> Bool {
-        lhs.session === rhs.session && lhs.tracks == rhs.tracks && lhs.selectedID == rhs.selectedID
-            && lhs.subtitleDelay == rhs.subtitleDelay && lhs.audioDelay == rhs.audioDelay
-    }
 
     var body: some View {
         let online = tracks.filter { session.isOwnDownload($0) }
         let embedded = tracks.filter { !$0.isExternal }
         let external = tracks.filter { $0.isExternal && !session.isOwnDownload($0) }
-        return Menu {
-            Button { actions.select(nil) } label: {
-                if selectedID == nil { Label("Off", systemImage: "checkmark") } else { Text("Off") }
-            }
+        return VStack(alignment: .leading, spacing: 0) {
+            PlayerPanelRow(title: "Off", isSelected: selectedID == nil) { actions.select(nil) }
             if !embedded.isEmpty {
-                Section("Embedded") { trackButtons(embedded) }
+                PlayerPanelSection(title: "Embedded")
+                trackRows(embedded)
             }
             if !external.isEmpty {
-                Section("External Files") { trackButtons(external) }
+                PlayerPanelSection(title: "External Files")
+                trackRows(external)
             }
             if !online.isEmpty {
-                Section("Online") { trackButtons(online) }
+                PlayerPanelSection(title: "Online")
+                trackRows(online)
             }
-            Divider()
-            Menu("Online Subtitles") {
-                // Never disabled: while a search runs, both open the sheet,
-                // which shows its progress.
-                Button("Auto-Match Chinese Subtitles") {
-                    if session.isSearching { actions.openSearch() } else { session.autoMatchNow() }
-                }
-                Button("Search Subtitles…") { actions.openSearch() }
-                if !session.downloads.isEmpty {
-                    Menu("Downloaded") {
-                        ForEach(session.downloads) { record in
-                            Button { session.selectDownloaded(record) } label: {
-                                let title = "\(record.displayTitle) · \(Int((record.matchScore * 100).rounded()))%"
-                                if isSelected(record) { Label(title, systemImage: "checkmark") } else { Text(title) }
-                            }
-                        }
-                        Divider()
-                        Button("Remove Downloads and Search Again") { session.researchFromScratch() }
-                        Button("Remove Downloads for This Episode", role: .destructive) {
-                            Task { await session.removeDownloads() }
-                        }
-                    }
-                }
-                Divider()
-                Text(SubtitleStatusBadge.statusText(session.phase))
+            PlayerPanelDivider()
+            PlayerPanelSection(title: "Online Subtitles")
+            PlayerPanelNote(text: SubtitleStatusBadge.statusText(session.phase))
+            // Never disabled: while a search runs, both open the sheet,
+            // which shows its progress.
+            PlayerPanelRow(title: "Auto-Match Chinese Subtitles", systemImage: "wand.and.stars") {
+                if session.isSearching { actions.openSearch() } else { session.autoMatchNow() }
             }
-            Divider()
-            Menu("Subtitle Delay") {
-                Button("Earlier 0.5s") { actions.nudgeSubtitleDelay(-0.5) }
-                Button("Later 0.5s") { actions.nudgeSubtitleDelay(0.5) }
-                Button("Reset") { actions.resetSubtitleDelay() }
-                if subtitleDelay != 0 {
-                    Text("Current: \(String(format: "%+.1f", subtitleDelay))s")
+            PlayerPanelRow(title: "Search Subtitles…", systemImage: "magnifyingglass", action: actions.openSearch)
+            if !session.downloads.isEmpty {
+                PlayerPanelSection(title: "Downloaded")
+                ForEach(session.downloads) { record in
+                    PlayerPanelRow(
+                        title: record.displayTitle,
+                        detail: "\(Int((record.matchScore * 100).rounded()))% match",
+                        isSelected: isSelected(record)
+                    ) { session.selectDownloaded(record) }
+                }
+                PlayerPanelRow(title: "Remove Downloads and Search Again", systemImage: "arrow.clockwise") {
+                    session.researchFromScratch()
+                }
+                PlayerPanelRow(title: "Remove Downloads for This Episode", systemImage: "trash", isDestructive: true) {
+                    Task { await session.removeDownloads() }
                 }
             }
-            Menu("Audio Delay") {
-                Button("Earlier 0.1s") { actions.nudgeAudioDelay(-0.1) }
-                Button("Later 0.1s") { actions.nudgeAudioDelay(0.1) }
-                Button("Reset") { actions.resetAudioDelay() }
-                if audioDelay != 0 {
-                    Text("Current: \(String(format: "%+.1f", audioDelay))s")
-                }
-            }
-            Divider()
-            Button("Load External Subtitle…") { actions.loadExternalFile() }
-        } label: { Image(systemName: "captions.bubble") }
-        .help("Subtitle Tracks, Online Subtitles, Delays, and External Files")
+            PlayerPanelDivider()
+            PlayerPanelStepperRow(
+                title: "Subtitle Delay",
+                value: subtitleDelay,
+                step: 0.5,
+                change: actions.nudgeSubtitleDelay,
+                reset: actions.resetSubtitleDelay
+            )
+            PlayerPanelRow(title: "Load External Subtitle…", systemImage: "doc.badge.plus", action: actions.loadExternalFile)
+        }
     }
 
     @ViewBuilder
-    private func trackButtons(_ tracks: [MediaTrack]) -> some View {
+    private func trackRows(_ tracks: [MediaTrack]) -> some View {
         ForEach(tracks) { track in
-            Button { actions.select(track) } label: {
-                if selectedID == track.id { Label(track.displayName, systemImage: "checkmark") }
-                else { Text(track.displayName) }
-            }
+            PlayerPanelRow(title: track.displayName, isSelected: selectedID == track.id) { actions.select(track) }
         }
     }
 
