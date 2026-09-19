@@ -46,6 +46,8 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
 
     @Published var position: Double
     @Published var duration: Double
+    /// How far ahead the demuxer has read; drawn on the timeline.
+    @Published private(set) var bufferedEnd: Double?
     @Published var paused = false
     @Published var audioTracks: [MediaTrack] = []
     @Published var subtitleTracks: [MediaTrack] = []
@@ -239,6 +241,7 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
         watchedDuration = 0
         lastPosition = nil
         didEndSession = false
+        bufferedEnd = nil
         chapters = []
         currentChapter = nil
         colorProfile = nil
@@ -304,10 +307,10 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
         controller?.setPaused(paused)
     }
 
-    func seek(to value: Double) {
+    func seek(to value: Double, exact: Bool = true) {
         position = value
         danmaku.playbackSample(position: value, speed: speed, paused: paused)
-        controller?.seek(to: value)
+        controller?.seek(to: value, exact: exact)
     }
 
     func seek(by offset: Double) {
@@ -403,6 +406,17 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
                 paused: effectivePaused
             )
         }
+    }
+
+    func playerDidUpdateBuffer(end: Double?) {
+        // mpv reports this many times a second; the bar only needs to move
+        // when the difference is visible.
+        guard let end, end.isFinite, end >= 0 else {
+            if bufferedEnd != nil { bufferedEnd = nil }
+            return
+        }
+        if let bufferedEnd, abs(bufferedEnd - end) < 1 { return }
+        bufferedEnd = end
     }
 
     /// Returns the finished session for the episode that just stopped, clearing
@@ -732,6 +746,7 @@ struct PlayerScreen: View {
     /// shortcuts are suspended so typing doesn't pause, seek, or go fullscreen.
     @State private var isTypingInDanmakuManager = false
     @State private var isFullscreen = false
+    @AppStorage("playerShowsRemainingTime") private var showsRemainingTime = false
 
     init(request: PlayerRequest) {
         self.request = request
@@ -1008,10 +1023,14 @@ struct PlayerScreen: View {
         VStack(spacing: 4) {
             // Timeline row keeps the scrubber wide instead of fighting the
             // buttons for space.
-            Slider(value: Binding(get: { state.position }, set: { state.seek(to: $0) }), in: 0...max(state.duration, 1))
-                .controlSize(.small)
-                .tint(.white)
-                .padding(.horizontal, 6)
+            PlayerTimeline(
+                position: state.position,
+                duration: state.duration,
+                bufferedEnd: state.bufferedEnd,
+                chapters: state.chapters,
+                seek: { [state] time, exact in state.seek(to: time, exact: exact) }
+            )
+            .padding(.horizontal, 6)
 
             HStack(spacing: 6) {
                 Button { Task { await switchTo(state.currentIndex - 1) } } label: { Image(systemName: "backward.end") }
@@ -1032,11 +1051,17 @@ struct PlayerScreen: View {
                     .keyboardShortcut(playerKey("n"))
                     .help("Next Episode (N)")
 
-                Text("\(time(state.position)) / \(time(state.duration))")
-                    .font(PlayerChrome.labelFont)
-                    .foregroundStyle(PlayerChrome.secondary)
-                    .padding(.leading, 8)
-                    .fixedSize()
+                Button { showsRemainingTime.toggle() } label: {
+                    Text(showsRemainingTime
+                         ? "\(time(state.position)) / −\(time(max(state.duration - state.position, 0)))"
+                         : "\(time(state.position)) / \(time(state.duration))")
+                        .font(PlayerChrome.labelFont)
+                        .foregroundStyle(PlayerChrome.secondary)
+                        .fixedSize()
+                }
+                .buttonStyle(.plain)
+                .padding(.leading, 8)
+                .help(showsRemainingTime ? "Show Total Time" : "Show Remaining Time")
 
                 Spacer(minLength: 12)
 
@@ -1235,6 +1260,19 @@ struct PlayerScreen: View {
                 showSubtitleSearch = false
                 try? await Task.sleep(for: .seconds(1))
             }
+            // AG_SMOKE_SEEK=1 checks the timeline's two seek modes: a
+            // keyframe seek (used while dragging) lands near the target, an
+            // exact seek (on release) lands on it.
+            if ProcessInfo.processInfo.environment["AG_SMOKE_SEEK"] == "1", state.duration > 60 {
+                let keyframeTarget = state.duration * 0.5
+                state.seek(to: keyframeTarget, exact: false)
+                try? await Task.sleep(for: .seconds(1.5))
+                let afterKeyframe = state.position
+                let exactTarget = keyframeTarget + 3.3
+                state.seek(to: exactTarget, exact: true)
+                try? await Task.sleep(for: .seconds(1.5))
+                FileHandle.standardError.write(Data(String(format: "SMOKE seek keyframe target=%.1f landed=%.1f · exact target=%.1f landed=%.1f\n", keyframeTarget, afterKeyframe, exactTarget, state.position).utf8))
+            }
             let arguments = ProcessInfo.processInfo.arguments
             if let flag = arguments.firstIndex(of: "-smokeMatch"), flag + 1 < arguments.count,
                let version = state.currentEpisode.versions.first(where: { $0.relativePath.contains(arguments[flag + 1]) }),
@@ -1286,7 +1324,7 @@ struct PlayerScreen: View {
         let rendered = controller?.renderedOutputSize
         let renderedText = rendered.map { "\(Int($0.width))x\(Int($0.height))" } ?? "nil"
         let fullscreen = controller?.view.window?.styleMask.contains(.fullScreen) ?? false
-        FileHandle.standardError.write(Data("SMOKE \(label): window=\(Int(windowFrame.width))x\(Int(windowFrame.height)) fs=\(fullscreen) view=\(Int(viewBounds.width))x\(Int(viewBounds.height)) drawable=\(Int(drawable.width))x\(Int(drawable.height)) surface=\(renderedText) pos=\(Int(state.position))/\(Int(state.duration)) controls=\(controlsVisible) cursorHidden=\(cursorHiddenByPlayer)\n".utf8))
+        FileHandle.standardError.write(Data("SMOKE \(label): window=\(Int(windowFrame.width))x\(Int(windowFrame.height)) fs=\(fullscreen) view=\(Int(viewBounds.width))x\(Int(viewBounds.height)) drawable=\(Int(drawable.width))x\(Int(drawable.height)) surface=\(renderedText) pos=\(Int(state.position))/\(Int(state.duration)) buffered=\(state.bufferedEnd.map { String(Int($0)) } ?? "nil") chapters=\(state.chapters.count) controls=\(controlsVisible) cursorHidden=\(cursorHiddenByPlayer)\n".utf8))
         let subtitleTracks = state.subtitleTracks.map { "\($0.id):\($0.title)\($0.isExternal ? ":ext" : "")" }
         let onScreen = (controller?.currentSubtitleText ?? "").replacingOccurrences(of: "\n", with: " | ")
         FileHandle.standardError.write(Data("SMOKE \(label) subtitles: sid=\(state.subtitleID.map(String.init) ?? "no") tracks=\(subtitleTracks) text=\"\(onScreen)\" online=\(SubtitleStatusBadge.statusText(state.subtitles.phase))\n".utf8))

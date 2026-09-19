@@ -33,6 +33,8 @@ struct MediaChapter: Identifiable, Hashable {
 @MainActor
 protocol MPVPlayerControllerDelegate: AnyObject {
     func playerDidUpdate(position: Double?, duration: Double?, paused: Bool?)
+    /// End of the demuxer's read-ahead, in media time; nil when unknown.
+    func playerDidUpdateBuffer(end: Double?)
     func playerDidUpdateTracks(audio: [MediaTrack], subtitles: [MediaTrack], audioID: Int64?, subtitleID: Int64?)
     func playerDidUpdateChapters(_ chapters: [MediaChapter], current: Int?)
     func playerDidUpdatePlaybackState(speed: Double?, volume: Double?, subtitleDelay: Double?, audioDelay: Double?)
@@ -205,12 +207,19 @@ final class MPVPlayerController: NSViewController {
         mpv_set_property(mpv, "pause", MPV_FORMAT_FLAG, &flag)
     }
 
-    func seek(to position: Double) {
+    /// `exact: false` lands on the nearest keyframe: much cheaper, used for
+    /// the stream of seeks while the timeline is being dragged.
+    func seek(to position: Double, exact: Bool = true) {
         if let avPlayer {
-            avPlayer.seek(to: CMTime(seconds: position, preferredTimescale: 600))
+            let time = CMTime(seconds: position, preferredTimescale: 600)
+            if exact {
+                avPlayer.seek(to: time)
+            } else {
+                avPlayer.seek(to: time, toleranceBefore: .positiveInfinity, toleranceAfter: .positiveInfinity)
+            }
             return
         }
-        command("seek", arguments: [String(position), "absolute", "exact"])
+        command("seek", arguments: [String(position), exact ? "absolute" : "absolute+keyframes", exact ? "exact" : "keyframes"])
     }
 
     func seek(by offset: Double) {
@@ -448,6 +457,7 @@ final class MPVPlayerController: NSViewController {
         observe("video-params/dolby-vision-profile", format: MPV_FORMAT_INT64)
         observe("video-params/dolby-vision-level", format: MPV_FORMAT_INT64)
         observe("hwdec-current", format: MPV_FORMAT_STRING)
+        observe("demuxer-cache-time", format: MPV_FORMAT_DOUBLE)
         // The wakeup callback runs on mpv's core thread. Typing it explicitly
         // as a C function pointer keeps it non-isolated; otherwise Swift 6
         // infers MainActor isolation for the literal and the runtime trap
@@ -484,6 +494,7 @@ final class MPVPlayerController: NSViewController {
         var position: Double?
         var duration: Double?
         var paused: Bool?
+        var bufferEnd: Double?
         var needsTracks = false
         var needsChapters = false
         var playbackState = false
@@ -500,6 +511,7 @@ final class MPVPlayerController: NSViewController {
                 case "time-pos": position = data.assumingMemoryBound(to: Double.self).pointee
                 case "duration": duration = data.assumingMemoryBound(to: Double.self).pointee
                 case "pause": paused = data.assumingMemoryBound(to: Int32.self).pointee != 0
+                case "demuxer-cache-time": bufferEnd = data.assumingMemoryBound(to: Double.self).pointee
                 case "track-list/count", "aid", "sid": needsTracks = true
                 case "chapter", "chapter-list/count": needsChapters = true
                 case "speed", "volume", "sub-delay", "audio-delay": playbackState = true
@@ -538,6 +550,7 @@ final class MPVPlayerController: NSViewController {
         if position != nil || duration != nil || paused != nil {
             delegate?.playerDidUpdate(position: position, duration: duration, paused: paused)
         }
+        if let bufferEnd { delegate?.playerDidUpdateBuffer(end: bufferEnd) }
         if needsTracks { publishTracks() }
         if needsChapters { publishChapters() }
         if playbackState { publishPlaybackState() }

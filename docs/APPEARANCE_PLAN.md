@@ -1,6 +1,6 @@
 # Appearance Plan: Dark Mode and Player Chrome
 
-Status: **G1 and G2 implemented** (G3–G4 planned)
+Status: **G1–G3 implemented** (G4 planned)
 
 Two problems, split into four goals that each ship and get verified on their
 own:
@@ -216,6 +216,25 @@ fullscreen screenshot show no system-grey widgets.
 Not in scope: **thumbnail previews while hovering**. They need a second,
 headless mpv instance decoding keyframes; that is a separate project with
 its own performance and HDR concerns. It can come back as G3b later.
+
+**Outcome (G3):**
+- **The view:** `App/Player/Chrome/PlayerTimeline.swift`. It is not a slider
+  but a track that thickens on hover, with chapter cuts, a hover bubble
+  (time and chapter name), and drag scrubbing (keyframe seeks at most every
+  100 ms, one exact seek on release, knob held at the release point for up
+  to 1.5 s until playback gets there).
+- **Seek API:** `PlayerState.seek(to:exact:)` / `MPVPlayerController.seek(to:exact:)`
+  gained the keyframe mode. Clicking the time label switches between total
+  and remaining time (`@AppStorage("playerShowsRemainingTime")`).
+- **Buffered range, as it turned out:** mpv's `demuxer-cache-time` only
+  reads about 1 s ahead for local files, torrent play-while-downloading
+  included, because it plays a local file. So the buffered bar only matters
+  for network URLs. Showing downloaded pieces for torrents needs the
+  engine's piece map; that is future work, not mpv's cache.
+- **Smoke checks:**
+  - `AG_SMOKE_SEEK=1` reports where both seek modes land. Keyframe: 2.8 s
+    before the target. Exact: on the target.
+  - `AG_SMOKE_TIMELINE_HOVER=<pt>` pins the hover state for captures.
 
 **Done when:** dragging is smooth with no snap-back; danmaku stays in sync
 after scrubbing (check with the Danmaku Manager open); the buffered range
