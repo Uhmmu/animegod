@@ -9,10 +9,11 @@ in one fast SwiftUI application.
 > Give a local anime collection memory, structure, context, and history while
 > preserving the speed and quality of a native macOS application.
 
-**Current release: 0.2.1.** Videos without Chinese subtitles can now find,
-download and load them automatically from online subtitle sites, matched to
-the episode and the release. Player menus stay open during playback, and
-provider keys no longer ask for your password after every update.
+**Current release: 0.3.0.** AnimeGod now speaks English, Simplified Chinese
+and Japanese, with an in-app language setting. The player has a redesigned
+control bar, chapter-aware timeline, bubble panels, keyboard scan controls
+and clear on-screen feedback, while the library can follow the Mac's
+appearance or stay light or dark.
 
 ## Features
 
