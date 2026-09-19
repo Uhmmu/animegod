@@ -9,12 +9,12 @@ public enum TranslationError: LocalizedError, Sendable {
 
     public var errorDescription: String? {
         switch self {
-        case .notConfigured: "No translation provider is configured."
-        case .emptyAPIKey: "The translation provider needs an API key."
-        case .invalidResponse: "The translation service returned an invalid response."
-        case let .httpStatus(status): "The translation service returned HTTP \(status)."
+        case .notConfigured: String(localized: "No translation provider is configured.", bundle: .module)
+        case .emptyAPIKey: String(localized: "The translation provider needs an API key.", bundle: .module)
+        case .invalidResponse: String(localized: "The translation service returned an invalid response.", bundle: .module)
+        case let .httpStatus(status): String(localized: "The translation service returned HTTP \(status).", bundle: .module)
         case let .countMismatch(expected, received):
-            "The translation service returned \(received) results for \(expected) texts."
+            String(localized: "The translation service returned \(received) results for \(expected) texts.", bundle: .module)
         }
     }
 }

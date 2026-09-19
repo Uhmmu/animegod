@@ -46,9 +46,9 @@ struct SubtitleStatusBadge: View {
     }
 
     private var visibleText: String? {
-        if let announcement = session.announcement { return "Loaded online subtitles: \(announcement)" }
+        if let announcement = session.announcement { return String(localized: "Loaded online subtitles: \(announcement)") }
         switch session.phase {
-        case .searching: return controlsVisible ? "Searching online subtitles…" : nil
+        case .searching: return controlsVisible ? String(localized: "Searching online subtitles…") : nil
         case .downloading: return controlsVisible ? Self.statusText(session.phase) : nil
         case .needsChoice, .noResults, .failed, .notConfigured: return Self.statusText(session.phase)
         default: return nil
@@ -69,19 +69,19 @@ struct SubtitleStatusBadge: View {
     /// One-line status used by the badge and the subtitle menu.
     static func statusText(_ phase: SubtitleSession.Phase) -> String {
         switch phase {
-        case .idle, .waitingForTracks: "Online subtitles: waiting for the video"
-        case let .existingSubtitle(name): "Using the video's own subtitles (\(name))"
-        case .burnedIn: "Chinese subtitles are burned into this release"
-        case .subtitlesOff: "Subtitles are off — no automatic search"
-        case .ready: "Automatic search is off — use Search Subtitles…"
-        case .notConfigured: "Online subtitles need a provider key — Settings"
-        case .unavailableInPipeline: "Subtitles are not shown in native Dolby Vision mode (⌘⇧H switches)"
-        case .searching: "Searching online subtitles…"
-        case let .downloading(provider): "Downloading from \(provider)…"
-        case let .loaded(record, fromCache): "\(record.displayTitle)\(fromCache ? " (cached)" : "")"
-        case let .needsChoice(count): "\(count) subtitle\(count == 1 ? "" : "s") found — click to choose"
-        case .noResults: "No matching Chinese subtitles found — click to search"
-        case let .failed(message): "Online subtitles: \(message)"
+        case .idle, .waitingForTracks: String(localized: "Online subtitles: waiting for the video")
+        case let .existingSubtitle(name): String(localized: "Using the video's own subtitles (\(name))")
+        case .burnedIn: String(localized: "Chinese subtitles are burned into this release")
+        case .subtitlesOff: String(localized: "Subtitles are off — no automatic search")
+        case .ready: String(localized: "Automatic search is off — use Search Subtitles…")
+        case .notConfigured: String(localized: "Online subtitles need a provider key — Settings")
+        case .unavailableInPipeline: String(localized: "Subtitles are not shown in native Dolby Vision mode (⌘⇧H switches)")
+        case .searching: String(localized: "Searching online subtitles…")
+        case let .downloading(provider): String(localized: "Downloading from \(provider)…")
+        case let .loaded(record, fromCache): fromCache ? String(localized: "\(record.displayTitle) (cached)") : record.displayTitle
+        case let .needsChoice(count): String(localized: "\(count) subtitles found — click to choose")
+        case .noResults: String(localized: "No matching Chinese subtitles found — click to search")
+        case let .failed(message): String(localized: "Online subtitles: \(message)")
         }
     }
 }
@@ -125,7 +125,7 @@ struct SubtitlePanelContent: View {
             }
             PlayerPanelDivider()
             PlayerPanelSection(title: "Online Subtitles")
-            PlayerPanelNote(text: SubtitleStatusBadge.statusText(session.phase))
+            PlayerPanelNote(verbatim: SubtitleStatusBadge.statusText(session.phase))
             // Never disabled: while a search runs, both open the sheet,
             // which shows its progress.
             PlayerPanelRow(title: "Auto-Match Chinese Subtitles", systemImage: "wand.and.stars") {
@@ -136,8 +136,8 @@ struct SubtitlePanelContent: View {
                 PlayerPanelSection(title: "Downloaded")
                 ForEach(session.downloads) { record in
                     PlayerPanelRow(
-                        title: record.displayTitle,
-                        detail: "\(Int((record.matchScore * 100).rounded()))% match",
+                        verbatim: record.displayTitle,
+                        detail: String(localized: "\(Int((record.matchScore * 100).rounded()))% match"),
                         isSelected: isSelected(record)
                     ) { session.selectDownloaded(record) }
                 }
@@ -163,7 +163,7 @@ struct SubtitlePanelContent: View {
     @ViewBuilder
     private func trackRows(_ tracks: [MediaTrack]) -> some View {
         ForEach(tracks) { track in
-            PlayerPanelRow(title: track.displayName, isSelected: selectedID == track.id) { actions.select(track) }
+            PlayerPanelRow(verbatim: track.displayName, isSelected: selectedID == track.id) { actions.select(track) }
         }
     }
 
@@ -295,7 +295,7 @@ struct SubtitleSearchSheet: View {
             }
             .width(min: 70, ideal: 90)
             TableColumn("Format") { scored in
-                Text(scored.result.format?.displayName ?? "Archive")
+                Text(scored.result.format?.displayName ?? String(localized: "Archive"))
             }
             .width(min: 50, ideal: 60)
             TableColumn("Provider") { scored in
@@ -303,7 +303,7 @@ struct SubtitleSearchSheet: View {
             }
             .width(min: 70, ideal: 90)
             TableColumn("Group") { scored in
-                Text(scored.result.displayGroup ?? "Unknown").lineLimit(1)
+                Text(scored.result.displayGroup ?? String(localized: "Unknown")).lineLimit(1)
             }
             .width(min: 70, ideal: 100)
             TableColumn("Match") { scored in
@@ -422,8 +422,8 @@ struct SubtitleSearchSheet: View {
     private func scoreHelp(_ scored: ScoredSubtitle) -> String {
         let score = scored.score
         var lines = [
-            String(format: "Identity %.0f/25 · Episode %.0f/25 · Release %.0f/25", score.identity, score.episode, score.release),
-            String(format: "Language %.0f/15 · Format %.1f/7 · Quality %.1f/3", score.language, score.format, score.quality)
+            String(localized: "Identity \(Int(score.identity.rounded()))/25 · Episode \(Int(score.episode.rounded()))/25 · Release \(Int(score.release.rounded()))/25"),
+            String(localized: "Language \(Int(score.language.rounded()))/15 · Format \(score.format.formatted(.number.precision(.fractionLength(1))))/7 · Quality \(score.quality.formatted(.number.precision(.fractionLength(1))))/3")
         ]
         if !score.warnings.isEmpty { lines.append(score.warnings.map(\.displayName).joined(separator: ", ")) }
         return lines.joined(separator: "\n")
@@ -434,12 +434,12 @@ struct SubtitleSearchSheet: View {
         let timed = result.timedRelease
         var parts: [String] = []
         if result.isPack {
-            parts.append(timed.episodeLabel.map { "Pack \($0)" } ?? "Pack")
+            parts.append(timed.episodeLabel.map { String(localized: "Pack \($0)") } ?? String(localized: "Pack"))
         } else if let episode = result.episode {
             parts.append(episode.rounded() == episode ? String(format: "E%02d", Int(episode)) : "E\(episode)")
         }
         parts += [timed.videoSource, timed.resolution].compactMap { $0 }
-        if result.isHashMatch { parts.insert("Exact file", at: 0) }
+        if result.isHashMatch { parts.insert(String(localized: "Exact file"), at: 0) }
         let warnings = scored.score.warnings.filter { $0 != .seasonPack }.map(\.displayName)
         return (parts + warnings).joined(separator: " · ")
     }

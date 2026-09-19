@@ -215,16 +215,13 @@ struct StatisticsView: View {
     }
 
     private func durationText(_ seconds: Double) -> String {
-        let total = Int(seconds)
-        let hours = total / 3600
-        let minutes = total % 3600 / 60
-        if hours >= 1 { return "\(hours)h \(minutes)m" }
-        return "\(minutes)m"
+        // Whole minutes, formatted for the interface language.
+        Duration.seconds(Int(seconds) / 60 * 60).formatted(.units(allowed: [.hours, .minutes], width: .narrow))
     }
 }
 
 private struct StatCard: View {
-    let title: String
+    let title: LocalizedStringKey
     let value: String
     let systemImage: String
 

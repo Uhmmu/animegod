@@ -123,7 +123,7 @@ struct AnimeDetailView: View {
                 if let metadata {
                     sourceRatings
 
-                    Text(metadata.summary.isEmpty ? "No synopsis is available." : metadata.summary)
+                    Text(metadata.summary.isEmpty ? String(localized: "No synopsis is available.") : metadata.summary)
                         .font(.body)
                         .lineSpacing(3)
                         .textSelection(.enabled)
@@ -233,7 +233,7 @@ struct AnimeDetailView: View {
                 return (source.provider.displayName, link.confidence)
             }
             if !autoMatches.isEmpty {
-                Text(autoMatches.map { "\($0.0) 自动匹配 \(Int(($0.1 * 100).rounded()))%——有误请点右上角 Change Match" }.joined(separator: " · "))
+                Text(autoMatches.map { String(localized: "\($0.0) matched automatically (\(Int(($0.1 * 100).rounded()))%) — use Change Match if it's wrong") }.joined(separator: " · "))
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }
@@ -249,7 +249,7 @@ struct AnimeDetailView: View {
             } else {
                 Text("No score").foregroundStyle(.secondary)
             }
-            if let rank = source.rank { Text("#\(rank)").foregroundStyle(.secondary) }
+            if let rank = source.rank { Text(verbatim: "#\(rank)").foregroundStyle(.secondary) }
         }
         .font(.callout)
         .padding(.horizontal, 10)
@@ -376,6 +376,8 @@ struct AnimeDetailView: View {
                     }
                 }
                 .pickerStyle(.segmented)
+                // The segments name themselves; a visible label only wraps.
+                .labelsHidden()
                 .frame(width: communityProvider == .bangumi ? 330 : 120)
                 if communityProviders.count > 1 {
                     Picker("Source", selection: $communityProvider) {
@@ -396,7 +398,7 @@ struct AnimeDetailView: View {
                         }
                     }
                     .disabled(model.translation.isTranslating)
-                    .help("Translate these \(communityLabel(for: communityKind).lowercased()) with the configured translation service")
+                    .help("Translate these posts with the configured translation service")
                 }
                 Button { Task { await model.loadCommunity(for: anime, provider: communityProvider, refresh: true) } } label: {
                     Image(systemName: "arrow.clockwise")
@@ -436,17 +438,17 @@ struct AnimeDetailView: View {
 
     private func communityLabel(for kind: CommunityPostKind) -> String {
         switch kind {
-        case .shoutbox: "Shoutbox"
-        case .review: "Reviews"
-        case .discussion: "Discussions"
+        case .shoutbox: String(localized: "Shoutbox")
+        case .review: String(localized: "Reviews")
+        case .discussion: String(localized: "Discussions")
         }
     }
 
     private func emptyCommunityLabel(for kind: CommunityPostKind) -> String {
         switch kind {
-        case .shoutbox: "No Shouts"
-        case .review: "No Reviews"
-        case .discussion: "No Discussions"
+        case .shoutbox: String(localized: "No Shouts")
+        case .review: String(localized: "No Reviews")
+        case .discussion: String(localized: "No Discussions")
         }
     }
 
@@ -535,13 +537,13 @@ struct AnimeDetailView: View {
 
     private func episodeLabel(_ episode: Episode) -> String {
         switch episode.kind {
-        case .opening: "Creditless Opening"
-        case .ending: "Creditless Ending"
-        case .music: "Music Video\(episode.numberText.map { " \($0)" } ?? "")"
-        case .trailer: "Trailer"
-        case .special: "Special \(episode.numberText ?? "")"
-        case .extra: "Extra"
-        case .regular: episode.numberText.map { "Episode \($0)" } ?? "Movie / Episode"
+        case .opening: String(localized: "Creditless Opening")
+        case .ending: String(localized: "Creditless Ending")
+        case .music: String(localized: "Music Video\(episode.numberText.map { " \($0)" } ?? "")")
+        case .trailer: String(localized: "Trailer")
+        case .special: String(localized: "Special \(episode.numberText ?? "")")
+        case .extra: String(localized: "Extra")
+        case .regular: episode.numberText.map { String(localized: "Episode \($0)") } ?? String(localized: "Movie / Episode")
         }
     }
 }

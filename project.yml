@@ -5,6 +5,7 @@ options:
     macOS: "14.0"
   xcodeVersion: "26.0"
   generateEmptyDirectories: true
+  developmentLanguage: en
 packages:
   AnimeGodCore:
     path: .
@@ -14,6 +15,8 @@ packages:
 settings:
   base:
     SWIFT_VERSION: 6.0
+    LOCALIZATION_PREFERS_STRING_CATALOGS: YES
+    SWIFT_EMIT_LOC_STRINGS: YES
     MACOSX_DEPLOYMENT_TARGET: 14.0
 targets:
   AnimeGod:

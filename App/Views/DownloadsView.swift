@@ -67,7 +67,7 @@ struct DownloadsView: View {
                             // authorised read-only; saying so here beats
                             // failing after the user picks it.
                             let writable = folders.isWritable(folder)
-                            Button(writable ? folder.path : "\(folder.path) — read-only, re-pick to allow") {
+                            Button(writable ? folder.path : String(localized: "\(folder.path) — read-only, re-pick to allow")) {
                                 folders.select(folder)
                             }
                         }
@@ -118,13 +118,13 @@ struct DownloadsView: View {
                 .help("Peers reachable through the distributed hash table")
             if let mapped = info.portMapped?.boolValue {
                 Label(
-                    mapped ? "Port \(info.listenPort) open" : "Port \(info.listenPort) not mapped",
+                    mapped ? "Port \(String(info.listenPort)) open" : "Port \(String(info.listenPort)) not mapped",
                     systemImage: mapped ? "network" : "network.slash"
                 )
                 .foregroundStyle(mapped ? AnyShapeStyle(.secondary) : AnyShapeStyle(Color.orange))
                 .help(mapped
                       ? "Other peers can connect to this Mac, which raises the speed ceiling."
-                      : "UPnP/NAT-PMP could not open the port. Forwarding port \(info.listenPort) on your router lets peers connect to you — the biggest factor in BitTorrent speed. On CGNAT connections only IPv6 peers can reach you.")
+                      : String(localized: "UPnP/NAT-PMP could not open the port. Forwarding port \(String(info.listenPort)) on your router lets peers connect to you — the biggest factor in BitTorrent speed. On CGNAT connections only IPv6 peers can reach you."))
             } else {
                 Label("Mapping port…", systemImage: "network")
                     .foregroundStyle(.secondary)

@@ -55,15 +55,15 @@ public enum SubtitleMatchWarning: String, Codable, Hashable, Sendable, CaseItera
 
     public var displayName: String {
         switch self {
-        case .wrongEpisode: "Different episode"
-        case .wrongSeason: "Different season"
-        case .titleMismatch: "Title differs"
-        case .sourceMismatch: "Different source (BD/WEB timing)"
-        case .groupMismatch: "Different release group"
-        case .unknownEpisode: "Episode not stated"
-        case .seasonPack: "Season pack"
-        case .unpreferredLanguage: "Not a preferred language"
-        case .machineTranslated: "Machine translated"
+        case .wrongEpisode: String(localized: "Different episode", bundle: .module)
+        case .wrongSeason: String(localized: "Different season", bundle: .module)
+        case .titleMismatch: String(localized: "Title differs", bundle: .module)
+        case .sourceMismatch: String(localized: "Different source (BD/WEB timing)", bundle: .module)
+        case .groupMismatch: String(localized: "Different release group", bundle: .module)
+        case .unknownEpisode: String(localized: "Episode not stated", bundle: .module)
+        case .seasonPack: String(localized: "Season pack", bundle: .module)
+        case .unpreferredLanguage: String(localized: "Not a preferred language", bundle: .module)
+        case .machineTranslated: String(localized: "Machine translated", bundle: .module)
         }
     }
 }

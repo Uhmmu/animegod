@@ -30,7 +30,7 @@ struct RankingsView: View {
                     let item = entry.1
                     NavigationLink(value: item.anime) {
                         HStack(spacing: 14) {
-                            Text("#\(profile.ranking ?? index + 1)")
+                            Text(verbatim: "#\(profile.ranking ?? index + 1)")
                                 .font(.title2.bold().monospacedDigit())
                                 .frame(width: 58, alignment: .trailing)
                                 .foregroundStyle(.secondary)
@@ -94,7 +94,7 @@ struct DiaryView: View {
                                     .foregroundStyle(event.completedEpisode ? Color.green : Color.accentColor)
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(event.animeTitle).font(.headline)
-                                    Text(event.episodeLabel).font(.subheadline).foregroundStyle(.secondary)
+                                    Text(Episode.localizedLabel(event.episodeLabel)).font(.subheadline).foregroundStyle(.secondary)
                                 }
                                 Spacer()
                                 VStack(alignment: .trailing, spacing: 4) {
@@ -123,14 +123,13 @@ struct DiaryView: View {
     }
 
     private func duration(_ seconds: Double) -> String {
-        let minutes = Int(seconds / 60)
-        if minutes >= 60 { return "\(minutes / 60)h \(minutes % 60)m" }
-        return "\(minutes)m"
+        // Whole minutes, as "5h 53m" / "5小时53分钟" / "5時間53分" per locale.
+        Duration.seconds(Int(seconds / 60) * 60).formatted(.units(allowed: [.hours, .minutes], width: .narrow))
     }
 }
 
 private struct DiaryMetric: View {
-    let title: String
+    let title: LocalizedStringKey
     let value: String
     let symbol: String
 

@@ -10,6 +10,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         MainActor.assumeIsolated { AppearanceMode.apply() }
     }
 
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        // `-smokeRelaunch`: exercises Settings' "Relaunch Now" path; the new
+        // instance starts without arguments once this one has exited.
+        guard ProcessInfo.processInfo.arguments.contains("-smokeRelaunch") else { return }
+        MainActor.assumeIsolated {
+            print("SMOKE relaunch from pid \(ProcessInfo.processInfo.processIdentifier)")
+            AppLanguage.relaunch()
+        }
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         MainActor.assumeIsolated { Self.model?.downloads.shutdown() }
     }

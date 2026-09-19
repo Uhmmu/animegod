@@ -9,8 +9,8 @@ public enum EpisodeCachePolicy: String, Codable, CaseIterable, Sendable {
 
     public var displayName: String {
         switch self {
-        case .auto: "Auto"
-        case .manual: "Manual"
+        case .auto: String(localized: "Auto", bundle: .module)
+        case .manual: String(localized: "Manual", bundle: .module)
         }
     }
 }

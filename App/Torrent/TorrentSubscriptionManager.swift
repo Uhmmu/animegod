@@ -54,7 +54,7 @@ final class TorrentSubscriptionManager: ObservableObject {
         do {
             subscriptions = try await database.torrentSubscriptions()
         } catch {
-            errorMessage = "Could not read subscriptions: \(error.localizedDescription)"
+            errorMessage = String(localized: "Could not read subscriptions: \(error.localizedDescription)")
         }
     }
 
@@ -68,7 +68,7 @@ final class TorrentSubscriptionManager: ObservableObject {
             try await database.saveTorrentSubscription(subscription)
             await reload()
         } catch {
-            errorMessage = "Could not save the subscription: \(error.localizedDescription)"
+            errorMessage = String(localized: "Could not save the subscription: \(error.localizedDescription)")
         }
     }
 
@@ -78,7 +78,7 @@ final class TorrentSubscriptionManager: ObservableObject {
             try await database.removeTorrentSubscription(id: subscription.id)
             await reload()
         } catch {
-            errorMessage = "Could not remove the subscription: \(error.localizedDescription)"
+            errorMessage = String(localized: "Could not remove the subscription: \(error.localizedDescription)")
         }
     }
 
@@ -134,7 +134,7 @@ final class TorrentSubscriptionManager: ObservableObject {
         do {
             matched = Set(try await database.torrentSubscriptionMatches(subscriptionID: subscription.id).map(\.infoHash))
         } catch {
-            errorMessage = "Could not read what “\(subscription.title)” already downloaded: \(error.localizedDescription)"
+            errorMessage = String(localized: "Could not read what “\(subscription.title)” already downloaded: \(error.localizedDescription)")
             return 0
         }
         var owned: Set<Double> = []
@@ -165,10 +165,10 @@ final class TorrentSubscriptionManager: ObservableObject {
                 title: pick.title,
                 episode: pick.release.firstEpisode
             ))
-            note("“\(subscription.title)” → \(pick.release.episodeLabel.map { "EP \($0)" } ?? "new release"): \(pick.title)")
+            note("“\(subscription.title)” → \(pick.release.episodeLabel.map { "EP \($0)" } ?? String(localized: "new release")): \(pick.title)")
         }
         if picks.isEmpty, isManual {
-            note("“\(subscription.title)”: nothing new (\(results.count) releases checked)")
+            note(String(localized: "“\(subscription.title)”: nothing new (\(results.count) releases checked)"))
         }
 
         var updated = subscription

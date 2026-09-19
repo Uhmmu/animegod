@@ -60,11 +60,11 @@ public enum TorrentCategory: String, CaseIterable, Codable, Identifiable, Sendab
 
     public var displayName: String {
         switch self {
-        case .episode: "Anime"
-        case .batch: "Batch"
-        case .raw: "Raw"
-        case .music: "Music"
-        case .other: "Other"
+        case .episode: String(localized: "Anime", bundle: .module)
+        case .batch: String(localized: "Batch", bundle: .module)
+        case .raw: String(localized: "Raw", bundle: .module)
+        case .music: String(localized: "Music", bundle: .module)
+        case .other: String(localized: "Other", bundle: .module)
         }
     }
 

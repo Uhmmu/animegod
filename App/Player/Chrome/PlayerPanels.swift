@@ -98,9 +98,15 @@ struct PlayerBubble<Content: View>: View {
 }
 
 // MARK: - Rows
+//
+// Each row takes a `LocalizedStringResource` for text written in code, so
+// the literal is extracted into the String Catalog, and a `verbatim:` form
+// for text that is already localized or is data (track names, titles).
 
 struct PlayerPanelSection: View {
     let title: String
+
+    init(title: LocalizedStringResource) { self.title = String(localized: title) }
 
     var body: some View {
         Text(title)
@@ -128,6 +134,9 @@ struct PlayerPanelDivider: View {
 struct PlayerPanelNote: View {
     let text: String
 
+    init(text: LocalizedStringResource) { self.text = String(localized: text) }
+    init(verbatim text: String) { self.text = text }
+
     var body: some View {
         Text(text)
             .font(.system(size: 11))
@@ -150,6 +159,34 @@ struct PlayerPanelRow: View {
 
     @Environment(\.isEnabled) private var isEnabled
     @State private var isHovering = false
+
+    init(
+        title: LocalizedStringResource,
+        detail: String? = nil,
+        systemImage: String? = nil,
+        isSelected: Bool = false,
+        isDestructive: Bool = false,
+        action: @escaping () -> Void
+    ) {
+        self.init(verbatim: String(localized: title), detail: detail, systemImage: systemImage,
+                  isSelected: isSelected, isDestructive: isDestructive, action: action)
+    }
+
+    init(
+        verbatim title: String,
+        detail: String? = nil,
+        systemImage: String? = nil,
+        isSelected: Bool = false,
+        isDestructive: Bool = false,
+        action: @escaping () -> Void
+    ) {
+        self.title = title
+        self.detail = detail
+        self.systemImage = systemImage
+        self.isSelected = isSelected
+        self.isDestructive = isDestructive
+        self.action = action
+    }
 
     var body: some View {
         Button(action: action) {
@@ -191,6 +228,11 @@ struct PlayerPanelToggleRow: View {
     let title: String
     @Binding var isOn: Bool
 
+    init(title: LocalizedStringResource, isOn: Binding<Bool>) {
+        self.title = String(localized: title)
+        _isOn = isOn
+    }
+
     var body: some View {
         HStack {
             Text(title).font(.system(size: 13))
@@ -212,6 +254,14 @@ struct PlayerPanelStepperRow: View {
     let step: Double
     let change: (Double) -> Void
     let reset: () -> Void
+
+    init(title: LocalizedStringResource, value: Double, step: Double, change: @escaping (Double) -> Void, reset: @escaping () -> Void) {
+        self.title = String(localized: title)
+        self.value = value
+        self.step = step
+        self.change = change
+        self.reset = reset
+    }
 
     var body: some View {
         HStack(spacing: 4) {

@@ -102,8 +102,8 @@ final class AppModel: ObservableObject {
 
     func chooseLibraryRoot() {
         let panel = NSOpenPanel()
-        panel.title = "Choose an anime library folder"
-        panel.prompt = "Add Library"
+        panel.title = String(localized: "Choose an anime library folder")
+        panel.prompt = String(localized: "Add Library")
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = true
@@ -154,7 +154,7 @@ final class AppModel: ObservableObject {
             await reloadLibrary()
             await refreshRootAvailability()
         } catch {
-            errorMessage = "Could not scan \(root.displayName): \(error.localizedDescription)"
+            errorMessage = String(localized: "Could not scan \(root.displayName): \(error.localizedDescription)")
         }
     }
 
@@ -261,7 +261,7 @@ final class AppModel: ObservableObject {
         do {
             return try await provider.search(query, limit: 12)
         } catch {
-            errorMessage = "Could not search \(providerID.displayName): \(error.localizedDescription)"
+            errorMessage = String(localized: "Could not search \(providerID.displayName): \(error.localizedDescription)")
             return []
         }
     }
@@ -276,7 +276,7 @@ final class AppModel: ObservableObject {
             await reloadMetadata()
             return true
         } catch {
-            errorMessage = "Could not load \(candidate.provider.displayName) metadata: \(error.localizedDescription)"
+            errorMessage = String(localized: "Could not load \(candidate.provider.displayName) metadata: \(error.localizedDescription)")
             return false
         }
     }
@@ -305,7 +305,7 @@ final class AppModel: ObservableObject {
             guard !Task.isCancelled else { break }
             let (item, providerID) = task
             guard !unavailableProviders.contains(providerID), let provider = metadataProviders[providerID] else { continue }
-            metadataProgress = "\(providerID.displayName) \(index + 1) of \(work.count)"
+            metadataProgress = String(localized: "\(providerID.displayName) \(index + 1) of \(work.count)")
             do {
                 let candidates = try await provider.search(item.anime.title, limit: 8)
                 switch metadataMatcher.decide(localTitle: item.anime.title, candidates: candidates) {
@@ -340,7 +340,7 @@ final class AppModel: ObservableObject {
 
         if failedCount > 0 {
             let names = unavailableProviders.map(\.displayName).sorted().joined(separator: ", ")
-            errorMessage = "Matched \(matchedCount) source(s). \(names) could not be reached; cached metadata and the local library remain available."
+            errorMessage = String(localized: "Matched \(matchedCount) source(s). \(names) could not be reached; cached metadata and the local library remain available.")
         }
     }
 
@@ -386,7 +386,7 @@ final class AppModel: ObservableObject {
             )
             await reloadMetadata()
         } catch {
-            errorMessage = "Could not refresh community content: \(error.localizedDescription)"
+            errorMessage = String(localized: "Could not refresh community content: \(error.localizedDescription)")
         }
     }
 
@@ -444,7 +444,7 @@ final class AppModel: ObservableObject {
             await reloadPersonalLibrary()
             return true
         } catch {
-            errorMessage = "Could not save your anime entry: \(error.localizedDescription)"
+            errorMessage = String(localized: "Could not save your anime entry: \(error.localizedDescription)")
             return false
         }
     }
@@ -481,7 +481,7 @@ final class AppModel: ObservableObject {
         await saveProgress(episodeID: episode.id, position: position, duration: duration)
         let animeTitle = metadataByAnimeID[episode.episode.animeID]?.title
             ?? library.first(where: { $0.id == episode.episode.animeID })?.anime.title
-            ?? "Unknown Anime"
+            ?? String(localized: "Unknown Anime")
         do {
             try await database.record(event: WatchEvent(
                 animeID: episode.episode.animeID,
@@ -495,7 +495,7 @@ final class AppModel: ObservableObject {
             ))
             await reloadPersonalLibrary()
         } catch {
-            errorMessage = "Could not save watch history: \(error.localizedDescription)"
+            errorMessage = String(localized: "Could not save watch history: \(error.localizedDescription)")
         }
     }
 
@@ -528,7 +528,7 @@ final class AppModel: ObservableObject {
             await refreshRootAvailability()
             await reloadLibrary()
         } catch {
-            errorMessage = "Could not open the local library: \(error.localizedDescription)"
+            errorMessage = String(localized: "Could not open the local library: \(error.localizedDescription)")
         }
     }
 
@@ -614,16 +614,10 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// Stored with the history event in canonical English; views show it
+    /// through `Episode.localizedLabel`.
     private static func episodeLabel(_ episode: Episode) -> String {
-        switch episode.kind {
-        case .opening: "Creditless Opening"
-        case .ending: "Creditless Ending"
-        case .music: "Music Video"
-        case .trailer: "Trailer"
-        case .special: "Special \(episode.numberText ?? "")"
-        case .extra: "Extra"
-        case .regular: episode.numberText.map { "Episode \($0)" } ?? "Movie / Episode"
-        }
+        Episode.displayLabel(kind: episode.kind, numberText: episode.numberText)
     }
 }
 

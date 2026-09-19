@@ -134,7 +134,7 @@ public struct DandanplayDanmakuProvider: DanmakuProvider {
         if let envelope = try? JSONDecoder().decode(Envelope.self, from: data),
            !envelope.success {
             throw DanmakuProviderError.serviceMessage(
-                envelope.errorMessage?.isEmpty == false ? envelope.errorMessage! : "The danmaku service rejected the request (code \(envelope.errorCode))."
+                envelope.errorMessage?.isEmpty == false ? envelope.errorMessage! : String(localized: "The danmaku service rejected the request (code \(String(envelope.errorCode))).", bundle: .module)
             )
         }
         do {

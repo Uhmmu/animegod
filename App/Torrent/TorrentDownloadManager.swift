@@ -27,21 +27,21 @@ struct TorrentDownloadItem: Identifiable, Hashable {
     var downloadedBytes: Int64 { snapshot?.downloadedBytes ?? 0 }
 
     var statusText: String {
-        guard let snapshot else { return record.completedAt != nil ? "Completed" : "Not running" }
+        guard let snapshot else { return record.completedAt != nil ? String(localized: "Completed") : String(localized: "Not running") }
         if let error = snapshot.errorMessage, !error.isEmpty { return error }
         switch snapshot.state {
-        case .queued: return "Queued"
-        case .fetchingMetadata: return "Fetching details from the swarm…"
-        case .checking: return "Checking existing files…"
+        case .queued: return String(localized: "Queued")
+        case .fetchingMetadata: return String(localized: "Fetching details from the swarm…")
+        case .checking: return String(localized: "Checking existing files…")
         case .downloading:
             let rate = ByteCountFormatter.string(fromByteCount: Int64(snapshot.downloadRate), countStyle: .binary)
-            let peers = "\(snapshot.connectedSeeds) seeds · \(snapshot.connectedPeers) peers"
+            let peers = String(localized: "\(snapshot.connectedSeeds) seeds · \(snapshot.connectedPeers) peers")
             return "\(rate)/s · \(peers)"
         case .finished, .seeding:
             let uploaded = ByteCountFormatter.string(fromByteCount: snapshot.uploadedBytes, countStyle: .binary)
-            return snapshot.state == .seeding ? "Seeding · \(uploaded) shared" : "Completed"
-        case .paused: return "Paused"
-        case .errored: return snapshot.errorMessage ?? "Failed"
+            return snapshot.state == .seeding ? String(localized: "Seeding · \(uploaded) shared") : String(localized: "Completed")
+        case .paused: return String(localized: "Paused")
+        case .errored: return snapshot.errorMessage ?? String(localized: "Failed")
         @unknown default: return ""
         }
     }
@@ -130,7 +130,7 @@ final class TorrentDownloadManager: ObservableObject {
             preferTCP: false
         )
         if let failure = engine.startupError {
-            errorMessage = "The download engine could not start: \(failure)"
+            errorMessage = String(localized: "The download engine could not start: \(failure)")
             return nil
         }
         self.engine = engine
@@ -189,7 +189,7 @@ final class TorrentDownloadManager: ObservableObject {
     ) {
         guard let engine = startEngineIfNeeded() else { return }
         if records[infoHash.lowercased()] != nil {
-            errorMessage = "“\(title)” is already in Downloads."
+            errorMessage = String(localized: "“\(title)” is already in Downloads.")
             return
         }
         let folder = folders.folderForNewDownload()
@@ -210,7 +210,7 @@ final class TorrentDownloadManager: ObservableObject {
             Task { try? await database?.saveTorrentDownload(record) }
             refresh()
         } catch {
-            errorMessage = "Could not start the download: \(error.localizedDescription)"
+            errorMessage = String(localized: "Could not start the download: \(error.localizedDescription)")
         }
     }
 
@@ -245,7 +245,7 @@ final class TorrentDownloadManager: ObservableObject {
         let destination = folders.folderForNewDownload()
         guard destination.path != (item.snapshot?.savePath ?? item.record.savePath) else { return }
         guard let engine else {
-            errorMessage = "The download engine is not running, so files cannot be moved."
+            errorMessage = String(localized: "The download engine is not running, so files cannot be moved.")
             return
         }
         engine.moveStorage(item.record.infoHash, toFolder: destination)
@@ -254,7 +254,7 @@ final class TorrentDownloadManager: ObservableObject {
         records[record.infoHash] = record
         let saved = record
         Task { try? await database?.saveTorrentDownload(saved) }
-        statusMessage = "Moving “\(item.title)” to \(destination.lastPathComponent)…"
+        statusMessage = String(localized: "Moving “\(item.title)” to \(destination.lastPathComponent)…")
         refresh()
     }
 
@@ -306,7 +306,7 @@ final class TorrentDownloadManager: ObservableObject {
         let url = URL(fileURLWithPath: item.snapshot?.savePath ?? item.record.savePath)
             .appending(path: file.path)
         guard FileManager.default.isReadableFile(atPath: url.path) else {
-            errorMessage = "That file is not on disk yet."
+            errorMessage = String(localized: "That file is not on disk yet.")
             return
         }
         if !item.isComplete {
@@ -333,7 +333,7 @@ final class TorrentDownloadManager: ObservableObject {
             records = Dictionary(uniqueKeysWithValues: stored.map { ($0.infoHash, $0) })
             rebuildItems(snapshots: engine?.snapshots() ?? [])
         } catch {
-            errorMessage = "Could not read saved downloads: \(error.localizedDescription)"
+            errorMessage = String(localized: "Could not read saved downloads: \(error.localizedDescription)")
         }
     }
 

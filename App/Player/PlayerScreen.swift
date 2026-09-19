@@ -152,7 +152,7 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
             return ResolvedPlayback(url: directPlayback.url, access: nil, playedFromCache: true)
         }
         guard let root = roots.first(where: { $0.id == file.libraryRootID }) else {
-            errorMessage = "The library folder for this episode is unavailable."
+            errorMessage = String(localized: "The library folder for this episode is unavailable.")
             isLoading = false
             playbackAvailable = false
             return nil
@@ -168,9 +168,9 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
         }
         access?.stop()
         if !FileManager.default.fileExists(atPath: rootURL.path) {
-            errorMessage = "请插入硬盘「\(root.displayName)」后再播放 —— 本集尚未缓存到这台 Mac。"
+            errorMessage = String(localized: "Connect the drive “\(root.displayName)” to play this episode — it isn't cached on this Mac.")
         } else {
-            errorMessage = "AnimeGod can no longer read this file. Remove and re-add its library folder to renew access."
+            errorMessage = String(localized: "AnimeGod can no longer read this file. Remove and re-add its library folder to renew access.")
         }
         isLoading = false
         playbackAvailable = false
@@ -857,13 +857,13 @@ struct PlayerScreen: View {
     private var episodeLabel: String {
         let episode = state.currentEpisode.episode
         return switch episode.kind {
-        case .regular: episode.numberText.map { "Episode \($0)" } ?? "Movie"
-        case .special: "Special \(episode.numberText ?? "")"
-        case .opening: "Creditless Opening"
-        case .ending: "Creditless Ending"
-        case .music: "Music Video"
-        case .trailer: "Trailer"
-        case .extra: "Extra"
+        case .regular: episode.numberText.map { String(localized: "Episode \($0)") } ?? String(localized: "Movie")
+        case .special: String(localized: "Special \(episode.numberText ?? "")")
+        case .opening: String(localized: "Creditless Opening")
+        case .ending: String(localized: "Creditless Ending")
+        case .music: String(localized: "Music Video")
+        case .trailer: String(localized: "Trailer")
+        case .extra: String(localized: "Extra")
         }
     }
 
@@ -1294,7 +1294,7 @@ struct PlayerScreen: View {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(state.currentEpisode.versions) { file in
                     PlayerPanelRow(
-                        title: versionLabel(file),
+                        verbatim: versionLabel(file),
                         detail: (file.relativePath as NSString).lastPathComponent,
                         isSelected: file.id == state.currentEpisode.mediaFile.id
                     ) { state.switchVersion(to: file) }
@@ -1305,7 +1305,7 @@ struct PlayerScreen: View {
         case .speed:
             VStack(alignment: .leading, spacing: 0) {
                 ForEach([0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 3.0], id: \.self) { value in
-                    PlayerPanelRow(title: speedLabel(value), isSelected: abs(state.speed - value) < 0.01) {
+                    PlayerPanelRow(verbatim: speedLabel(value), isSelected: abs(state.speed - value) < 0.01) {
                         state.setSpeed(value)
                     }
                 }
@@ -1315,7 +1315,7 @@ struct PlayerScreen: View {
         case .audio:
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(state.audioTracks) { track in
-                    PlayerPanelRow(title: track.displayName, isSelected: state.audioID == track.id) {
+                    PlayerPanelRow(verbatim: track.displayName, isSelected: state.audioID == track.id) {
                         state.controller?.selectAudio(id: track.id)
                     }
                 }
@@ -1631,12 +1631,12 @@ struct PlayerScreen: View {
                 .keyboardShortcut("d", modifiers: [.command, .shift])
             Button("Toggle HDR Output") {
                 state.toggleForcedSDR()
-                osd.show("sun.max", state.forcedSDR ? "SDR Output (forced)" : "HDR Output")
+                osd.show("sun.max", state.forcedSDR ? String(localized: "SDR Output (forced)") : String(localized: "HDR Output"))
             }
                 .keyboardShortcut("h", modifiers: [.command, .shift])
             Button("Toggle Danmaku") {
                 danmakuPreferences.enabled.toggle()
-                osd.show("text.bubble", danmakuPreferences.enabled ? "Danmaku On" : "Danmaku Off")
+                osd.show("text.bubble", danmakuPreferences.enabled ? String(localized: "Danmaku On") : String(localized: "Danmaku Off"))
             }
                 .keyboardShortcut(playerKey("d"))
             Button("Toggle Danmaku Manager") {
@@ -1725,7 +1725,7 @@ struct PlayerScreen: View {
 
     private func chooseExternalSubtitle() {
         let panel = NSOpenPanel()
-        panel.title = "Choose a subtitle file"
+        panel.title = String(localized: "Choose a subtitle file")
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = true

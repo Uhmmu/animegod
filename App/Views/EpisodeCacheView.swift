@@ -8,7 +8,7 @@ struct EpisodeCacheView: View {
     @State private var confirmingClearAll = false
 
     private var grouped: [(anime: String, entries: [EpisodeCacheEntry])] {
-        let byAnime = Dictionary(grouping: cache.entries) { $0.animeTitle ?? "Unknown Anime" }
+        let byAnime = Dictionary(grouping: cache.entries) { $0.animeTitle ?? String(localized: "Unknown Anime") }
         return byAnime
             .map { (anime: $0.key, entries: $0.value) }
             .sorted { $0.anime.localizedCaseInsensitiveCompare($1.anime) == .orderedAscending }
@@ -59,8 +59,8 @@ struct EpisodeCacheView: View {
             HStack(spacing: 16) {
                 Label(
                     cache.entries.isEmpty
-                        ? "Nothing cached"
-                        : "\(cache.entries.count) episode\(cache.entries.count == 1 ? "" : "s") · \(ByteCountFormatter.string(fromByteCount: cache.totalBytes, countStyle: .file))",
+                        ? String(localized: "Nothing cached")
+                        : String(localized: "\(cache.entries.count) episodes · \(ByteCountFormatter.string(fromByteCount: cache.totalBytes, countStyle: .file))"),
                     systemImage: "internaldrive"
                 )
                 Spacer()
@@ -104,7 +104,7 @@ private struct CacheEntryRow: View {
                 .font(.title3)
                 .foregroundStyle(entry.state == .complete ? Color.green : Color.accentColor)
             VStack(alignment: .leading, spacing: 4) {
-                Text("\(entry.animeTitle ?? "Unknown Anime") · \(entry.episodeLabel ?? entry.fileName)")
+                Text(verbatim: "\(entry.animeTitle ?? String(localized: "Unknown Anime")) · \(entry.episodeLabel.map(Episode.localizedLabel) ?? entry.fileName)")
                     .font(.headline)
                     .lineLimit(1)
                 if entry.state == .copying {

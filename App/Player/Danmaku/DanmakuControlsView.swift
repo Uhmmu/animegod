@@ -99,7 +99,7 @@ struct DanmakuPanelContent: View {
         VStack(alignment: .leading, spacing: 0) {
             PlayerPanelToggleRow(title: "Show Danmaku (D)", isOn: $preferences.enabled)
             if let status = statusLine {
-                PlayerPanelNote(text: status)
+                PlayerPanelNote(verbatim: status)
             }
             PlayerPanelDivider()
             PlayerPanelRow(title: "Match Episode…", systemImage: "text.magnifyingglass", action: openMatch)
@@ -126,13 +126,13 @@ struct DanmakuPanelContent: View {
     private var statusLine: String? {
         switch session.phase {
         case .idle: nil
-        case .disabled: "Danmaku is off"
-        case .needsConfiguration: "Add danmaku credentials in Settings, or switch the source to Bilibili"
-        case .matching: "Identifying episode…"
-        case .loading: session.isReloading ? "Fetching danmaku…" : "Loading danmaku…"
+        case .disabled: String(localized: "Danmaku is off")
+        case .needsConfiguration: String(localized: "Add danmaku credentials in Settings, or switch the source to Bilibili")
+        case .matching: String(localized: "Identifying episode…")
+        case .loading: session.isReloading ? String(localized: "Fetching danmaku…") : String(localized: "Loading danmaku…")
         case let .ready(anime, episode, episodeID, cache):
-            "\(anime) · \(episode) · #\(episodeID) · cache \(cache == .hit ? "HIT" : "MISS")\(sourceSuffix)"
-        case .noMatch: "No file match — choose an automatic suggestion"
+            String(localized: "\(anime) · \(episode) · #\(String(episodeID)) · cache \(cache == .hit ? "HIT" : "MISS")\(sourceSuffix)")
+        case .noMatch: String(localized: "No file match — choose an automatic suggestion")
         case let .failed(message): message
         }
     }
@@ -149,7 +149,7 @@ struct DanmakuPanelContent: View {
         // One source failing to identify the file is a hint, not a failure:
         // the others already loaded.
         if !session.unmatchedSources.isEmpty {
-            suffix += " · no \(session.unmatchedSources.joined(separator: "/")) match"
+            suffix += " · " + String(localized: "no \(session.unmatchedSources.joined(separator: "/")) match")
         }
         return suffix
     }
@@ -427,7 +427,7 @@ struct DanmakuMatchSheet: View {
     /// querying dandanplay when Bilibili is the active source.
     private var sourceLabel: String {
         let names = session.activeProviderDisplayNames
-        return names.isEmpty ? "danmaku sources" : names.joined(separator: " + ")
+        return names.isEmpty ? String(localized: "danmaku sources") : names.joined(separator: " + ")
     }
 
     private var automaticResults: some View {

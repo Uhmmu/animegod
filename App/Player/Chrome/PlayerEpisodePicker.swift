@@ -142,7 +142,7 @@ private struct PlayerEpisodeGrid: View {
         .buttonStyle(.plain)
         // The playing tile stays bright; it just doesn't do anything.
         .allowsHitTesting(!isCurrent && !isSwitching)
-        .help(fullLabel(item) + (isCurrent ? " · playing" : watched ? " · watched" : ""))
+        .help(fullLabel(item) + (isCurrent ? " · " + String(localized: "playing") : watched ? " · " + String(localized: "watched") : ""))
     }
 
     /// Main episodes show their number; everything else carries its kind
@@ -160,7 +160,7 @@ private struct PlayerEpisodeGrid: View {
         case .trailer: "PV"
         case .extra: "EX"
         }
-        if episode.kind == .regular { return number ?? "Movie" }
+        if episode.kind == .regular { return number ?? String(localized: "Movie") }
         return prefix + (item.kindUsesOrdinals ? String(item.ordinal) : number ?? String(item.ordinal))
     }
 

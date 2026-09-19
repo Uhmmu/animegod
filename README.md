@@ -1,6 +1,6 @@
 # AnimeGod
 
-**English** | [简体中文](README.zh-CN.md)
+**English** | [简体中文](README.zh-CN.md) | [日本語](README.ja.md)
 
 AnimeGod is a native, local-first anime library and video player for macOS —
 **IINA × an anime library manager × Bangumi/AniList × a personal anime diary**,
@@ -144,8 +144,10 @@ provider keys no longer ask for your password after every update.
 - Foreign-language reviews show **original text and translation side by
   side** — the original is never replaced.
 
-### Appearance
+### Appearance and language
 - System, Light or Dark in Settings; the player window always stays dark.
+- Interface in English, Simplified Chinese or Japanese — Settings → Language
+  (applies after a relaunch).
 
 ### Player
 - libmpv (MPVKit) embedded playback: H.264/HEVC/AV1, 10-bit, VideoToolbox
@@ -283,10 +285,17 @@ xcodebuild -project AnimeGod.xcodeproj -scheme AnimeGod -configuration Release b
   testable.
 - The app target is SwiftUI + AppKit with the LGPL build of MPVKit for
   playback. See `THIRD_PARTY_NOTICES.md` before distributing binaries.
+- Interface strings live in String Catalogs (`App/Localizable.xcstrings`,
+  `Sources/AnimeGodCore/Resources/Localizable.xcstrings`). After a
+  command-line build, `scripts/sync-localizations.sh DerivedData/<task>`
+  pulls new strings in and `scripts/check-localizations.py` lists anything
+  untranslated.
 - Optional live provider tests: `ANIMEGOD_LIVE_TESTS=1 swift test --filter
   'Bangumi.*ProviderTests'`.
 - Headless player smoke test: run the built binary with `-smokePlayerTest`
   (auto-plays the first episode, toggles fullscreen, prints layout sizes).
+  Add `-AppleLanguages "(ja)"` or `"(zh-Hans)"` to run it in another
+  language; `-smokeAppearanceSnapshots` captures every library screen.
 
 ## Data & privacy
 

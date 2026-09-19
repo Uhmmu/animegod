@@ -19,9 +19,9 @@ public actor BilibiliSession {
 
         public var displayName: String {
             switch self {
-            case .automatic: "Automatic"
-            case .plain: "Plain (seg.so)"
-            case .wbi: "WBI signed"
+            case .automatic: String(localized: "Automatic", bundle: .module)
+            case .plain: String(localized: "Plain (seg.so)", bundle: .module)
+            case .wbi: String(localized: "WBI signed", bundle: .module)
             }
         }
     }
@@ -239,9 +239,9 @@ public enum BilibiliAPIError {
         case -10403, 6002003:
             return .regionLocked(message)
         case 62002, 62004:
-            return .serviceMessage(message.isEmpty ? "This video is not publicly visible." : message)
+            return .serviceMessage(message.isEmpty ? String(localized: "This video is not publicly visible.", bundle: .module) : message)
         default:
-            return .serviceMessage(message.isEmpty ? "Bilibili returned code \(code)." : message)
+            return .serviceMessage(message.isEmpty ? String(localized: "Bilibili returned code \(String(code)).", bundle: .module) : message)
         }
     }
 }

@@ -97,7 +97,7 @@ final class EpisodeCacheStore: ObservableObject {
         do {
             try FileManager.default.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
         } catch {
-            errorMessage = "Could not create the episode cache folder: \(error.localizedDescription)"
+            errorMessage = String(localized: "Could not create the episode cache folder: \(error.localizedDescription)")
         }
         await reconcile()
         await reload()
@@ -135,7 +135,7 @@ final class EpisodeCacheStore: ObservableObject {
                 }
             }
         } catch {
-            errorMessage = "Could not reconcile the episode cache: \(error.localizedDescription)"
+            errorMessage = String(localized: "Could not reconcile the episode cache: \(error.localizedDescription)")
         }
     }
 
@@ -144,7 +144,7 @@ final class EpisodeCacheStore: ObservableObject {
         do {
             entries = try await database.cacheEntries()
         } catch {
-            errorMessage = "Could not load the episode cache list: \(error.localizedDescription)"
+            errorMessage = String(localized: "Could not load the episode cache list: \(error.localizedDescription)")
         }
     }
 
@@ -205,7 +205,7 @@ final class EpisodeCacheStore: ObservableObject {
         guard FileManager.default.isReadableFile(atPath: sourceURL.path) else {
             access?.stop()
             if policy == .manual {
-                errorMessage = "“\(mediaFile.relativePath)” is not readable — connect its drive before caching."
+                errorMessage = String(localized: "“\(mediaFile.relativePath)” is not readable — connect its drive before caching.")
             }
             return
         }
@@ -216,7 +216,7 @@ final class EpisodeCacheStore: ObservableObject {
         let pendingBytes = queue.map(\.mediaFile.fileSize).reduce(0, +) + (activeJob?.mediaFile.fileSize ?? 0)
         guard hasLocalFreeSpace(for: mediaFile.fileSize, pendingBytes: pendingBytes) else {
             access?.stop()
-            errorMessage = "Not enough free space on this Mac to cache “\(mediaFile.relativePath)”."
+            errorMessage = String(localized: "Not enough free space on this Mac to cache “\(mediaFile.relativePath)”.")
             return
         }
 
@@ -312,7 +312,7 @@ final class EpisodeCacheStore: ObservableObject {
             // themselves in the cache manager instead of vanishing silently.
             if !progress.isCancelled {
                 try? await database.removeCacheEntry(mediaFileID: job.mediaFile.id)
-                errorMessage = "Could not cache “\(job.mediaFile.relativePath)”: \(error.localizedDescription)"
+                errorMessage = String(localized: "Could not cache “\(job.mediaFile.relativePath)”: \(error.localizedDescription)")
             }
         }
         await reload()

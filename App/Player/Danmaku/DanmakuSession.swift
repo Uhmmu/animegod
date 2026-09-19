@@ -380,7 +380,7 @@ final class DanmakuSession: ObservableObject {
         guard let primary = summaries.first else {
             show([])
             loadedSources = []
-            phase = .failed(lastError?.localizedDescription ?? "Danmaku could not be loaded.")
+            phase = .failed(lastError?.localizedDescription ?? String(localized: "Danmaku could not be loaded."))
             return
         }
         loadedSources = summaries

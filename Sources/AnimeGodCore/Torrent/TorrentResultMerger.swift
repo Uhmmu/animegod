@@ -136,10 +136,10 @@ public enum TorrentResultMerger {
 
         public var displayName: String {
             switch self {
-            case .relevance: "Best Match"
-            case .newest: "Newest"
-            case .seeders: "Most Seeders"
-            case .size: "Largest"
+            case .relevance: String(localized: "Best Match", bundle: .module)
+            case .newest: String(localized: "Newest", bundle: .module)
+            case .seeders: String(localized: "Most Seeders", bundle: .module)
+            case .size: String(localized: "Largest", bundle: .module)
             }
         }
     }

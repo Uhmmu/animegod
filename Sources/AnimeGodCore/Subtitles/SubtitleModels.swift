@@ -420,17 +420,17 @@ public enum SubtitleProviderError: Error, Equatable, Sendable, LocalizedError {
 
     public var errorDescription: String? {
         switch self {
-        case .notConfigured: "Not configured — add its API key in Settings."
-        case .unauthorized: "The API key or login was rejected."
+        case .notConfigured: String(localized: "Not configured — add its API key in Settings.", bundle: .module)
+        case .unauthorized: String(localized: "The API key or login was rejected.", bundle: .module)
         case let .rateLimited(retryAfter):
-            retryAfter.map { "Rate limited — try again in \(Int($0.rounded(.up)))s." } ?? "Rate limited — try again shortly."
-        case let .quotaExceeded(message): message ?? "The daily download quota is used up."
-        case let .httpStatus(code): "The service answered HTTP \(code)."
-        case .invalidResponse: "The service returned an unexpected response."
+            retryAfter.map { String(localized: "Rate limited — try again in \(Int($0.rounded(.up)))s.", bundle: .module) } ?? String(localized: "Rate limited — try again shortly.", bundle: .module)
+        case let .quotaExceeded(message): message ?? String(localized: "The daily download quota is used up.", bundle: .module)
+        case let .httpStatus(code): String(localized: "The service answered HTTP \(code).", bundle: .module)
+        case .invalidResponse: String(localized: "The service returned an unexpected response.", bundle: .module)
         case let .serviceMessage(message): message
-        case let .unsupportedArchive(kind): "The subtitle is packed as \(kind), which AnimeGod cannot open."
-        case .noSuitableFile: "The download contains no subtitle for this episode."
-        case .invalidSubtitle: "The downloaded file is not a readable subtitle."
+        case let .unsupportedArchive(kind): String(localized: "The subtitle is packed as \(kind), which AnimeGod cannot open.", bundle: .module)
+        case .noSuitableFile: String(localized: "The download contains no subtitle for this episode.", bundle: .module)
+        case .invalidSubtitle: String(localized: "The downloaded file is not a readable subtitle.", bundle: .module)
         }
     }
 }

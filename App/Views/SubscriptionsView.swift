@@ -151,14 +151,14 @@ struct SubscriptionsView: View {
     }
 
     private func statusLine(_ subscription: TorrentSubscription) -> String {
-        var parts = ["Searches: " + subscription.queries.joined(separator: ", ")]
+        var parts = [String(localized: "Searches: \(subscription.queries.joined(separator: ", "))")]
         if let checked = subscription.lastCheckedAt {
-            parts.append("checked \(checked.formatted(.relative(presentation: .numeric)))")
+            parts.append(String(localized: "checked \(checked.formatted(.relative(presentation: .numeric)))"))
         } else {
-            parts.append("not checked yet")
+            parts.append(String(localized: "not checked yet"))
         }
         if let matched = subscription.lastMatchedAt {
-            parts.append("last match \(matched.formatted(.relative(presentation: .numeric)))")
+            parts.append(String(localized: "last match \(matched.formatted(.relative(presentation: .numeric)))"))
         }
         return parts.joined(separator: " · ")
     }

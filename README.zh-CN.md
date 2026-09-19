@@ -1,6 +1,6 @@
 # AnimeGod
 
-[English](README.md) | **简体中文**
+[English](README.md) | **简体中文** | [日本語](README.ja.md)
 
 AnimeGod 是一款原生、本地优先的 macOS 动画库与视频播放器——
 **IINA × 动画库管理器 × Bangumi/AniList × 个人追番日记**，
@@ -107,8 +107,9 @@ AnimeGod 是一款原生、本地优先的 macOS 动画库与视频播放器—�
   翻译结果缓存到本地数据库。
 - 外语评论 **原文与译文并排显示**——原文从不被替换。
 
-### 外观
+### 外观与语言
 - 设置中可选 跟随系统 / 浅色 / 深色；播放器窗口始终保持深色。
+- 界面语言：English / 简体中文 / 日本語，在设置 → 语言 中切换（重启后生效）。
 
 ### 播放器
 - 内嵌 libmpv（MPVKit）播放：H.264/HEVC/AV1、10-bit、VideoToolbox 硬件解码、
@@ -216,6 +217,10 @@ xcodebuild -project AnimeGod.xcodeproj -scheme AnimeGod -configuration Release b
   数据源、翻译和统计——均可独立测试。
 - 应用目标使用 SwiftUI + AppKit，播放基于 LGPL 版本的 MPVKit。分发二进制文件前
   请阅读 `THIRD_PARTY_NOTICES.md`。
+- 界面文字保存在 String Catalog（`App/Localizable.xcstrings`、
+  `Sources/AnimeGodCore/Resources/Localizable.xcstrings`）中。命令行构建后运行
+  `scripts/sync-localizations.sh DerivedData/<task>` 同步新文字，
+  `scripts/check-localizations.py` 列出未翻译的条目。
 - 可选的在线数据源测试：`ANIMEGOD_LIVE_TESTS=1 swift test --filter
   'Bangumi.*ProviderTests'`。
 - 无界面播放器冒烟测试：使用 `-smokePlayerTest` 参数运行构建出的程序

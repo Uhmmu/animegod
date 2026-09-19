@@ -189,7 +189,7 @@ final class TranslationCoordinator: ObservableObject {
 
         var displayName: String {
             switch self {
-            case .none: "None"
+            case .none: String(localized: "None")
             case .deepl: "DeepL"
             }
         }

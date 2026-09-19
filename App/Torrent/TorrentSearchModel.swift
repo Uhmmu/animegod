@@ -93,7 +93,7 @@ final class TorrentSearchModel: ObservableObject {
         guard !queries.isEmpty else { return }
         let sources = TorrentSourceID.allCases.filter(preferences.enabledSources.contains)
         guard !sources.isEmpty else {
-            statusMessage = "Turn on at least one release source in Settings."
+            statusMessage = String(localized: "Turn on at least one release source in Settings.")
             return
         }
         preferences.record(queryText)
@@ -137,13 +137,13 @@ final class TorrentSearchModel: ObservableObject {
     func copyMagnet(_ result: TorrentSearchResult) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(result.magnet.uri, forType: .string)
-        statusMessage = "Copied the magnet link for “\(result.title)”."
+        statusMessage = String(localized: "Copied the magnet link for “\(result.title)”.")
     }
 
     func copyMagnets(_ results: [TorrentSearchResult]) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(results.map(\.magnet.uri).joined(separator: "\n"), forType: .string)
-        statusMessage = "Copied \(results.count) magnet links."
+        statusMessage = String(localized: "Copied \(results.count) magnet links.")
     }
 
     /// Hands the magnet to whichever app handles `magnet:` links.
@@ -151,7 +151,7 @@ final class TorrentSearchModel: ObservableObject {
         guard let url = URL(string: result.magnet.uri) else { return }
         guard NSWorkspace.shared.urlForApplication(toOpen: url) != nil else {
             copyMagnet(result)
-            statusMessage = "No app on this Mac opens magnet links, so the link was copied instead."
+            statusMessage = String(localized: "No app on this Mac opens magnet links, so the link was copied instead.")
             return
         }
         NSWorkspace.shared.open(url)
@@ -163,18 +163,18 @@ final class TorrentSearchModel: ObservableObject {
 
     func saveTorrent(_ result: TorrentSearchResult) {
         let panel = NSSavePanel()
-        panel.title = "Save Torrent File"
+        panel.title = String(localized: "Save Torrent File")
         panel.nameFieldStringValue = Self.fileName(for: result)
         panel.allowedContentTypes = [UTType(filenameExtension: "torrent") ?? .data]
         guard panel.runModal() == .OK, let destination = panel.url else { return }
-        statusMessage = "Fetching the torrent file…"
+        statusMessage = String(localized: "Fetching the torrent file…")
         Task {
             do {
                 let (data, _) = try await fetcher.fetch(result)
                 try data.write(to: destination, options: .atomic)
-                statusMessage = "Saved “\(destination.lastPathComponent)”."
+                statusMessage = String(localized: "Saved “\(destination.lastPathComponent)”.")
             } catch {
-                statusMessage = "No verified torrent file is available for this release. Use its magnet link instead."
+                statusMessage = String(localized: "No verified torrent file is available for this release. Use its magnet link instead.")
             }
         }
     }

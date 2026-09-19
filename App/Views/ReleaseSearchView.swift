@@ -166,12 +166,12 @@ struct ReleaseSearchView: View {
     }
 
     private func progressText(_ snapshot: TorrentSearchSnapshot) -> String {
-        let releases = "\(snapshot.results.count) release\(snapshot.results.count == 1 ? "" : "s")"
+        let releases = String(localized: "\(snapshot.results.count) releases")
         if search.isSearching {
-            return "Searched \(snapshot.completedPairs) of \(snapshot.pairs.count) · \(releases)"
+            return String(localized: "Searched \(snapshot.completedPairs) of \(snapshot.pairs.count) · \(releases)")
         }
-        if snapshot.hitDeadline { return "Stopped at the time limit · \(releases)" }
-        return "Searched \(Set(snapshot.pairs.map(\.source)).count) sources · \(releases)"
+        if snapshot.hitDeadline { return String(localized: "Stopped at the time limit · \(releases)") }
+        return String(localized: "Searched \(Set(snapshot.pairs.map(\.source)).count) sources · \(releases)")
     }
 
     // MARK: - Filters
@@ -245,8 +245,9 @@ struct ReleaseSearchView: View {
         .controlSize(.small)
     }
 
-    private func menuTitle(_ title: String, count: Int) -> String {
-        count == 0 ? title : "\(title) (\(count))"
+    private func menuTitle(_ title: LocalizedStringResource, count: Int) -> String {
+        let title = String(localized: title)
+        return count == 0 ? title : "\(title) (\(count))"
     }
 
     private func setBinding<Element: Hashable>(_ keyPath: WritableKeyPath<TorrentResultFilter, Set<Element>>, _ element: Element) -> Binding<Bool> {
@@ -385,10 +386,10 @@ struct ReleaseSearchView: View {
 private extension TorrentSubtitleLanguage {
     var menuName: String {
         switch self {
-        case .simplifiedChinese: "Simplified Chinese (简)"
-        case .traditionalChinese: "Traditional Chinese (繁)"
-        case .japanese: "Japanese (日)"
-        case .english: "English"
+        case .simplifiedChinese: String(localized: "Simplified Chinese (简)")
+        case .traditionalChinese: String(localized: "Traditional Chinese (繁)")
+        case .japanese: String(localized: "Japanese (日)")
+        case .english: String(localized: "English")
         }
     }
 }
@@ -409,14 +410,14 @@ private struct ReleaseTitleCell: View {
                 .lineLimit(2)
                 .help(result.title)
             HStack(spacing: 4) {
-                if bringsMissingEpisode { Tag(text: "New", tint: .green) }
+                if bringsMissingEpisode { Tag(text: String(localized: "New"), tint: .green) }
                 if let group = result.group { Tag(text: group, tint: .accentColor) }
                 if let episodes = result.release.episodeLabel {
                     Tag(text: "EP \(episodes)", tint: .purple)
                 }
-                if result.release.isBatch { Tag(text: "Batch", tint: .purple) }
-                if result.category == .raw { Tag(text: "Raw", tint: .gray) }
-                if result.category == .music { Tag(text: "Music", tint: .gray) }
+                if result.release.isBatch { Tag(text: String(localized: "Batch"), tint: .purple) }
+                if result.category == .raw { Tag(text: String(localized: "Raw"), tint: .gray) }
+                if result.category == .music { Tag(text: String(localized: "Music"), tint: .gray) }
                 if let resolution = result.release.resolution { Tag(text: resolution, tint: .blue) }
                 if !result.release.subtitleLanguages.isEmpty {
                     let languages = TorrentSubtitleLanguage.allCases
@@ -459,7 +460,7 @@ private struct SourceDetailsView: View {
         NavigationStack {
             List {
                 ForEach(snapshot.queries, id: \.self) { query in
-                    Section(snapshot.queries.count > 1 ? query : "Sources") {
+                    Section(snapshot.queries.count > 1 ? query : String(localized: "Sources")) {
                         ForEach(snapshot.pairs.filter { $0.query == query }) { pair in
                             HStack {
                                 Image(systemName: icon(pair.status)).foregroundStyle(tint(pair.status))
@@ -515,17 +516,17 @@ private struct SourceDetailsView: View {
 
     private func describe(_ status: TorrentSearchPair.Status) -> String {
         switch status {
-        case .queued: "Waiting"
-        case .running: "Searching…"
-        case .succeeded(let count): "\(count) found"
-        case .empty: "No results"
-        case .timedOut: "Timed out"
-        case .skipped: "Not started (time limit)"
-        case .cancelled: "Cancelled"
-        case .failed(.blocked): "Blocked by an anti-bot check"
-        case .failed(.http(let code)): "HTTP \(code)"
-        case .failed(.network(let message)): "Network error: \(message)"
-        case .failed(.parse): "Unexpected response"
+        case .queued: String(localized: "Waiting")
+        case .running: String(localized: "Searching…")
+        case .succeeded(let count): String(localized: "\(count) found")
+        case .empty: String(localized: "No results")
+        case .timedOut: String(localized: "Timed out")
+        case .skipped: String(localized: "Not started (time limit)")
+        case .cancelled: String(localized: "Cancelled")
+        case .failed(.blocked): String(localized: "Blocked by an anti-bot check")
+        case .failed(.http(let code)): String(localized: "HTTP \(code)")
+        case .failed(.network(let message)): String(localized: "Network error: \(message)")
+        case .failed(.parse): String(localized: "Unexpected response")
         }
     }
 }

@@ -13,9 +13,9 @@ public struct TorrentResultFilter: Hashable, Sendable {
 
         public var displayName: String {
             switch self {
-            case .any: "Episodes & Batches"
-            case .episodesOnly: "Single Episodes"
-            case .batchesOnly: "Batches Only"
+            case .any: String(localized: "Episodes & Batches", bundle: .module)
+            case .episodesOnly: String(localized: "Single Episodes", bundle: .module)
+            case .batchesOnly: String(localized: "Batches Only", bundle: .module)
             }
         }
     }

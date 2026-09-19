@@ -158,7 +158,7 @@ struct BangumiChartsView: View {
             loadError = nil
         } catch {
             if cache[key] == nil { loadError = error.localizedDescription }
-            else { model.errorMessage = "Could not load Bangumi charts: \(error.localizedDescription)" }
+            else { model.errorMessage = String(localized: "Could not load Bangumi charts: \(error.localizedDescription)") }
         }
     }
 
@@ -178,7 +178,7 @@ struct BangumiChartsView: View {
             state.totalPages = max(page.totalPages, 1)
             cache[key] = state
         } catch {
-            model.errorMessage = "Could not load more chart entries: \(error.localizedDescription)"
+            model.errorMessage = String(localized: "Could not load more chart entries: \(error.localizedDescription)")
         }
     }
 

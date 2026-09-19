@@ -10,12 +10,12 @@ public enum WatchStatus: String, Codable, CaseIterable, Sendable {
 
     public var displayName: String {
         switch self {
-        case .planning: "Planning"
-        case .watching: "Watching"
-        case .completed: "Completed"
-        case .paused: "Paused"
-        case .dropped: "Dropped"
-        case .rewatching: "Rewatching"
+        case .planning: String(localized: "Planning", bundle: .module)
+        case .watching: String(localized: "Watching", bundle: .module)
+        case .completed: String(localized: "Completed", bundle: .module)
+        case .paused: String(localized: "Paused", bundle: .module)
+        case .dropped: String(localized: "Dropped", bundle: .module)
+        case .rewatching: String(localized: "Rewatching", bundle: .module)
         }
     }
 }

@@ -89,7 +89,7 @@ private struct AnimeCard: View {
             Text(title ?? item.anime.title)
                 .font(.headline)
                 .lineLimit(2)
-            Text("\(item.episodeCount) episode\(item.episodeCount == 1 ? "" : "s")")
+            Text("\(item.episodeCount) episodes")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }

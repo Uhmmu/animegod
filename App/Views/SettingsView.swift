@@ -13,21 +13,22 @@ struct SettingsView: View {
     @State private var subtitleCacheBytes: Int64 = 0
     @State private var keychainImportResult: String?
     @AppStorage(AppearanceMode.storageKey) private var appearance: AppearanceMode = .system
+    @State private var language = AppLanguage.saved
 
     /// Explains what each source costs the viewer, since "both" doubles the
     /// requests per episode and can double-show a popular comment.
     private var sourceExplanation: String {
         switch danmaku.source {
-        case .dandanplay: "dandanplay identifies the file by hash — the most accurate match when the release is known."
-        case .bilibili: "Bilibili matches by title and episode number, and reads the official danmaku pool for that episode."
-        case .both: "Both pools are fetched and merged; comments that appear in both are shown once, keeping the dandanplay copy."
+        case .dandanplay: String(localized: "dandanplay identifies the file by hash — the most accurate match when the release is known.")
+        case .bilibili: String(localized: "Bilibili matches by title and episode number, and reads the official danmaku pool for that episode.")
+        case .both: String(localized: "Both pools are fetched and merged; comments that appear in both are shown once, keeping the dandanplay copy.")
         }
     }
 
     var body: some View {
         Form {
-            Section("Appearance") {
-                Picker("Mode", selection: $appearance) {
+            Section("General") {
+                Picker("Appearance", selection: $appearance) {
                     ForEach(AppearanceMode.allCases) { mode in
                         Text(mode.title).tag(mode)
                     }
@@ -37,6 +38,20 @@ struct SettingsView: View {
                 Text("The player window always stays dark.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                Picker("Language", selection: $language) {
+                    ForEach(AppLanguage.allCases) { language in
+                        Text(verbatim: language.title).tag(language)
+                    }
+                }
+                .onChange(of: language) { _, language in AppLanguage.save(language) }
+                if language != AppLanguage.atLaunch {
+                    HStack {
+                        Label("Relaunch AnimeGod to switch the language.", systemImage: "arrow.clockwise.circle")
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Button("Relaunch Now") { AppLanguage.relaunch() }
+                    }
+                }
             }
             Section("Translation") {
                 Picker("Provider", selection: $translation.provider) {
@@ -221,7 +236,7 @@ struct SettingsView: View {
                     translation.reloadCredentials()
                     danmaku.reloadCredentials()
                     subtitles.reloadCredentials()
-                    keychainImportResult = count == 0 ? "Nothing to import." : "Imported \(count) key\(count == 1 ? "" : "s")."
+                    keychainImportResult = count == 0 ? String(localized: "Nothing to import.") : String(localized: "Imported \(count) keys.")
                 }
                 if let keychainImportResult {
                     Text(keychainImportResult).font(.caption).foregroundStyle(.secondary)
@@ -296,10 +311,10 @@ struct SettingsView: View {
 
     private func providerSummary(_ provider: SubtitleProviderID) -> String {
         switch provider {
-        case .assrt: "Chinese fansub archive · ASS · 20 requests/min"
-        case .subdl: "TMDB-matched · 简/繁 · 2,000 searches/day"
-        case .openSubtitles: "Exact-file hash match · SRT only · 5 downloads/day without a login"
-        case .jimaku: "Japanese only · used when Japanese is a preferred language"
+        case .assrt: String(localized: "Chinese fansub archive · ASS · 20 requests/min")
+        case .subdl: String(localized: "TMDB-matched · 简/繁 · 2,000 searches/day")
+        case .openSubtitles: String(localized: "Exact-file hash match · SRT only · 5 downloads/day without a login")
+        case .jimaku: String(localized: "Japanese only · used when Japanese is a preferred language")
         }
     }
 

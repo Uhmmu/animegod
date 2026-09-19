@@ -7,8 +7,8 @@ public enum MetadataProviderError: LocalizedError, Sendable {
 
     public var errorDescription: String? {
         switch self {
-        case .invalidResponse: "The metadata service returned an invalid response."
-        case let .httpStatus(status): "The metadata service returned HTTP \(status)."
+        case .invalidResponse: String(localized: "The metadata service returned an invalid response.", bundle: .module)
+        case let .httpStatus(status): String(localized: "The metadata service returned HTTP \(status).", bundle: .module)
         case let .serviceMessage(message): message
         }
     }

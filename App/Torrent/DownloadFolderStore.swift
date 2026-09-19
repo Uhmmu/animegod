@@ -77,8 +77,8 @@ final class DownloadFolderStore: ObservableObject {
 
     func chooseFolder() {
         let panel = NSOpenPanel()
-        panel.title = "Choose a download folder"
-        panel.prompt = "Use Folder"
+        panel.title = String(localized: "Choose a download folder")
+        panel.prompt = String(localized: "Use Folder")
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.canCreateDirectories = true
@@ -114,11 +114,11 @@ final class DownloadFolderStore: ObservableObject {
         let reason = Self.reasonUnusable(currentFolder)
         for folder in recentFolders where folder.path != currentFolder.path {
             if let url = accessibleURL(for: folder) {
-                fallbackNotice = "\(reason) Downloading to “\(folder.displayName)” instead."
+                fallbackNotice = String(localized: "\(reason) Downloading to “\(folder.displayName)” instead.")
                 return url
             }
         }
-        fallbackNotice = "\(reason) Downloading to the app's own folder instead."
+        fallbackNotice = String(localized: "\(reason) Downloading to the app's own folder instead.")
         return Self.defaultFolderURL
     }
 
@@ -146,13 +146,13 @@ final class DownloadFolderStore: ObservableObject {
     private static func reasonUnusable(_ folder: Folder) -> String {
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: folder.path, isDirectory: &isDirectory) else {
-            return "“\(folder.displayName)” is not there right now — is the drive plugged in?"
+            return String(localized: "“\(folder.displayName)” is not there right now — is the drive plugged in?")
         }
-        guard isDirectory.boolValue else { return "“\(folder.displayName)” is not a folder." }
+        guard isDirectory.boolValue else { return String(localized: "“\(folder.displayName)” is not a folder.") }
         if folder.libraryRootID != nil {
-            return "AnimeGod can read “\(folder.displayName)” but not write to it: this library folder was authorised for reading only. Use “Choose Folder…” and pick it again to allow downloads into it."
+            return String(localized: "AnimeGod can read “\(folder.displayName)” but not write to it: this library folder was authorised for reading only. Use “Choose Folder…” and pick it again to allow downloads into it.")
         }
-        return "AnimeGod is not allowed to write to “\(folder.displayName)”. Use “Choose Folder…” and pick it again."
+        return String(localized: "AnimeGod is not allowed to write to “\(folder.displayName)”. Use “Choose Folder…” and pick it again.")
     }
 
     private func resolve(_ folder: Folder) -> Folder? {

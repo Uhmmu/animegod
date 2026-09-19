@@ -13,9 +13,9 @@ public enum DanmakuMode: String, Codable, Sendable, CaseIterable {
 
     public var displayName: String {
         switch self {
-        case .scroll: "Scrolling"
-        case .top: "Top"
-        case .bottom: "Bottom"
+        case .scroll: String(localized: "Scrolling", bundle: .module)
+        case .top: String(localized: "Top", bundle: .module)
+        case .bottom: String(localized: "Bottom", bundle: .module)
         }
     }
 }
@@ -213,16 +213,16 @@ public enum DanmakuProviderError: LocalizedError, Sendable, Equatable {
 
     public var errorDescription: String? {
         switch self {
-        case .notConfigured: "The danmaku provider is not configured."
-        case .invalidResponse: "The danmaku service returned an invalid response."
-        case let .httpStatus(status): "The danmaku service returned HTTP \(status)."
+        case .notConfigured: String(localized: "The danmaku provider is not configured.", bundle: .module)
+        case .invalidResponse: String(localized: "The danmaku service returned an invalid response.", bundle: .module)
+        case let .httpStatus(status): String(localized: "The danmaku service returned HTTP \(status).", bundle: .module)
         case let .serviceMessage(message): message
         case let .requiresLogin(message):
-            message.isEmpty ? "This danmaku source requires you to be signed in." : message
+            message.isEmpty ? String(localized: "This danmaku source requires you to be signed in.", bundle: .module) : message
         case let .regionLocked(message):
-            message.isEmpty ? "This title is not available in your region." : message
+            message.isEmpty ? String(localized: "This title is not available in your region.", bundle: .module) : message
         case .rejectedByRiskControl:
-            "The danmaku service rejected the request (risk control). Try again in a moment."
+            String(localized: "The danmaku service rejected the request (risk control). Try again in a moment.", bundle: .module)
         }
     }
 

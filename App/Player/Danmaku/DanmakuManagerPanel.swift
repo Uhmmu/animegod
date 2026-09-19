@@ -88,9 +88,8 @@ struct DanmakuManagerPanel: View {
 
     private var summary: String {
         let snapshot = session.renderer
-        guard snapshot.totalCount > 0 else { return "No comments loaded" }
-        return "\(snapshot.loadedCount.formatted()) of \(snapshot.totalCount.formatted()) shown · "
-            + "\(snapshot.mergedCount.formatted()) merged · \(snapshot.hiddenCount.formatted()) hidden"
+        guard snapshot.totalCount > 0 else { return String(localized: "No comments loaded") }
+        return String(localized: "\(snapshot.loadedCount.formatted()) of \(snapshot.totalCount.formatted()) shown · \(snapshot.mergedCount.formatted()) merged · \(snapshot.hiddenCount.formatted()) hidden")
     }
 
     // MARK: - Nearby
@@ -99,9 +98,9 @@ struct DanmakuManagerPanel: View {
         commentList(
             nearbyComments(),
             empty: session.comments.isEmpty
-                ? "No danmaku loaded for this episode."
-                : "No comments in the last \(Int(Self.nearbyWindow)) seconds.",
-            footer: "Newest first. Click to jump, right-click to block."
+                ? String(localized: "No danmaku loaded for this episode.")
+                : String(localized: "No comments in the last \(Int(Self.nearbyWindow)) seconds."),
+            footer: String(localized: "Newest first. Click to jump, right-click to block.")
         )
     }
 
@@ -146,14 +145,14 @@ struct DanmakuManagerPanel: View {
             Divider()
 
             if trimmedQuery.isEmpty {
-                placeholder("Search every comment in this episode.")
+                placeholder(String(localized: "Search every comment in this episode."))
             } else {
                 commentList(
                     Array(matches.prefix(Self.rowLimit)),
-                    empty: "No comments contain “\(trimmedQuery)”.",
+                    empty: String(localized: "No comments contain “\(trimmedQuery)”."),
                     footer: matches.count > Self.rowLimit
-                        ? "Showing the first \(Self.rowLimit) of \(matches.count.formatted()) matches."
-                        : "\(matches.count.formatted()) matches."
+                        ? String(localized: "Showing the first \(Self.rowLimit) of \(matches.count.formatted()) matches.")
+                        : String(localized: "\(matches.count.formatted()) matches.")
                 )
             }
         }
@@ -304,11 +303,11 @@ struct DanmakuManagerPanel: View {
 
     private static func label(for reason: DanmakuCommentFilter.HidingReason) -> String {
         switch reason {
-        case .mode: "Mode hidden"
-        case .colored: "Colored"
-        case .tooLong: "Too long"
-        case let .keyword(keyword): "Blocked: \(shortened(keyword))"
-        case .sender: "Blocked user"
+        case .mode: String(localized: "Mode hidden")
+        case .colored: String(localized: "Colored")
+        case .tooLong: String(localized: "Too long")
+        case let .keyword(keyword): String(localized: "Blocked: \(shortened(keyword))")
+        case .sender: String(localized: "Blocked user")
         }
     }
 }

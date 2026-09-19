@@ -92,7 +92,7 @@ public struct TorrentSubscription: Identifiable, Hashable, Sendable {
         if let minimumEpisode { parts.append("after EP \(Int(minimumEpisode))") }
         if includesBatches { parts.append("batches too") }
         if includesExistingReleases { parts.append("including older releases") }
-        return parts.isEmpty ? "Any release" : parts.joined(separator: " · ")
+        return parts.isEmpty ? String(localized: "Any release", bundle: .module) : parts.joined(separator: " · ")
     }
 }
 

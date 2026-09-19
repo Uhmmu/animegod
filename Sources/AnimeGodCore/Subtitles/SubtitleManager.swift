@@ -48,7 +48,7 @@ public struct SubtitleManager: Sendable {
             // A provider that cannot serve any wanted language is not asked
             // (Jimaku holds Japanese only), which saves its quota.
             if !wanted.isEmpty, provider.id.servedLanguages.isDisjoint(with: wanted) {
-                outcomes[provider.id] = .skipped(reason: "No subtitles in the preferred languages")
+                outcomes[provider.id] = .skipped(reason: String(localized: "No subtitles in the preferred languages", bundle: .module))
             } else {
                 active.append(provider)
             }
@@ -122,13 +122,13 @@ public struct SubtitleManager: Sendable {
     /// A short, user-facing explanation of a provider or network error.
     public static func message(for error: Error) -> String {
         if let error = error as? SubtitleProviderError { return error.localizedDescription }
-        if error is CancellationError { return "Timed out." }
+        if error is CancellationError { return String(localized: "Timed out.", bundle: .module) }
         if let error = error as? URLError {
             switch error.code {
-            case .notConnectedToInternet, .networkConnectionLost: return "No network connection."
-            case .timedOut: return "Timed out."
+            case .notConnectedToInternet, .networkConnectionLost: return String(localized: "No network connection.", bundle: .module)
+            case .timedOut: return String(localized: "Timed out.", bundle: .module)
             case .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed:
-                return "The service is unreachable from this network."
+                return String(localized: "The service is unreachable from this network.", bundle: .module)
             default: return error.localizedDescription
             }
         }

@@ -23,11 +23,11 @@ public enum BangumiChartChannel: String, CaseIterable, Identifiable, Sendable {
 
     public var title: String {
         switch self {
-        case .anime: "Anime"
-        case .book: "Books"
-        case .music: "Music"
-        case .game: "Games"
-        case .real: "Live Action"
+        case .anime: String(localized: "Anime", bundle: .module)
+        case .book: String(localized: "Books", bundle: .module)
+        case .music: String(localized: "Music", bundle: .module)
+        case .game: String(localized: "Games", bundle: .module)
+        case .real: String(localized: "Live Action", bundle: .module)
         }
     }
 }

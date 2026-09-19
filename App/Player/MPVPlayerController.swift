@@ -391,7 +391,7 @@ final class MPVPlayerController: NSViewController {
         isFileLoaded = false
         configureMetalLayer(metalOutputConfiguration)
         guard let handle = mpv_create() else {
-            delegate?.playerDidFail(message: "Could not create the playback engine.")
+            delegate?.playerDidFail(message: String(localized: "Could not create the playback engine."))
             return
         }
         mpv = handle
@@ -577,7 +577,9 @@ final class MPVPlayerController: NSViewController {
         for index in 0..<count {
             guard let type = getString("track-list/\(index)/type"),
                   let id = getInt64("track-list/\(index)/id") else { continue }
-            let fallback = type == "audio" ? "Audio \(audio.count + 1)" : "Subtitle \(subtitles.count + 1)"
+            let fallback = type == "audio"
+                ? String(localized: "Audio \(audio.count + 1)")
+                : String(localized: "Subtitle \(subtitles.count + 1)")
             let track = MediaTrack(
                 id: id,
                 type: type,
@@ -923,7 +925,7 @@ final class MPVPlayerController: NSViewController {
 
     private func errorMessage(for status: Int32) -> String {
         let detail = mpv_error_string(status).map { String(cString: $0) } ?? "unknown error"
-        return "Playback failed: \(detail)"
+        return String(localized: "Playback failed: \(detail)")
     }
 
     deinit {

@@ -11,10 +11,10 @@ public enum AnimeKind: String, Codable, CaseIterable, Sendable {
     public var displayName: String {
         switch self {
         case .tv: "TV"
-        case .movie: "Movie"
+        case .movie: String(localized: "Movie", bundle: .module)
         case .ova: "OVA"
         case .ona: "ONA"
-        case .special: "Special"
+        case .special: String(localized: "Special", bundle: .module)
         case .unknown: ""
         }
     }
@@ -50,11 +50,11 @@ public enum EpisodeCategory: Int, CaseIterable, Sendable {
 
     public var displayName: String {
         switch self {
-        case .main: "Episodes"
-        case .special: "Specials (SP)"
-        case .music: "Music & Credits"
-        case .trailer: "Trailers"
-        case .extra: "Extras"
+        case .main: String(localized: "Episodes", bundle: .module)
+        case .special: String(localized: "Specials (SP)", bundle: .module)
+        case .music: String(localized: "Music & Credits", bundle: .module)
+        case .trailer: String(localized: "Trailers", bundle: .module)
+        case .extra: String(localized: "Extras", bundle: .module)
         }
     }
 }
@@ -154,6 +154,31 @@ public struct Episode: Codable, Identifiable, Hashable, Sendable {
         case .special: numberText.map { "Special \($0)" } ?? "Special"
         case .extra: "Extra"
         case .regular: numberText.map { "Episode \($0)" } ?? "Movie / Episode"
+        }
+    }
+
+    /// Shows a `displayLabel` in the interface language. The English label
+    /// is what gets stored (watch history, cache entries), so records made
+    /// under one language still read correctly after switching to another.
+    public static func localizedLabel(_ label: String) -> String {
+        switch label {
+        case "Creditless Opening": return String(localized: "Creditless Opening", bundle: .module)
+        case "Creditless Ending": return String(localized: "Creditless Ending", bundle: .module)
+        case "Music Video": return String(localized: "Music Video", bundle: .module)
+        case "Trailer": return String(localized: "Trailer", bundle: .module)
+        case "Special": return String(localized: "Special", bundle: .module)
+        case "Extra": return String(localized: "Extra", bundle: .module)
+        case "Movie / Episode": return String(localized: "Movie / Episode", bundle: .module)
+        default:
+            if label.hasPrefix("Episode ") {
+                let number = String(label.dropFirst("Episode ".count))
+                return String(localized: "Episode \(number)", bundle: .module)
+            }
+            if label.hasPrefix("Special ") {
+                let number = String(label.dropFirst("Special ".count))
+                return String(localized: "Special \(number)", bundle: .module)
+            }
+            return label
         }
     }
 }
