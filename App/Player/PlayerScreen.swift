@@ -731,6 +731,7 @@ struct PlayerScreen: View {
     /// A text field in the danmaku manager has focus; single-key player
     /// shortcuts are suspended so typing doesn't pause, seek, or go fullscreen.
     @State private var isTypingInDanmakuManager = false
+    @State private var isFullscreen = false
 
     init(request: PlayerRequest) {
         self.request = request
@@ -831,7 +832,9 @@ struct PlayerScreen: View {
             VStack {
                 header
                     .opacity(controlsVisible ? 1 : 0)
+                    .allowsHitTesting(controlsVisible)
                     .animation(.easeOut(duration: 0.2), value: controlsVisible)
+                    .onHover { hovering in isHoveringControls = hovering }
                 Spacer()
             }
             if showDanmakuManager {
@@ -917,10 +920,12 @@ struct PlayerScreen: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { notification in
             guard notification.object as? NSWindow === state.controller?.view.window else { return }
+            isFullscreen = true
             revealControls()
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didExitFullScreenNotification)) { notification in
             guard notification.object as? NSWindow === state.controller?.view.window else { return }
+            isFullscreen = false
             showCursor()
             revealControls()
         }
@@ -958,72 +963,83 @@ struct PlayerScreen: View {
     }
 
     private var header: some View {
-        HStack(spacing: 12) {
+        HStack(alignment: .center, spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(model.metadataByAnimeID[state.currentEpisode.episode.animeID]?.title
                      ?? model.library.first(where: { $0.id == state.currentEpisode.episode.animeID })?.anime.title
                      ?? "AnimeGod")
                     .font(.headline)
-                Text(episodeLabel).font(.subheadline).foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Text(episodeLabel)
+                    .font(.subheadline)
+                    .foregroundStyle(PlayerChrome.secondary)
+            }
+            .layoutPriority(1)
+            // Navigation within the work sits with its title; the bottom bar
+            // keeps playback controls only.
+            HStack(spacing: 4) {
+                if state.episodes.count > 1 {
+                    PlayerEpisodePicker(
+                        episodes: state.episodes,
+                        currentIndex: state.currentIndex,
+                        isSwitching: isSwitching,
+                        select: { index in Task { await switchTo(index) } }
+                    )
+                    .equatable()
+                }
+                if !state.chapters.isEmpty {
+                    StableMenu(state.chapters, state.currentChapter) { chapterMenu }.equatable()
+                }
             }
             Spacer()
-            Text("Episode \(state.currentIndex + 1) of \(state.episodes.count)")
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(.secondary)
         }
-        .padding(.horizontal, 84)
-        .padding(.vertical, 12)
-        .foregroundStyle(.white)
-        .background(
-            LinearGradient(colors: [.black.opacity(0.55), .clear], startPoint: .top, endPoint: .bottom)
-                .allowsHitTesting(false)
-        )
+        .buttonStyle(PlayerIconButtonStyle())
+        .menuStyle(PlayerMenuStyle())
+        // Clears the traffic-light buttons of the hidden title bar.
+        .padding(.leading, 84)
+        .padding(.trailing, 20)
+        .padding(.top, 10)
+        .padding(.bottom, 28)
+        .foregroundStyle(PlayerChrome.foreground)
+        .background(PlayerChrome.scrim(from: .top).allowsHitTesting(false))
     }
 
     private var controls: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 4) {
             // Timeline row keeps the scrubber wide instead of fighting the
             // buttons for space.
-            HStack(spacing: 10) {
-                Text(time(state.position)).monospacedDigit().foregroundStyle(.secondary)
-                Slider(value: Binding(get: { state.position }, set: { state.seek(to: $0) }), in: 0...max(state.duration, 1))
-                Text("−\(time(max(state.duration - state.position, 0)))").monospacedDigit().foregroundStyle(.secondary)
-            }
+            Slider(value: Binding(get: { state.position }, set: { state.seek(to: $0) }), in: 0...max(state.duration, 1))
+                .controlSize(.small)
+                .tint(.white)
+                .padding(.horizontal, 6)
 
-            HStack(spacing: 14) {
-                Button { state.togglePause() } label: {
-                    Image(systemName: state.paused ? "play.fill" : "pause.fill")
-                }
-                .keyboardShortcut(playerKey(.space))
-                .accessibilityLabel(state.paused ? "Play" : "Pause")
-
-                Button { state.seek(by: -10) } label: { Image(systemName: "gobackward.10") }
-                    .keyboardShortcut(playerKey(.leftArrow))
-                    .help("Back 10 Seconds")
-
-                Button { state.seek(by: 10) } label: { Image(systemName: "goforward.10") }
-                    .keyboardShortcut(playerKey(.rightArrow))
-                    .help("Forward 10 Seconds")
-
-                Button { Task { await switchTo(state.currentIndex - 1) } } label: { Image(systemName: "chevron.left.2") }
+            HStack(spacing: 6) {
+                Button { Task { await switchTo(state.currentIndex - 1) } } label: { Image(systemName: "backward.end") }
                     .disabled(!state.hasPrevious || isSwitching)
                     .keyboardShortcut(playerKey("p"))
                     .help("Previous Episode (P)")
 
-                Button { Task { await switchTo(state.currentIndex + 1) } } label: { Image(systemName: "chevron.right.2") }
+                Button { state.togglePause() } label: {
+                    Image(systemName: state.paused ? "play" : "pause")
+                        .contentTransition(.symbolEffect(.replace))
+                }
+                .keyboardShortcut(playerKey(.space))
+                .accessibilityLabel(state.paused ? "Play" : "Pause")
+                .help(state.paused ? "Play (Space)" : "Pause (Space)")
+
+                Button { Task { await switchTo(state.currentIndex + 1) } } label: { Image(systemName: "forward.end") }
                     .disabled(!state.hasNext || isSwitching)
                     .keyboardShortcut(playerKey("n"))
                     .help("Next Episode (N)")
 
-                if state.episodes.count > 1 {
-                    StableMenu(state.currentIndex, state.episodes.count) { episodeMenu }.equatable()
-                }
+                Text("\(time(state.position)) / \(time(state.duration))")
+                    .font(PlayerChrome.labelFont)
+                    .foregroundStyle(PlayerChrome.secondary)
+                    .padding(.leading, 8)
+                    .fixedSize()
 
                 Spacer(minLength: 12)
 
-                if !state.chapters.isEmpty {
-                    StableMenu(state.chapters, state.currentChapter) { chapterMenu }.equatable()
-                }
                 if state.currentEpisode.versions.count > 1 {
                     StableMenu(state.currentEpisode.mediaFile.id, state.currentEpisode.versions.map(\.id)) { versionMenu }.equatable()
                 }
@@ -1038,57 +1054,24 @@ struct PlayerScreen: View {
                     )
                 }
                 .equatable()
-                StableMenu(state.speed) { speedMenu }.equatable()
-                StableMenu(state.audioTracks, state.audioID) { audioMenu }.equatable()
                 subtitleMenu
-                volumeControl
-                Button { toggleFullscreen() } label: { Image(systemName: "arrow.up.left.and.arrow.down.right") }
-                    .keyboardShortcut(playerKey("f"))
-                    .help("Enter Full Screen (F)")
-            }
-        }
-        .buttonStyle(.borderless)
-        .foregroundStyle(.primary)
-        .padding(.horizontal, 18)
-        .padding(.vertical, 12)
-        .background(.regularMaterial)
-    }
-
-    /// Quick jump between episodes with their category labels so specials
-    /// and music are distinguishable without leaving the player.
-    private var episodeMenu: some View {
-        Menu {
-            ForEach(Array(state.episodes.enumerated()), id: \.element.id) { index, item in
-                Button {
-                    Task { await switchTo(index) }
-                } label: {
-                    if index == state.currentIndex {
-                        Label(episodeMenuItemLabel(item), systemImage: "checkmark")
-                    } else {
-                        Text(episodeMenuItemLabel(item))
-                    }
+                StableMenu(state.audioTracks, state.audioID) { audioMenu }.equatable()
+                StableMenu(state.speed) { speedMenu }.equatable()
+                PlayerVolumeControl(volume: state.volume) { [state] in state.setVolume($0) }
+                Button { toggleFullscreen() } label: {
+                    Image(systemName: isFullscreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
                 }
-                .disabled(index == state.currentIndex)
+                .keyboardShortcut(playerKey("f"))
+                .help(isFullscreen ? "Exit Full Screen (F)" : "Enter Full Screen (F)")
             }
-        } label: {
-            Image(systemName: "list.bullet")
         }
-        .fixedSize()
-        .help("Jump to Episode")
-    }
-
-    private func episodeMenuItemLabel(_ item: EpisodeMedia) -> String {
-        let episode = item.episode
-        let label = switch episode.kind {
-        case .regular: episode.numberText.map { "Episode \($0)" } ?? "Movie"
-        case .special: "SP \(episode.numberText ?? "")"
-        case .opening: "NCOP"
-        case .ending: "NCED"
-        case .music: "Music \(episode.numberText ?? "")"
-        case .trailer: "Trailer"
-        case .extra: "Extra"
-        }
-        return label.trimmingCharacters(in: .whitespaces)
+        .buttonStyle(PlayerIconButtonStyle())
+        .menuStyle(PlayerMenuStyle())
+        .foregroundStyle(PlayerChrome.foreground)
+        .padding(.horizontal, 14)
+        .padding(.top, 36)
+        .padding(.bottom, 10)
+        .background(PlayerChrome.scrim(from: .bottom).allowsHitTesting(false))
     }
 
     /// Alternative encodes of the same episode (DoVi / SDR / …).
@@ -1108,7 +1091,6 @@ struct PlayerScreen: View {
         } label: {
             Image(systemName: "square.stack.3d.up")
         }
-        .fixedSize()
         .help("Video Version — EDR displays prefer detected Profile 8 with a compatible base layer; otherwise SDR remains first")
     }
 
@@ -1148,17 +1130,8 @@ struct PlayerScreen: View {
                 }
             }
         } label: {
-            HStack(spacing: 4) {
-                Image(systemName: "list.bullet.rectangle")
-                if let current = state.currentChapter, state.chapters.indices.contains(current) {
-                    Text(state.chapters[current].title)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                }
-            }
+            Image(systemName: "list.bullet.rectangle")
         }
-        .frame(maxWidth: 120)
-        .fixedSize()
         .help("Chapters")
     }
 
@@ -1199,22 +1172,15 @@ struct PlayerScreen: View {
                 }
             }
         } label: {
-            Text(speedLabel(state.speed)).monospacedDigit()
+            Text(speedLabel(state.speed))
+                .font(PlayerChrome.labelFont)
+                // Only stands out when playback isn't at normal speed.
+                .foregroundStyle(abs(state.speed - 1) < 0.01 ? PlayerChrome.foreground : .black)
+                .frame(minWidth: 30)
+                .padding(.vertical, 2)
+                .background(abs(state.speed - 1) < 0.01 ? Color.clear : .white, in: Capsule())
         }
-        .fixedSize()
         .help("Playback Speed")
-    }
-
-    private var volumeControl: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "speaker.wave.2.fill")
-            Slider(value: Binding(
-                get: { state.volume },
-                set: { state.setVolume($0) }
-            ), in: 0...130)
-            .frame(width: 76)
-        }
-        .help("Volume")
     }
 
     private func speedLabel(_ value: Double) -> String {
@@ -1223,12 +1189,21 @@ struct PlayerScreen: View {
 
     private func scheduleSmokeTest() {
         Task { @MainActor in
-            func capture(_ path: String) {
-                let process = Process()
-                process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
-                process.arguments = ["-x", path]
-                try? process.run()
-                process.waitUntilExit()
+            // Own-window capture: needs no Screen Recording permission and
+            // lands in the container's temporary folder.
+            @MainActor func capture(_ name: String) {
+                guard let window = state.controller?.view.window,
+                      let data = WindowSnapshot.png(of: window) else { return }
+                let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
+                try? data.write(to: url)
+                FileHandle.standardError.write(Data("SMOKE captured \(url.path)\n".utf8))
+                // Popovers (AG_SMOKE_EPISODE_PICKER=1) are windows of their own.
+                for popover in NSApp.windows where popover.isVisible && String(describing: type(of: popover)).contains("Popover") {
+                    guard let data = WindowSnapshot.png(of: popover) else { continue }
+                    let url = FileManager.default.temporaryDirectory.appendingPathComponent("popover-" + name)
+                    try? data.write(to: url)
+                    FileHandle.standardError.write(Data("SMOKE captured \(url.path)\n".utf8))
+                }
             }
             try? await Task.sleep(for: .seconds(4))
             // AG_SMOKE_SUBTITLE=<file inside the container> adds and selects
@@ -1273,7 +1248,9 @@ struct PlayerScreen: View {
                 toggleFullscreen()
                 try? await Task.sleep(for: .seconds(2))
             }
-            capture("/tmp/ag_windowed.png")
+            revealControls()
+            try? await Task.sleep(for: .milliseconds(400))
+            capture("ag_windowed.png")
             Self.printSmokeState(
                 "windowed",
                 state: state,
@@ -1284,7 +1261,7 @@ struct PlayerScreen: View {
             // Fullscreen rebuilds the mpv renderer. Allow that brief loading
             // cycle to finish, then cover the fresh 2.8-second idle timeout.
             try? await Task.sleep(for: .seconds(6))
-            capture("/tmp/ag_fullscreen.png")
+            capture("ag_fullscreen.png")
             Self.printSmokeState(
                 "fullscreen",
                 state: state,
@@ -1380,7 +1357,8 @@ struct PlayerScreen: View {
     }
 
     /// ⌘⇧D toggles diagnostics; ⌘⇧H forces SDR without mutating the live
-    /// CAMetalLayer format; D toggles danmaku; M toggles the danmaku manager.
+    /// CAMetalLayer format; ←/→ seek 10 s; D toggles danmaku; M toggles the
+    /// danmaku manager.
     private var diagnosticsShortcuts: some View {
         Group {
             Button("Toggle Diagnostics") { showDiagnostics.toggle() }
@@ -1389,6 +1367,11 @@ struct PlayerScreen: View {
                 state.toggleForcedSDR()
             }
                 .keyboardShortcut("h", modifiers: [.command, .shift])
+            // Seeking has no on-screen buttons; the arrows still work.
+            Button("Back 10 Seconds") { state.seek(by: -10) }
+                .keyboardShortcut(playerKey(.leftArrow))
+            Button("Forward 10 Seconds") { state.seek(by: 10) }
+                .keyboardShortcut(playerKey(.rightArrow))
             Button("Toggle Danmaku") {
                 danmakuPreferences.enabled.toggle()
             }

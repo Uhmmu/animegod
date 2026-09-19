@@ -39,7 +39,7 @@ enum AppearanceSnapshotSmokeTest {
                 // Artwork and provider-backed pages load asynchronously.
                 try? await Task.sleep(for: .seconds(section == "detail" || section == "bangumiCharts" ? 4 : 2))
                 let url = folder.appendingPathComponent("\(mode.rawValue)-\(section).png")
-                if let data = capture(window) {
+                if let data = WindowSnapshot.png(of: window) {
                     try? data.write(to: url)
                     print("SMOKE appearance wrote \(url.path)")
                 } else {
@@ -51,12 +51,12 @@ enum AppearanceSnapshotSmokeTest {
         AppearanceMode.apply(.light)
         openPlayer()
         try? await Task.sleep(for: .seconds(2))
-        if let player = NSApp.windows.first(where: { $0.isVisible && $0 !== window }), let data = capture(player) {
+        if let player = NSApp.windows.first(where: { $0.isVisible && $0 !== window }), let data = WindowSnapshot.png(of: player) {
             let url = folder.appendingPathComponent("light-player.png")
             try? data.write(to: url)
             print("SMOKE appearance wrote \(url.path) playerAppearance=\(player.effectiveAppearance.name.rawValue)")
             // ...and must not drag the library window along with it.
-            if let data = capture(window) {
+            if let data = WindowSnapshot.png(of: window) {
                 try? data.write(to: folder.appendingPathComponent("light-library-beside-player.png"))
             }
             print("SMOKE appearance libraryAppearance=\(window.effectiveAppearance.name.rawValue)")
@@ -66,13 +66,16 @@ enum AppearanceSnapshotSmokeTest {
         print("SMOKE appearance folder \(folder.path)")
         exit(0)
     }
+}
 
+/// PNG of one of the app's own windows, for smoke tests.
+enum WindowSnapshot {
     /// `CGWindowListCreateImage` is unavailable in the macOS 15 SDK but
     /// still present at runtime, and it can read the caller's own windows
     /// without Screen Recording permission; `cacheDisplay` is the fallback,
     /// though it leaves visual-effect backgrounds blank.
     @MainActor
-    private static func capture(_ window: NSWindow) -> Data? {
+    static func png(of window: NSWindow) -> Data? {
         typealias CreateImage = @convention(c) (CGRect, UInt32, UInt32, UInt32) -> Unmanaged<CGImage>?
         if let handle = dlopen(nil, RTLD_NOW),
            let symbol = dlsym(handle, "CGWindowListCreateImage") {

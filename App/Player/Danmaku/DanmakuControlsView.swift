@@ -86,8 +86,9 @@ struct DanmakuDiagnosticsSection: View {
     }
 }
 
-/// The player-bar danmaku control: its primary click opens smart episode
-/// selection; the menu still provides the toggle, filters, and settings.
+/// The player-bar danmaku control: the toggle, episode matching, filters,
+/// and settings. A click opens the menu, like every other control in the
+/// bar (a primary action would hide the menu behind a long press).
 struct DanmakuMenuButton: View {
     @ObservedObject var preferences: DanmakuPreferences
     /// Not observed as a whole: the session publishes renderer statistics
@@ -154,10 +155,8 @@ struct DanmakuMenuButton: View {
             Button("Danmaku Settings…") { openSettings() }
         } label: {
             Image(systemName: preferences.enabled ? "text.bubble.fill" : "text.bubble")
-        } primaryAction: {
-            openMatch()
         }
-        .help("Choose the best matching danmaku episode")
+        .help("Danmaku (D toggles, M manages)")
         .onReceive(shownStateChanges) { revision += 1 }
     }
 

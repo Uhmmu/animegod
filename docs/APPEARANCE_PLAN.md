@@ -1,6 +1,6 @@
 # Appearance Plan: Dark Mode and Player Chrome
 
-Status: **G1 implemented** (G2–G4 planned)
+Status: **G1 and G2 implemented** (G3–G4 planned)
 
 Two problems, split into four goals that each ship and get verified on their
 own:
@@ -153,6 +153,32 @@ buttons.
 **Split `controls` into its own view file** (`PlayerControlBar.swift`) that
 takes plain values and closures, in the same pattern as `SubtitleMenuButton`.
 This is also what keeps hover states steady under the 25 Hz re-render.
+
+**Outcome (G2):** the chrome lives in `App/Player/Chrome/PlayerChrome.swift`
+(`PlayerChrome` tokens, `PlayerIconButtonStyle`, `PlayerMenuStyle`,
+`PlayerVolumeControl`). The bar was restyled in place rather than moved
+into its own file: hover state lives in each button's own style body, which
+keeps its identity across the 25 Hz re-render, so the extraction wasn't
+needed for that. The danmaku button lost its `primaryAction` (click =
+Match Episode). With the disclosure arrow hidden, a primary action would
+have left the menu reachable only by long-press. Match Episode stays in
+the menu and the on-screen badge.
+
+After a first look, the user asked for a calmer bar, so the layout changed:
+- **Header, next to the title:** the episode picker and the chapter menu
+  (icon only). The episode picker is `PlayerEpisodePicker`, a popover grid
+  grouped by `EpisodeCategory`. It uses more columns for bigger groups
+  (≤ 10), and tiles read `12`, `SP3`, `OP1`, `PV2`. A kind with any
+  unnumbered file is numbered by position.
+- **Bottom bar:** previous · play/pause · next · time on the left;
+  version · danmaku · subtitles · audio · speed · volume · fullscreen on
+  the right.
+- **Removed:** the ±10 s buttons (←/→ still seek, through hidden
+  shortcuts).
+- **One button size** (36 pt target, 18 pt glyph), with
+  `.symbolVariant(.fill)` and monochrome rendering throughout. `-smokePlayerTest` captures its own window
+into the container's `tmp/` (`ag_windowed.png`, `ag_fullscreen.png`)
+instead of calling `screencapture`.
 
 **Done when:** every control keeps its current function and shortcut; menus
 stay open and clickable during playback (regression check for 7ef451d); the
