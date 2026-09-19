@@ -733,11 +733,15 @@ private struct MouseMovementView: NSViewRepresentable {
     let onMove: () -> Void
     let onClick: () -> Void
     let onDoubleClick: () -> Void
+    /// Vertical scroll in "physical" points: positive when the wheel or the
+    /// fingers move up, whatever the natural-scrolling setting.
+    let onScroll: (CGFloat) -> Void
 
     final class MouseCatcher: NSView {
         var onMove: (() -> Void)?
         var onClick: (() -> Void)?
         var onDoubleClick: (() -> Void)?
+        var onScroll: ((CGFloat) -> Void)?
 
         override func updateTrackingAreas() {
             super.updateTrackingAreas()
@@ -753,6 +757,13 @@ private struct MouseMovementView: NSViewRepresentable {
         override func mouseMoved(with event: NSEvent) { onMove?() }
         override func mouseEntered(with event: NSEvent) { onMove?() }
 
+        override func scrollWheel(with event: NSEvent) {
+            // Horizontal swipes aren't volume.
+            guard abs(event.scrollingDeltaY) > abs(event.scrollingDeltaX) else { return }
+            let delta = event.hasPreciseScrollingDeltas ? event.scrollingDeltaY * 0.25 : event.scrollingDeltaY * 5
+            onScroll?(event.isDirectionInvertedFromDevice ? -delta : delta)
+        }
+
         override func mouseUp(with event: NSEvent) {
             if event.clickCount >= 2 {
                 onDoubleClick?()
@@ -767,6 +778,7 @@ private struct MouseMovementView: NSViewRepresentable {
         view.onMove = onMove
         view.onClick = onClick
         view.onDoubleClick = onDoubleClick
+        view.onScroll = onScroll
         return view
     }
 
@@ -774,6 +786,7 @@ private struct MouseMovementView: NSViewRepresentable {
         view.onMove = onMove
         view.onClick = onClick
         view.onDoubleClick = onDoubleClick
+        view.onScroll = onScroll
     }
 }
 
@@ -801,6 +814,9 @@ struct PlayerScreen: View {
     @State private var openPanel: PlayerPanel?
     @State private var panelShown = false
     @State private var arrowKeys = ArrowKeyHold()
+    @StateObject private var osd = PlayerOSD()
+    /// Bumped on every user play/pause, to run the center flash once.
+    @State private var playPauseFlashes = 0
     @AppStorage("playerShowsRemainingTime") private var showsRemainingTime = false
 
     init(request: PlayerRequest) {
@@ -860,7 +876,8 @@ struct PlayerScreen: View {
             MouseMovementView(
                 onMove: { revealControls() },
                 onClick: { if openPanel != nil { closePanel() } else { toggleControls() } },
-                onDoubleClick: { toggleFullscreen() }
+                onDoubleClick: { toggleFullscreen() },
+                onScroll: { adjustVolume(by: $0) }
             )
             DanmakuStatusBadge(
                 session: state.danmaku,
@@ -874,9 +891,15 @@ struct PlayerScreen: View {
                 openSearch: { showSubtitleSearch = true }
             )
             if state.isLoading {
-                ProgressView("Opening video…")
-                    .padding(18)
-                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                HStack(spacing: 10) {
+                    ProgressView().controlSize(.small)
+                    Text("Opening video…").font(.system(size: 13, weight: .medium))
+                }
+                .foregroundStyle(PlayerChrome.foreground)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .playerCapsuleSurface()
+                .transition(.opacity)
             }
             if let error = state.errorMessage {
                 ContentUnavailableView {
@@ -890,8 +913,11 @@ struct PlayerScreen: View {
                     }
                     Button("Close") { dismiss() }
                 }
-                .foregroundStyle(.white)
+                .frame(maxWidth: 440, maxHeight: 280)
+                .playerSurface()
             }
+            PlayPauseFlash(trigger: playPauseFlashes, isPaused: state.paused)
+            PlayerOSDView(osd: osd)
             VStack(spacing: 0) {
                 Spacer()
                 controls
@@ -905,7 +931,7 @@ struct PlayerScreen: View {
                     .foregroundStyle(PlayerChrome.foreground)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 7)
-                    .background(.black.opacity(0.6), in: Capsule())
+                    .playerCapsuleSurface()
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     .padding(.top, 72)
                     .allowsHitTesting(false)
@@ -1007,7 +1033,11 @@ struct PlayerScreen: View {
             arrowKeys.install(
                 window: { [state] in state.controller?.view.window },
                 isSuspended: { isTypingInDanmakuManager },
-                tap: { [state] direction in state.seek(by: direction == .forward ? 10 : -10) },
+                tap: { direction in
+                    state.seek(by: direction == .forward ? 10 : -10)
+                    osd.show(direction == .forward ? "goforward.10" : "gobackward.10",
+                             "\(direction == .forward ? "+" : "−")10s · \(time(state.position))")
+                },
                 beginHold: { [state] direction, rate in state.beginHold(direction == .forward ? .fastForward : .rewind, rate: rate) },
                 endHold: { [state] in state.endHold() }
             )
@@ -1142,7 +1172,7 @@ struct PlayerScreen: View {
                     .keyboardShortcut(playerKey("p"))
                     .help("Previous Episode (P)")
 
-                Button { state.togglePause() } label: {
+                Button { togglePlayback() } label: {
                     Image(systemName: state.paused ? "play" : "pause")
                         .contentTransition(.symbolEffect(.replace))
                 }
@@ -1213,6 +1243,20 @@ struct PlayerScreen: View {
         .padding(.top, 36)
         .padding(.bottom, 10)
         .background(PlayerChrome.scrim(from: .bottom).allowsHitTesting(false))
+    }
+
+    /// Play/pause from the keyboard or the bar, with the center flash.
+    private func togglePlayback() {
+        state.togglePause()
+        playPauseFlashes += 1
+    }
+
+    private func adjustVolume(by delta: Double) {
+        guard delta != 0 else { return }
+        let volume = min(max(state.volume + delta, 0), 130)
+        state.setVolume(volume)
+        let symbol = volume < 0.5 ? "speaker.slash" : volume < 34 ? "speaker.wave.1" : volume < 67 ? "speaker.wave.2" : "speaker.wave.3"
+        osd.show(symbol, "\(Int(volume.rounded()))%", level: volume / 130)
     }
 
     private func togglePanel(_ panel: PlayerPanel) {
@@ -1355,6 +1399,11 @@ struct PlayerScreen: View {
                 let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
                 try? data.write(to: url)
                 FileHandle.standardError.write(Data("SMOKE captured \(url.path)\n".utf8))
+                if let sheet = window.attachedSheet, let data = WindowSnapshot.png(of: sheet) {
+                    let url = FileManager.default.temporaryDirectory.appendingPathComponent("sheet-" + name)
+                    try? data.write(to: url)
+                    FileHandle.standardError.write(Data("SMOKE captured \(url.path)\n".utf8))
+                }
                 // Popovers (AG_SMOKE_EPISODE_PICKER=1) are windows of their own.
                 for popover in NSApp.windows where popover.isVisible && String(describing: type(of: popover)).contains("Popover") {
                     guard let data = WindowSnapshot.png(of: popover) else { continue }
@@ -1445,7 +1494,22 @@ struct PlayerScreen: View {
                 toggleFullscreen()
                 try? await Task.sleep(for: .seconds(2))
             }
+            // AG_SMOKE_SHEET=<danmakuSettings|danmakuMatch|subtitleSearch>
+            // opens that sheet so the capture shows it in the dark player.
+            switch ProcessInfo.processInfo.environment["AG_SMOKE_SHEET"] {
+            case "danmakuSettings": showDanmakuSettings = true
+            case "danmakuMatch": showDanmakuMatch = true
+            case "subtitleSearch": showSubtitleSearch = true
+            default: break
+            }
+            if ProcessInfo.processInfo.environment["AG_SMOKE_SHEET"] != nil {
+                try? await Task.sleep(for: .seconds(2))
+            }
             revealControls()
+            // AG_SMOKE_OSD=1 puts a volume message on screen for the capture.
+            if ProcessInfo.processInfo.environment["AG_SMOKE_OSD"] == "1" {
+                adjustVolume(by: -5)
+            }
             try? await Task.sleep(for: .milliseconds(400))
             capture("ag_windowed.png")
             Self.printSmokeState(
@@ -1465,6 +1529,10 @@ struct PlayerScreen: View {
                 controlsVisible: controlsVisible,
                 cursorHiddenByPlayer: cursorHiddenByPlayer
             )
+            // An attached sheet would hold up termination.
+            showDanmakuSettings = false
+            showDanmakuMatch = false
+            showSubtitleSearch = false
             try? await Task.sleep(for: .seconds(1))
             NSApp.terminate(nil)
         }
@@ -1554,7 +1622,8 @@ struct PlayerScreen: View {
     }
 
     /// ⌘⇧D toggles diagnostics; ⌘⇧H forces SDR without mutating the live
-    /// CAMetalLayer format; D toggles danmaku; M toggles the danmaku manager.
+    /// CAMetalLayer format; D toggles danmaku; M toggles the danmaku manager;
+    /// ↑/↓ change the volume.
     /// ←/→ are handled by `ArrowKeyHold`, which needs key-up events.
     private var diagnosticsShortcuts: some View {
         Group {
@@ -1562,10 +1631,12 @@ struct PlayerScreen: View {
                 .keyboardShortcut("d", modifiers: [.command, .shift])
             Button("Toggle HDR Output") {
                 state.toggleForcedSDR()
+                osd.show("sun.max", state.forcedSDR ? "SDR Output (forced)" : "HDR Output")
             }
                 .keyboardShortcut("h", modifiers: [.command, .shift])
             Button("Toggle Danmaku") {
                 danmakuPreferences.enabled.toggle()
+                osd.show("text.bubble", danmakuPreferences.enabled ? "Danmaku On" : "Danmaku Off")
             }
                 .keyboardShortcut(playerKey("d"))
             Button("Toggle Danmaku Manager") {
@@ -1576,6 +1647,10 @@ struct PlayerScreen: View {
                 }
             }
                 .keyboardShortcut(playerKey("m"))
+            Button("Volume Up") { adjustVolume(by: 5) }
+                .keyboardShortcut(playerKey(.upArrow))
+            Button("Volume Down") { adjustVolume(by: -5) }
+                .keyboardShortcut(playerKey(.downArrow))
         }
         .accessibilityHidden(true)
     }
@@ -1621,7 +1696,7 @@ struct PlayerScreen: View {
         .font(.system(size: 11, design: .monospaced))
         .foregroundStyle(.white)
         .padding(12)
-        .background(.black.opacity(0.72), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .playerSurface(cornerRadius: 10)
         .padding(.trailing, 20)
         .allowsHitTesting(false)
         .transition(.opacity)

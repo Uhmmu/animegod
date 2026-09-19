@@ -1,6 +1,6 @@
 # Appearance Plan: Dark Mode and Player Chrome
 
-Status: **G1–G3 implemented** (G4 planned)
+Status: **G1–G4 implemented**
 
 Two problems, split into four goals that each ship and get verified on their
 own:
@@ -294,6 +294,23 @@ and keyboard actions give visible feedback.
    their layout and spacing once in dark.
 5. **Scroll-wheel volume** over the video (optional; mpv-style) with OSD
    feedback.
+
+**Outcome (G4):** `App/Player/Chrome/PlayerOSD.swift`.
+- **`PlayerSurface`** (`.playerSurface()` / `.playerCapsuleSurface()`): one
+  material + darkening + hairline surface. Used by the bubbles, the
+  danmaku and subtitle badges, the loading capsule, the error card, the
+  Danmaku Manager, the diagnostics panel, the hold indicator and the OSD.
+- **`PlayerOSD`:** its own `ObservableObject`, one slot, 0.9 s. It reports
+  `←/→` taps (`+10s · 12:34`), volume from scroll wheel / trackpad and
+  `↑/↓` (with a level bar), `D` and `⌘⇧H`. Delays and speed are shown in
+  their bubbles instead.
+- **`PlayPauseFlash`:** a `phaseAnimator` bloom, triggered by Space and the
+  bar button, not by mpv's own pause events.
+- **Scrolling:** normalized for natural scrolling. Horizontal swipes are
+  ignored.
+- **Sheets:** player sheets (e.g. Danmaku Settings) render dark through
+  G1.6. Checked with `AG_SMOKE_SHEET=danmakuSettings`; sheets are captured
+  as `sheet-*.png`. `AG_SMOKE_OSD=1` puts a volume OSD in the capture.
 
 **Done when:** every overlay has the same corner radius, material and
 border; each shortcut in the `playerKey` set and each delay nudge shows an

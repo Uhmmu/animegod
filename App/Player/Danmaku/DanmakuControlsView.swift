@@ -17,7 +17,8 @@ struct DanmakuStatusBadge: View {
                     content
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
-                        .background(.black.opacity(0.6), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .foregroundStyle(PlayerChrome.foreground)
+                        .playerSurface(cornerRadius: 8)
                         .onTapGesture { openMatch() }
                     Spacer()
                 }

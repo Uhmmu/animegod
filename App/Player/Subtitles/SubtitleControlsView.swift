@@ -21,7 +21,7 @@ struct SubtitleStatusBadge: View {
                         .foregroundStyle(.white)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
-                        .background(.black.opacity(0.6), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .playerSurface(cornerRadius: 8)
                         .onTapGesture { openSearch() }
                         .transition(.opacity)
                 }

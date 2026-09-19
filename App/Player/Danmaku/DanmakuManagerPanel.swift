@@ -52,7 +52,7 @@ struct DanmakuManagerPanel: View {
         }
         .frame(width: 340)
         .frame(maxHeight: .infinity)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .playerSurface()
         .onChange(of: searchFocused) { _, _ in reportTyping() }
         .onChange(of: keywordFocused) { _, _ in reportTyping() }
         .onChange(of: query) { _, _ in runSearch() }

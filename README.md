@@ -144,14 +144,24 @@ provider keys no longer ask for your password after every update.
 - Foreign-language reviews show **original text and translation side by
   side** — the original is never replaced.
 
+### Appearance
+- System, Light or Dark in Settings; the player window always stays dark.
+
 ### Player
 - libmpv (MPVKit) embedded playback: H.264/HEVC/AV1, 10-bit, VideoToolbox
   hardware decode, multi audio/subtitle tracks, sidecar subtitle discovery
   (`sub-auto=fuzzy` + `subs/字幕` folders), manual external subtitle loading.
-- Chapters, playback speed (0.5×–2×), volume, subtitle/audio delay, timeline,
-  keyboard shortcuts (`Space`, `←/→`, `F`, `N/P`, `D`, `M`), double-click fullscreen,
-  in-player episode navigation with category labels, alternative-encode
-  version menu.
+- Player chrome that stays dark over the video: flat icon controls on
+  top/bottom scrims, and bubble panels for speed, audio, danmaku, subtitles
+  and versions that grow out of their button.
+- Timeline with chapter marks, a hover bubble showing time and chapter, and
+  smooth drag scrubbing (click the time label for remaining time).
+- Episode picker grid beside the title, grouped into Episodes / SP / Music &
+  Credits / Trailers / Extras. Chapter menu, playback speed (0.5×–3×),
+  volume (click to mute, scroll or `↑/↓` to adjust), subtitle/audio delay.
+- Keyboard: `Space`, `F`, `N/P`, `D`, `M`, `↑/↓`, and `←/→`: tap to seek
+  10 s, hold for 2×, tap-then-hold for 3× (`←` scans backwards). On-screen
+  feedback for each; double-click for full screen.
 - HDR: signal-based HDR10/HLG/Dolby-Vision detection, 16-bit-float BT.2020 EDR
   output on capable displays, automatic HDR-to-SDR tone mapping, and a
   diagnostics panel (**⌘⇧D**). Eligible Dolby Vision Profile 8.4 MP4/MOV files

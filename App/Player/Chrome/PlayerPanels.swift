@@ -88,13 +88,8 @@ struct PlayerBubble<Content: View>: View {
         .fixedSize(horizontal: false, vertical: true)
         .padding(.bottom, PlayerBubbleShape.tailHeight)
         .background {
-            let shape = PlayerBubbleShape(tailX: tailX)
-            ZStack {
-                shape.fill(.ultraThinMaterial)
-                shape.fill(Color.black.opacity(0.45))
-                shape.stroke(Color.white.opacity(0.12), lineWidth: 0.5)
-            }
-            .shadow(color: .black.opacity(0.35), radius: 14, y: 6)
+            PlayerSurface(shape: PlayerBubbleShape(tailX: tailX))
+                .shadow(color: .black.opacity(0.35), radius: 14, y: 6)
         }
         .foregroundStyle(PlayerChrome.foreground)
         .scaleEffect(isShown ? 1 : 0.3, anchor: UnitPoint(x: min(max(tailX / width, 0), 1), y: 1))
