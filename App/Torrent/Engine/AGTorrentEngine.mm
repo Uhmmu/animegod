@@ -319,6 +319,7 @@ static NSString *AGHexFromHandle(lt::torrent_handle const &handle) {
             [self writeResumeData:resume];
         } else if (auto *metadata = lt::alert_cast<lt::metadata_received_alert>(alert)) {
             [self writeMetadataForHandle:metadata->handle];
+            [self giveSingleFileTorrentItsOwnFolder:metadata->handle];
             metadata->handle.save_resume_data(lt::torrent_handle::save_info_dict);
         } else if (auto *stats = lt::alert_cast<lt::session_stats_alert>(alert)) {
             if (_dhtNodesMetricIndex >= 0) {
@@ -344,6 +345,12 @@ static NSString *AGHexFromHandle(lt::torrent_handle const &handle) {
         } else if (auto *added = lt::alert_cast<lt::add_torrent_alert>(alert)) {
             if (!added->error && added->handle.is_valid()) {
                 [self writeMetadataForHandle:added->handle];
+                // A `.torrent` (or a resumed task) already has its metadata,
+                // so the folder has to be settled here as well as on the
+                // magnet path.
+                if ([self giveSingleFileTorrentItsOwnFolder:added->handle]) {
+                    added->handle.save_resume_data(lt::torrent_handle::save_info_dict);
+                }
             }
         }
     }
@@ -358,6 +365,32 @@ static NSString *AGHexFromHandle(lt::torrent_handle const &handle) {
     NSData *data = [NSData dataWithBytes:buffer.data() length:buffer.size()];
     [data writeToURL:[self stateFileForInfoHash:AGHexFromHandle(alert->handle) extension:@"resume"]
           atomically:YES];
+}
+
+/// Puts a single-file torrent inside a folder of its own.
+///
+/// A one-file torrent writes straight into the download folder, so a library
+/// folder slowly fills with loose `.mkv`s while every batch release sits in
+/// a tidy folder. Renaming file 0 to `<name>/<file>` is how libtorrent
+/// expresses that, and doing it the moment metadata lands means the data is
+/// written in the right place rather than moved afterwards.
+///
+/// Idempotent: a task that already has a folder keeps it, so this can run
+/// again on every launch. Returns YES when it changed anything.
+- (BOOL)giveSingleFileTorrentItsOwnFolder:(lt::torrent_handle const &)handle {
+    if (!handle.is_valid()) { return NO; }
+    std::shared_ptr<const lt::torrent_info> info = handle.torrent_file();
+    if (!info || !info->is_valid() || info->num_files() != 1) { return NO; }
+    std::string const path = info->files().file_path(lt::file_index_t{0});
+    // Already inside a folder — including one we created on an earlier run.
+    if (path.find('/') != std::string::npos) { return NO; }
+    std::string folder = path;
+    size_t const dot = folder.rfind('.');
+    // A leading dot is the whole name of a hidden file, not an extension.
+    if (dot != std::string::npos && dot > 0) { folder = folder.substr(0, dot); }
+    if (folder.empty() || folder == "." || folder == "..") { return NO; }
+    handle.rename_file(lt::file_index_t{0}, folder + "/" + path);
+    return YES;
 }
 
 - (void)writeMetadataForHandle:(lt::torrent_handle const &)handle {
@@ -638,6 +671,21 @@ static NSString *AGHexFromHandle(lt::torrent_handle const &handle) {
         [entries addObject:entry];
     }
     return entries;
+}
+
+/// The single folder a task's files sit in, relative to the save path.
+///
+/// Every task has one — batches bring their own, and single-file torrents
+/// are given one — so this is the folder to unpack archives in and to
+/// reveal in the Finder. Nil while metadata has not arrived.
+- (nullable NSString *)contentFolderNameForInfoHash:(NSString *)infoHash {
+    lt::torrent_handle handle = [self handleForInfoHash:infoHash];
+    std::shared_ptr<const lt::torrent_info> info = handle.is_valid() ? handle.torrent_file() : nullptr;
+    if (!info || info->num_files() < 1) { return nil; }
+    std::string const path = info->files().file_path(lt::file_index_t{0});
+    size_t const slash = path.find('/');
+    if (slash == std::string::npos || slash == 0) { return nil; }
+    return [NSString stringWithUTF8String:path.substr(0, slash).c_str()];
 }
 
 - (AGTorrentSessionInfo *)sessionInfo {

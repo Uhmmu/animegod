@@ -120,6 +120,12 @@ typedef NS_ENUM(NSInteger, AGTorrentState) {
 /// libtorrent relocates the storage and keeps seeding from the new place.
 - (void)moveStorage:(NSString *)infoHash toFolder:(NSURL *)folder;
 
+/// The one folder a task's files live in, relative to its save path. Every
+/// task has one: batches bring their own, and a single-file torrent is put
+/// into a folder named after it so downloads never litter the folder they
+/// land in. Nil until metadata has arrived.
+- (nullable NSString *)contentFolderNameForInfoHash:(NSString *)infoHash;
+
 - (AGTorrentSessionInfo *)sessionInfo;
 
 /// Builds `.torrent` data for a local file or folder. Used by the headless

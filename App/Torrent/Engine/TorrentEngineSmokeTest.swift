@@ -87,7 +87,9 @@ enum TorrentEngineSmokeTest {
                 }
             }
 
-            let downloaded = leechFiles.appending(path: "sample.bin")
+            // The engine puts a single-file torrent in a folder of its own,
+            // so the payload lands one level down.
+            let downloaded = leechFiles.appending(path: "sample/sample.bin")
             let downloadedData = try? Data(contentsOf: downloaded)
             let same = downloadedData == data
             print("SMOKE downloaded file exists=\(FileManager.default.fileExists(atPath: downloaded.path)) bytes=\(downloadedData?.count ?? -1)")
@@ -98,7 +100,8 @@ enum TorrentEngineSmokeTest {
             let resumeFiles = (try? FileManager.default.contentsOfDirectory(
                 at: root.appending(path: "leech-state"), includingPropertiesForKeys: nil
             ))?.filter { $0.pathExtension == "resume" } ?? []
-            print("SMOKE loopback complete=\(completed) bytesMatch=\(same) resumeFiles=\(resumeFiles.count)")
+            let seeded = FileManager.default.fileExists(atPath: seedFiles.appending(path: "sample/sample.bin").path)
+            print("SMOKE loopback complete=\(completed) bytesMatch=\(same) resumeFiles=\(resumeFiles.count) ownFolder=\(seeded)")
             try? FileManager.default.removeItem(at: root)
             exit(completed && same && !resumeFiles.isEmpty ? 0 : 1)
         } catch {

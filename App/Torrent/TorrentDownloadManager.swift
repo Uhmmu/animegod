@@ -277,13 +277,22 @@ final class TorrentDownloadManager: ObservableObject {
 
     func revealInFinder(_ item: TorrentDownloadItem) {
         let folder = URL(fileURLWithPath: item.snapshot?.savePath ?? item.record.savePath)
-        let name = item.snapshot?.name ?? ""
-        let target = name.isEmpty ? folder : folder.appending(path: name)
-        if FileManager.default.fileExists(atPath: target.path) {
+        if let target = contentFolder(for: item), FileManager.default.fileExists(atPath: target.path) {
             NSWorkspace.shared.activateFileViewerSelecting([target])
         } else {
             NSWorkspace.shared.open(folder)
         }
+    }
+
+    /// Where a task's files actually are: the folder the torrent brought,
+    /// or the one the engine created for a single-file download.
+    func contentFolder(for item: TorrentDownloadItem) -> URL? {
+        let root = URL(fileURLWithPath: item.snapshot?.savePath ?? item.record.savePath)
+        guard let name = engine?.contentFolderName(forInfoHash: item.record.infoHash), !name.isEmpty else {
+            let fallback = item.snapshot?.name ?? ""
+            return fallback.isEmpty ? nil : root.appending(path: fallback)
+        }
+        return root.appending(path: name)
     }
 
     /// The video file worth offering a Play button for: the largest one,
