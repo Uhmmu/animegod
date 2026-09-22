@@ -1413,6 +1413,13 @@ struct PlayerScreen: View {
                 }
             }
             try? await Task.sleep(for: .seconds(4))
+            // AG_SMOKE_FORCE_SDR=1 captures the same frame through the SDR
+            // path instead, which is how an HDR output problem is told apart
+            // from one that is already there before the output stage.
+            if ProcessInfo.processInfo.environment["AG_SMOKE_FORCE_SDR"] == "1" {
+                state.toggleForcedSDR()
+                try? await Task.sleep(for: .seconds(2))
+            }
             // AG_SMOKE_SUBTITLE=<file inside the container> adds and selects
             // a subtitle, so the output shows it surviving the fullscreen
             // renderer rebuild below.

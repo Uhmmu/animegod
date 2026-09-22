@@ -440,6 +440,9 @@ final class MPVPlayerController: NSViewController {
             return
         }
         mpv = handle
+        if let level = ProcessInfo.processInfo.environment["AG_MPV_LOG"] {
+            mpv_request_log_messages(handle, level)
+        }
         setOption("vo", "gpu-next")
         setOption("gpu-api", "vulkan")
         setOption("gpu-context", "moltenvk")
@@ -579,6 +582,15 @@ final class MPVPlayerController: NSViewController {
                 needsChapters = true
                 playbackState = true
                 needsColor = true
+            case MPV_EVENT_LOG_MESSAGE:
+                // AG_MPV_LOG=<level> (info, v, debug) puts mpv's own log on
+                // stderr. Nothing else surfaces why a file would not open.
+                if let raw = event.pointee.data {
+                    let entry = raw.assumingMemoryBound(to: mpv_event_log_message.self).pointee
+                    let prefix = String(cString: entry.prefix)
+                    let text = String(cString: entry.text)
+                    FileHandle.standardError.write(Data("MPV [\(prefix)] \(text)".utf8))
+                }
             case MPV_EVENT_END_FILE:
                 delegate?.playerLoadingStateDidChange(isLoading: false)
                 if let raw = event.pointee.data {
@@ -756,12 +768,15 @@ final class MPVPlayerController: NSViewController {
                 return
             }
             setString("target-prim", "bt.2020")
-            setString("target-trc", "linear")
+            // Must match the layer's colorspace — see `configureMetalLayer`.
+            setString("target-trc", desired == .hlg ? "hlg" : "pq")
             // Do not pre-compress HDR into the display's momentary headroom.
             // CAEDRMetadata owns that final display adaptation. Keeping mpv at
             // the same mastering peak avoids applying tone mapping twice.
             targetPeakNits = HDROutputContract.masteringPeakNits
-            setString("target-peak", String(targetPeakNits))
+            // `target-peak` is an integer option: `String(1000.0)` is
+            // "1000.0", which mpv rejects outright.
+            setString("target-peak", String(Int(targetPeakNits.rounded())))
         } else {
             targetPeakNits = 100
             setString("target-prim", "bt.709")
@@ -774,8 +789,19 @@ final class MPVPlayerController: NSViewController {
         metalLayer.device = MTLCreateSystemDefaultDevice()
         switch configuration {
         case .hdr10:
-            metalLayer.pixelFormat = .rgba16Float
-            metalLayer.colorspace = CGColorSpace(name: CGColorSpace.extendedLinearITUR_2020)
+            // The transfer function here has to be the one mpv actually
+            // writes and the one `target-colorspace-hint` signals to the
+            // swapchain, or the values are read as something else entirely.
+            // This was `extendedLinearITUR_2020` with mpv on `target-trc=
+            // linear`, while the hint told the surface the content was PQ:
+            // linear light read as PQ code values is a fraction of a nit,
+            // which is why every HDR file played almost black.
+            //
+            // The pixel format is mpv's to choose — MoltenVK replaces it
+            // when libplacebo creates the swapchain (it picks bgr10a2), so
+            // setting rgba16Float here only ever described a surface that
+            // did not exist.
+            metalLayer.colorspace = CGColorSpace(name: CGColorSpace.itur_2100_PQ)
             metalLayer.wantsExtendedDynamicRangeContent = true
             metalLayer.edrMetadata = .hdr10(
                 minLuminance: 0.005,
@@ -784,8 +810,9 @@ final class MPVPlayerController: NSViewController {
             )
             playbackPipeline = .mpvEDR
         case .hlg:
-            metalLayer.pixelFormat = .rgba16Float
-            metalLayer.colorspace = CGColorSpace(name: CGColorSpace.extendedLinearITUR_2020)
+            // Untested — no HLG file to hand — but the same contract: the
+            // layer names the transfer function mpv is told to write.
+            metalLayer.colorspace = CGColorSpace(name: CGColorSpace.itur_2100_HLG)
             metalLayer.wantsExtendedDynamicRangeContent = true
             metalLayer.edrMetadata = .hlg
             playbackPipeline = .mpvEDR
@@ -914,11 +941,22 @@ final class MPVPlayerController: NSViewController {
     }
 
     private func setOption(_ name: String, _ value: String) {
-        mpv_set_option_string(mpv, name, value)
+        report(mpv_set_option_string(mpv, name, value), name: name, value: value)
     }
 
     private func setString(_ name: String, _ value: String) {
-        mpv_set_property_string(mpv, name, value)
+        report(mpv_set_property_string(mpv, name, value), name: name, value: value)
+    }
+
+    /// A rejected option is a bug in this file, not in the media, and it is
+    /// silent by nature: mpv keeps its previous value and plays on. That is
+    /// how `target-peak` sat at `auto` while every HDR file was tone mapped
+    /// to 203 nits. Failures are never hidden now.
+    private func report(_ status: Int32, name: String, value: String) {
+        guard status < 0 else { return }
+        let detail = String(cString: mpv_error_string(status))
+        FileHandle.standardError.write(Data("MPV REJECTED \(name)=\(value): \(detail)\n".utf8))
+        assertionFailure("mpv rejected \(name)=\(value): \(detail)")
     }
 
     private func setInt64(_ name: String, _ value: Int64) {

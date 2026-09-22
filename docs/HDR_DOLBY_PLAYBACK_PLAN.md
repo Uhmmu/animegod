@@ -79,6 +79,28 @@ reproduction > hardware decoding > performance > feature completeness.
      SDR content, drive mpv's `target-prim=bt.709 + target-trc=bt.1886 +
      target-peak=100` so libplacebo renders into the same linear BT.2020
      target. mpv target options are runtime-safe; layer options are not.
+   - **The layer colorspace, `target-trc` and `target-colorspace-hint` must
+     name the same transfer function.** Shipped as `extendedLinearITUR_2020`
+     + `target-trc=linear` while the hint signalled PQ; linear light read as
+     PQ code values is a fraction of a nit, so HDR played nearly black.
+     Corrected 2026-09-22 to `itur_2100_PQ` + `target-trc=pq`.
+   - **`CAMetalLayer.pixelFormat` is not ours to set.** MoltenVK replaces it
+     when libplacebo creates the swapchain (`bgr10a2`), so the `rgba16Float`
+     assignment described a surface that never existed. The diagnostics line
+     prints the real format.
+   - **HDR output cannot be judged from a window capture.**
+     `CGWindowListCreateImage` does not represent an EDR layer faithfully.
+     Use `AG_SMOKE_FORCE_SDR=1` to capture the same frame through the SDR
+     path as a reference, and confirm on the display.
+   - **`target-peak` is an integer option.** `String(1000.0)` is `"1000.0"`,
+     which mpv rejects (`MPV_ERROR_OPTION_ERROR`) while carrying on with
+     `auto` — and `auto` under `target-trc=linear` resolves to 203 nits, so
+     every HDR file was tone mapped down by a factor of five before
+     `CAEDRMetadata` mapped it back up. Fixed 2026-09-22 by writing an
+     integer; `setOption`/`setString` now print and assert on any rejected
+     value, because this failure is otherwise completely silent. The
+     `-smokePlayerTest` color line prints `mpv.target-peak` — compare it
+     against the source's `max-luma` when touching this path.
    - Fallback validation: if MoltenVK cannot negotiate an rgba16Float
      swapchain, fall back to the current SDR path automatically and report
      it in the diagnostics panel.
