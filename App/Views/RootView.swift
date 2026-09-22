@@ -130,6 +130,15 @@ struct RootView: View {
             // playback here before the standalone player window can exist.
             guard ProcessInfo.processInfo.arguments.contains("-smokePlayerTest"),
                   model.playerRequest == nil else { return }
+            // AG_SMOKE_FILE=<path> plays that file instead of the library's
+            // first episode — how a disc image, or any other one-off file,
+            // is checked without adding it to the library first.
+            if let path = ProcessInfo.processInfo.environment["AG_SMOKE_FILE"] {
+                let url = URL(fileURLWithPath: path)
+                FileHandle.standardError.write(Data("SMOKE playing file \(url.path)\n".utf8))
+                model.playFile(at: url, title: url.lastPathComponent)
+                return
+            }
             var waited = 0
             while model.library.isEmpty && waited < 20 {
                 try? await Task.sleep(for: .milliseconds(500))

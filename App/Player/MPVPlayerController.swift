@@ -91,6 +91,9 @@ final class MPVPlayerController: NSViewController {
     private var targetPeakNits: Double = 100
     private var playerGeneration = UUID()
     private var currentContainerProbe: DolbyVisionContainerProbe.Result?
+    /// Set while a `.iso` is loaded, so a renderer rebuild reloads it as a
+    /// disc rather than as a file.
+    private var currentDiscImageKind: DiscImageKind?
     nonisolated(unsafe) private var avPlayer: AVPlayer?
     nonisolated(unsafe) private var avPlayerLayer: AVPlayerLayer?
     nonisolated(unsafe) private var avTimeObserver: Any?
@@ -322,6 +325,38 @@ final class MPVPlayerController: NSViewController {
         let extensionName = url.pathExtension.lowercased()
         let canUseNativeDolbyVision = ["mp4", "m4v", "mov"].contains(extensionName)
 
+        // A disc image is a filesystem, not a container: nothing here can
+        // demux it, and only libbluray can read it without mounting. Which
+        // kind of disc it holds decides whether it can play at all, so that
+        // is settled before mpv is handed anything.
+        if DiscImageProbe.isDiscImage(url) {
+            stopNativePlayback()
+            currentContainerProbe = nil
+            Task { @MainActor [weak self] in
+                let kind = await Task.detached(priority: .userInitiated) {
+                    DiscImageProbe.inspect(url: url)
+                }.value
+                guard let self, generation == self.playerGeneration else { return }
+                self.currentDiscImageKind = kind
+                switch kind {
+                case .blurayDisc:
+                    self.loadWithMPV(url: url, position: position)
+                case nil:
+                    // Unreadable — a missing drive, a moved file. mpv's own
+                    // error for the path says more than a guess would.
+                    self.loadWithMPV(url: url, position: position)
+                case .dvdVideo:
+                    self.delegate?.playerLoadingStateDidChange(isLoading: false)
+                    self.delegate?.playerDidFail(message: String(localized: "“\(url.lastPathComponent)” is a DVD image. AnimeGod plays Blu-ray images only."))
+                case .data:
+                    self.delegate?.playerLoadingStateDidChange(isLoading: false)
+                    self.delegate?.playerDidFail(message: String(localized: "“\(url.lastPathComponent)” has no Blu-ray video on it."))
+                }
+            }
+            return
+        }
+        currentDiscImageKind = nil
+
         // MKV and other formats can never enter the AVFoundation DV path.
         // Start mpv immediately; container inspection is diagnostics-only and
         // must not delay SDR playback on large files or external disks.
@@ -361,6 +396,16 @@ final class MPVPlayerController: NSViewController {
         guard mpv != nil else { return }
         var options: [String] = []
         if position > 0 { options.append("start=\(position)") }
+        if currentDiscImageKind == .blurayDisc {
+            // libbluray opens the image itself — no mounting, which a
+            // sandboxed app could not do anyway. The device goes in as a
+            // property rather than a loadfile option because that option
+            // list is comma-separated with no escaping, and disc images do
+            // sit in folders with commas in their names.
+            setString("bluray-device", url.path)
+            command("loadfile", arguments: ["bd://longest", "replace", "-1", options.joined(separator: ",")])
+            return
+        }
         command("loadfile", arguments: [url.absoluteString, "replace", "-1", options.joined(separator: ",")])
     }
 

@@ -32,7 +32,10 @@ public struct ParsedAnimeFilename: Hashable, Sendable {
 }
 
 public struct AnimeFilenameParser: Sendable {
-    private static let mediaExtensions = Set(["mkv", "mp4", "m4v", "avi", "mov", "webm", "ts", "m2ts"])
+    /// `iso` is a disc image, not a container: the player opens it through
+    /// libbluray. It belongs here so a Blu-ray rip is scanned like any other
+    /// episode instead of being ignored.
+    private static let mediaExtensions = Set(["mkv", "mp4", "m4v", "avi", "mov", "webm", "ts", "m2ts", "iso"])
 
     public init() {}
 

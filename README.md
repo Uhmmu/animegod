@@ -33,6 +33,8 @@ appearance or stay light or dark.
   attached to their work as specials, not main episodes.
 - Alternative encodes of the same film (e.g. DoVi + SDR releases) merge into
   one episode with a version picker in the player; SDR is the default choice.
+- **Blu-ray disc images (`.iso`) are scanned like any other episode** and
+  play without being mounted or unpacked first.
 
 ### Metadata
 - Match with **Bangumi** (v0 API: search, posters, synopsis, ratings, studio
@@ -154,6 +156,10 @@ appearance or stay light or dark.
 - libmpv (MPVKit) embedded playback: H.264/HEVC/AV1, 10-bit, VideoToolbox
   hardware decode, multi audio/subtitle tracks, sidecar subtitle discovery
   (`sub-auto=fuzzy` + `subs/字幕` folders), manual external subtitle loading.
+- **Blu-ray images**: a `.iso` opens straight into its main feature, with
+  chapters and seeking, read by libbluray without mounting the image — so it
+  works in the sandbox and leaves no mounted volume behind. DVD images are
+  recognised and reported rather than played.
 - Player chrome that stays dark over the video: flat icon controls on
   top/bottom scrims, and bubble panels for speed, audio, danmaku, subtitles
   and versions that grow out of their button.

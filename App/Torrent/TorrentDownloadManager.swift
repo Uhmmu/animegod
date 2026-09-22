@@ -318,7 +318,7 @@ final class TorrentDownloadManager: ObservableObject {
 
     /// Video files inside a task, largest first — what the user would play.
     func videoFiles(for item: TorrentDownloadItem) -> [AGTorrentFileEntry] {
-        let extensions: Set<String> = ["mkv", "mp4", "m4v", "avi", "mov", "webm", "ts", "m2ts"]
+        let extensions: Set<String> = ["mkv", "mp4", "m4v", "avi", "mov", "webm", "ts", "m2ts", "iso"]
         return (engine?.files(forInfoHash: item.record.infoHash) ?? [])
             .filter { extensions.contains(URL(fileURLWithPath: $0.path).pathExtension.lowercased()) }
             .sorted { $0.length > $1.length }

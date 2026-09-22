@@ -11009,6 +11009,38 @@
     "“%@”" : {
       "shouldTranslate" : false
     },
+    "“%@” has no Blu-ray video on it." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」には再生できる Blu-ray 映像がありません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@”里没有可播放的蓝光影片。"
+          }
+        }
+      }
+    },
+    "“%@” is a DVD image. AnimeGod plays Blu-ray images only." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」は DVD イメージです。AnimeGod が再生できるのは Blu-ray イメージだけです。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@”是 DVD 镜像。AnimeGod 只能播放蓝光镜像。"
+          }
+        }
+      }
+    },
     "“%@” is already in Downloads." : {
       "localizations" : {
         "ja" : {
