@@ -7908,6 +7908,22 @@
         }
       }
     },
+    "Releases shipped as .rar, .zip or .7z are unpacked where they land, so the library scan finds episodes instead of archives" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ".rar、.zip、.7z で配布されたリリースはその場で展開されるので、ライブラリのスキャンでアーカイブではなくエピソードが見つかります"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以 .rar、.zip 或 .7z 发布的资源会在原处解压，这样扫描媒体库时看到的是剧集而不是压缩包"
+          }
+        }
+      }
+    },
     "Releases you download from Find Releases appear here. Files are saved to %@ and keep downloading while AnimeGod is open." : {
       "localizations" : {
         "ja" : {
@@ -10196,6 +10212,44 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "取消静音"
+          }
+        }
+      }
+    },
+    "Unpack Archives When Finished" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完了後にアーカイブを展開"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下载完成后解压压缩包"
+          }
+        }
+      }
+    },
+    "Unpacked “%@” into %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Unpacked “%1$@” into %2$@."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%1$@」を %2$@ に展開しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已将“%1$@”解压到 %2$@。"
           }
         }
       }

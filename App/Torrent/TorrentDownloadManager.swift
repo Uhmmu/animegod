@@ -72,6 +72,13 @@ final class TorrentDownloadManager: ObservableObject {
     /// the files up.
     var onDownloadFinished: ((TorrentDownloadRecord) -> Void)?
 
+    /// Unpack `.rar`/`.zip`/`.7z` releases once they finish. On by default:
+    /// an archive that is not opened is a download with no episode in it.
+    @Published var extractsArchives: Bool {
+        didSet { UserDefaults.standard.set(extractsArchives, forKey: Self.extractsArchivesKey) }
+    }
+    private static let extractsArchivesKey = "torrent.extractArchives"
+
     let folders: DownloadFolderStore
     private var database: LibraryDatabase?
     private var engine: AGTorrentEngine?
@@ -84,6 +91,7 @@ final class TorrentDownloadManager: ObservableObject {
 
     init(folders: DownloadFolderStore = DownloadFolderStore()) {
         self.folders = folders
+        extractsArchives = UserDefaults.standard.object(forKey: Self.extractsArchivesKey) as? Bool ?? true
         folders.objectWillChange
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.objectWillChange.send() }
@@ -381,7 +389,7 @@ final class TorrentDownloadManager: ObservableObject {
             if let changedSize { record.totalBytes = changedSize }
             if let completedAt { record.completedAt = completedAt }
             records[hash] = record
-            if completedAt != nil { onDownloadFinished?(record) }
+            if completedAt != nil { finish(record, folder: contentFolderPath(forInfoHash: hash)) }
             Task { [database] in
                 try? await database?.updateTorrentDownload(
                     infoHash: hash,
@@ -391,6 +399,39 @@ final class TorrentDownloadManager: ObservableObject {
                     isSequential: nil
                 )
             }
+        }
+    }
+
+    private func contentFolderPath(forInfoHash hash: String) -> URL? {
+        guard let record = records[hash] else { return nil }
+        guard let name = engine?.contentFolderName(forInfoHash: hash), !name.isEmpty else { return nil }
+        return URL(fileURLWithPath: record.savePath).appending(path: name)
+    }
+
+    /// What happens the moment a download completes: archives are unpacked
+    /// where they landed, and only then is the library told to look, so the
+    /// scan that follows sees episodes rather than `.rar` files.
+    ///
+    /// Unpacking is best-effort. A release that cannot be opened is reported
+    /// and the download still counts as finished.
+    private func finish(_ record: TorrentDownloadRecord, folder: URL?) {
+        guard extractsArchives, let folder else {
+            onDownloadFinished?(record)
+            return
+        }
+        Task { [weak self] in
+            let outcome = await Task.detached(priority: .utility) {
+                ArchiveExtractor.extractAll(in: folder)
+            }.value
+            guard let self else { return }
+            if !outcome.extracted.isEmpty {
+                let names = outcome.extracted.map(\.lastPathComponent).joined(separator: ", ")
+                self.statusMessage = String(localized: "Unpacked “\(record.title)” into \(names).")
+            }
+            if let failure = outcome.failures.first {
+                self.errorMessage = failure
+            }
+            self.onDownloadFinished?(record)
         }
     }
 }

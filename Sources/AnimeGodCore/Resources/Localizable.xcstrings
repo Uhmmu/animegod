@@ -177,6 +177,28 @@
         }
       }
     },
+    "Could not unpack “%@”: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Could not unpack “%1$@”: %2$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%1$@」を展開できませんでした：%2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法解压“%1$@”：%2$@"
+          }
+        }
+      }
+    },
     "Creditless Ending" : {
       "localizations" : {
         "ja" : {
@@ -1347,6 +1369,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在看"
+          }
+        }
+      }
+    },
+    "the archive could not be read" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アーカイブを読み取れませんでした"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "压缩包无法读取"
+          }
+        }
+      }
+    },
+    "there was not enough memory to open it" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メモリが足りず開けませんでした"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "内存不足，无法打开"
           }
         }
       }

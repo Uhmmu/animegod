@@ -36,6 +36,7 @@ struct AnimeGodApp: App {
         if TorrentEngineSmokeTest.isRequested { TorrentEngineSmokeTest.runIfRequested() }
         if SubscriptionSmokeTest.isRequested { SubscriptionSmokeTest.run() }
         if FolderAccessSmokeTest.isRequested { FolderAccessSmokeTest.run() }
+        if ArchiveSmokeTest.isRequested { ArchiveSmokeTest.run() }
         if SubtitleSmokeTest.isRequested { SubtitleSmokeTest.run() }
     }
 

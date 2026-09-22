@@ -98,6 +98,13 @@ appearance or stay light or dark.
   the queue so playback stays ahead of the download. Such a file has no
   library entry, so no watch progress, auto-cache or danmaku match is
   recorded for it — those come once it is in the library.
+- **Archives are unpacked when a download finishes**, so a release shipped as
+  `.rar`, `.zip` or `.7z` (including `part1`/`.001` sets) becomes episodes
+  rather than files nothing can open. Unpacking happens where the download
+  landed, leaves the archive itself untouched, and can be turned off in the
+  download folder menu.
+- **Every download gets its own folder**, single-file torrents included, so a
+  download folder never fills with loose `.mkv`s.
 - **Finished downloads join the library**: a download saved inside a library
   folder is rescanned automatically and appears as a normal episode. One
   saved elsewhere offers "Add Download Folder to Library".
