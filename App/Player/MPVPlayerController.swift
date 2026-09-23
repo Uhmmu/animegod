@@ -82,6 +82,26 @@ final class MPVPlayerController: NSViewController {
 
     nonisolated(unsafe) private var mpv: OpaquePointer?
     private let metalLayer = StableMetalLayer()
+    /// The view's own backing layer. The Metal layer is a *sublayer* of it,
+    /// sized and placed by `layoutVideoLayer`, and this one clips whatever
+    /// hangs over the edge and paints the letterbox black.
+    private let hostLayer = CALayer()
+    /// Pixel size of the surface mpv renders into. Fixed for the whole
+    /// renderer session: mpv's moltenvk backend reads `drawableSize` exactly
+    /// once, when the video reconfigures, and has no resize path at all
+    /// (proved by `osd-dimensions` staying frozen while the layer grew). So
+    /// the surface is sized once, for the whole screen, and the window is
+    /// fitted to it by scaling the layer instead — which is also why
+    /// resizing and entering fullscreen no longer rebuild anything.
+    private var renderSurfaceSize: CGSize = .zero
+    /// Display aspect of the playing video, once mpv reports it.
+    private var videoDisplayAspect: Double?
+    /// Set between a window's `willEnter/willExitFullScreen` and the layout
+    /// pass that follows it, so that one jump is eased instead of snapped.
+    private var animatesNextLayout = false
+    /// The scale the video layer is currently drawn at, to tell a real
+    /// geometry change from a layout pass that changes nothing.
+    private var currentFitFactor: Double = 1
     private var currentURL: URL?
     private var pendingRestoration: PlaybackRestoration?
     private var metalOutputConfiguration: MetalOutputConfiguration = .hdr10
@@ -137,7 +157,16 @@ final class MPVPlayerController: NSViewController {
     override func loadView() {
         view = NSView(frame: NSRect(x: 0, y: 0, width: 960, height: 540))
         view.wantsLayer = true
-        view.layer = metalLayer
+        view.layer = hostLayer
+        hostLayer.backgroundColor = NSColor.black.cgColor
+        hostLayer.masksToBounds = true
+        // The video layer is moved and scaled on every layout pass; an
+        // implicit animation there would lag the window by a quarter second.
+        metalLayer.actions = [
+            "position": NSNull(), "bounds": NSNull(),
+            "transform": NSNull(), "contents": NSNull(),
+        ]
+        hostLayer.addSublayer(metalLayer)
         view.postsFrameChangedNotifications = true
         NotificationCenter.default.addObserver(
             self,
@@ -148,6 +177,7 @@ final class MPVPlayerController: NSViewController {
         metalLayer.backgroundColor = NSColor.black.cgColor
         metalLayer.contentsScale = NSScreen.main?.backingScaleFactor ?? 2
         configureMetalLayer(.hdr10)
+        prepareRenderSurface()
     }
 
     override func viewDidLoad() {
@@ -164,6 +194,19 @@ final class MPVPlayerController: NSViewController {
             name: NSWindow.didExitFullScreenNotification,
             object: nil
         )
+        // AppKit resizes the content view to its final size in one step and
+        // animates only the window around it, so the picture would otherwise
+        // pop to its new size before the window got there.
+        for name in [NSWindow.willEnterFullScreenNotification, NSWindow.willExitFullScreenNotification] {
+            NotificationCenter.default.addObserver(
+                self, selector: #selector(handleFullscreenWillTransition),
+                name: name, object: nil
+            )
+        }
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(handleScreenChange),
+            name: NSWindow.didChangeScreenNotification, object: nil
+        )
         if let initialURL { play(url: initialURL, position: initialPosition) }
     }
 
@@ -176,29 +219,165 @@ final class MPVPlayerController: NSViewController {
         updateSurface()
     }
 
-    /// MPVKit's MoltenVK swapchain does not pick up a new drawable size after
-    /// the host window enters or leaves fullscreen. Recreate the renderer only
-    /// after the transition has completed, preserving the user's playback
-    /// state. This avoids the runtime `wid = 0` cycle that can freeze playback
-    /// immediately after the first frame.
+    /// Entering or leaving fullscreen is now only a layout change: the
+    /// render surface already covers the whole screen, so the picture just
+    /// scales up with the window. The renderer is rebuilt only if the window
+    /// landed on a screen the current surface cannot cover.
+    @objc private func handleFullscreenWillTransition(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow, window === view.window else { return }
+        animatesNextLayout = true
+    }
+
+    /// The window moved to another display. A smaller one needs nothing; a
+    /// larger one would mean upscaling a surface rendered for the small one.
+    @objc private func handleScreenChange(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow, window === view.window else { return }
+        updateSurface()
+        rebuildRendererIfSurfaceTooSmall()
+    }
+
     @objc private func handleFullscreenTransition(_ notification: Notification) {
         guard let window = notification.object as? NSWindow,
               window === view.window else { return }
         updateSurface()
+        rebuildRendererIfSurfaceTooSmall()
+    }
+
+    /// Moving to a larger display would mean upscaling a surface rendered for
+    /// the smaller one. That is the one case left that needs a new surface,
+    /// and it costs a reload — so it is deliberately not triggered by the
+    /// rounding noise of an equal-sized screen.
+    private func rebuildRendererIfSurfaceTooSmall() {
+        guard avPlayer == nil, mpv != nil else { return }
+        let wanted = Self.surfaceSize(for: view.window?.screen)
+        guard wanted.width > renderSurfaceSize.width + 1
+            || wanted.height > renderSurfaceSize.height + 1 else { return }
         rebuildRendererForCurrentSurface()
     }
 
-    private func updateSurface() {
-        let bounds = view.bounds
-        guard bounds.width > 1, bounds.height > 1 else { return }
-        metalLayer.frame = bounds
+    /// The fixed pixel size of the render surface: the whole backing store of
+    /// the screen the player is on. Any window on that screen is smaller, so
+    /// the video is always scaled *down* to the window and never blurred.
+    private static func surfaceSize(for screen: NSScreen?) -> CGSize {
+        let screen = screen ?? NSScreen.main
+        let scale = screen?.backingScaleFactor ?? 2
+        let frame = screen?.frame.size ?? CGSize(width: 1920, height: 1080)
+        return CGSize(width: (frame.width * scale).rounded(), height: (frame.height * scale).rounded())
+    }
+
+    /// Sizes the surface mpv will render into. Must run before the file is
+    /// loaded — that is the only moment mpv reads it.
+    private func prepareRenderSurface() {
         let scale = view.window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
         metalLayer.contentsScale = scale
-        let size = CGSize(width: bounds.width * scale, height: bounds.height * scale)
-        if metalLayer.drawableSize != size {
-            metalLayer.drawableSize = size
+        renderSurfaceSize = Self.surfaceSize(for: view.window?.screen)
+        // The layer's *bounds* stay at the surface size for the whole
+        // session and it is fitted to the window with a transform instead.
+        // CAMetalLayer re-derives `drawableSize` from its bounds on every
+        // bounds change, so resizing the layer would silently drift the
+        // surface out from under mpv — which reads it only once.
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        metalLayer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+        metalLayer.bounds = CGRect(
+            x: 0, y: 0,
+            width: renderSurfaceSize.width / scale,
+            height: renderSurfaceSize.height / scale
+        )
+        metalLayer.drawableSize = renderSurfaceSize
+        CATransaction.commit()
+        layoutVideoLayer()
+    }
+
+    private func updateSurface() {
+        layoutVideoLayer()
+    }
+
+    /// Places the render surface over the view so the video inside it lands
+    /// exactly on the view's aspect-fit rectangle.
+    ///
+    /// mpv letterboxes the video inside its fixed surface; the view wants the
+    /// video letterboxed inside *itself*. Both boxes are centred and share the
+    /// video's aspect, so one uniform scale — the ratio of the two video
+    /// widths — maps one onto the other, and the surface's own bars fall
+    /// outside the view and are clipped. No renderer work, so this is free to
+    /// run on every frame of a live resize or a fullscreen animation.
+    private func layoutVideoLayer() {
+        let bounds = view.bounds
+        guard bounds.width > 1, bounds.height > 1,
+              renderSurfaceSize.width > 1, renderSurfaceSize.height > 1 else { return }
+        let scale = metalLayer.contentsScale
+        let surface = CGSize(width: renderSurfaceSize.width / scale, height: renderSurfaceSize.height / scale)
+        // Before the first frame there is no video to fit; the surface itself
+        // stands in, which just letterboxes black against black.
+        let aspect = videoDisplayAspect ?? Double(surface.width / surface.height)
+        let videoInSurface = Self.fit(aspect: aspect, in: surface)
+        let videoInView = Self.fit(aspect: aspect, in: bounds.size)
+        let factor = videoInSurface.width > 0 ? videoInView.width / videoInSurface.width : 1
+        // Only a fullscreen transition eases; a live resize has to track the
+        // window exactly, and an easing there would trail the mouse.
+        let animates = animatesNextLayout && abs(factor - currentFitFactor) > 0.0001
+        animatesNextLayout = false
+        currentFitFactor = factor
+        if ProcessInfo.processInfo.environment["AG_LOG_LAYOUT"] == "1" {
+            FileHandle.standardError.write(Data(String(format: "LAYOUT t=%.3f view=%.0fx%.0f fit=%.4f animated=%@\n",
+                CACurrentMediaTime(), bounds.width, bounds.height, factor, animates ? "yes" : "no").utf8))
+        }
+        CATransaction.begin()
+        if animates {
+            // Roughly the length of AppKit's own fullscreen animation, so the
+            // picture grows with the window rather than ahead of it.
+            CATransaction.setAnimationDuration(0.42)
+            CATransaction.setAnimationTimingFunction(CAMediaTimingFunction(name: .easeInEaseOut))
+            let scale = CABasicAnimation(keyPath: "transform")
+            scale.fromValue = metalLayer.transform
+            scale.duration = 0.42
+            scale.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            let move = CABasicAnimation(keyPath: "position")
+            move.fromValue = metalLayer.position
+            move.duration = 0.42
+            move.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            metalLayer.transform = CATransform3DMakeScale(factor, factor, 1)
+            metalLayer.position = CGPoint(x: bounds.midX, y: bounds.midY)
+            metalLayer.add(scale, forKey: "fitScale")
+            metalLayer.add(move, forKey: "fitMove")
+        } else {
+            CATransaction.setDisableActions(true)
+            metalLayer.position = CGPoint(x: bounds.midX, y: bounds.midY)
+            metalLayer.transform = CATransform3DMakeScale(factor, factor, 1)
         }
         avPlayerLayer?.frame = bounds
+        CATransaction.commit()
+    }
+
+    /// What the video surface actually is right now, for the smoke test:
+    /// the size mpv renders into, and how it is fitted to the window.
+    var surfaceDiagnostics: String {
+        let bounds = metalLayer.bounds.size
+        let factor = metalLayer.transform.m11
+        return "drawable=\(Int(metalLayer.drawableSize.width))x\(Int(metalLayer.drawableSize.height)) "
+            + "bounds=\(Int(bounds.width))x\(Int(bounds.height))pt "
+            + String(format: "fit=%.4f", factor)
+    }
+
+    /// The largest box of `aspect` that fits inside `container`.
+    private static func fit(aspect: Double, in container: CGSize) -> CGSize {
+        guard aspect > 0, container.width > 0, container.height > 0 else { return container }
+        let containerAspect = Double(container.width / container.height)
+        return aspect > containerAspect
+            ? CGSize(width: container.width, height: container.width / aspect)
+            : CGSize(width: container.height * aspect, height: container.height)
+    }
+
+    /// mpv reported the video's display size; the layout depends on its
+    /// aspect, so re-place the surface.
+    private func updateVideoAspect() {
+        let width = getDouble("video-params/dw") ?? 0
+        let height = getDouble("video-params/dh") ?? 0
+        let aspect = width > 0 && height > 0 ? width / height : nil
+        guard aspect != videoDisplayAspect else { return }
+        videoDisplayAspect = aspect
+        layoutVideoLayer()
     }
 
     func setPaused(_ paused: Bool) {
@@ -435,6 +614,9 @@ final class MPVPlayerController: NSViewController {
     private func setupMPV(allowEDRFallback: Bool = true) {
         isFileLoaded = false
         configureMetalLayer(metalOutputConfiguration)
+        // mpv reads the drawable size once, at reconfig. It has to be final
+        // before the file is handed over.
+        prepareRenderSurface()
         guard let handle = mpv_create() else {
             delegate?.playerDidFail(message: String(localized: "Could not create the playback engine."))
             return
@@ -491,6 +673,8 @@ final class MPVPlayerController: NSViewController {
         observe("track-list/count", format: MPV_FORMAT_INT64)
         observe("aid", format: MPV_FORMAT_INT64)
         observe("sid", format: MPV_FORMAT_INT64)
+        observe("video-params/dw", format: MPV_FORMAT_INT64)
+        observe("video-params/dh", format: MPV_FORMAT_INT64)
         observe("chapter", format: MPV_FORMAT_INT64)
         observe("chapter-list/count", format: MPV_FORMAT_INT64)
         observe("speed", format: MPV_FORMAT_DOUBLE)
@@ -547,6 +731,7 @@ final class MPVPlayerController: NSViewController {
         var needsChapters = false
         var playbackState = false
         var needsColor = false
+        var needsGeometry = false
         var finishedFile = false
         while let event = mpv_wait_event(mpv, 0), event.pointee.event_id != MPV_EVENT_NONE {
             switch event.pointee.event_id {
@@ -560,6 +745,7 @@ final class MPVPlayerController: NSViewController {
                 case "duration": duration = data.assumingMemoryBound(to: Double.self).pointee
                 case "pause": paused = data.assumingMemoryBound(to: Int32.self).pointee != 0
                 case "demuxer-cache-time": bufferEnd = data.assumingMemoryBound(to: Double.self).pointee
+                case "video-params/dw", "video-params/dh": needsGeometry = true
                 case "track-list/count", "aid", "sid": needsTracks = true
                 case "chapter", "chapter-list/count": needsChapters = true
                 case "speed", "volume", "sub-delay", "audio-delay": playbackState = true
@@ -582,6 +768,7 @@ final class MPVPlayerController: NSViewController {
                 needsChapters = true
                 playbackState = true
                 needsColor = true
+                needsGeometry = true
             case MPV_EVENT_LOG_MESSAGE:
                 // AG_MPV_LOG=<level> (info, v, debug) puts mpv's own log on
                 // stderr. Nothing else surfaces why a file would not open.
@@ -608,6 +795,7 @@ final class MPVPlayerController: NSViewController {
             delegate?.playerDidUpdate(position: position, duration: duration, paused: paused)
         }
         if let bufferEnd { delegate?.playerDidUpdateBuffer(end: bufferEnd) }
+        if needsGeometry { updateVideoAspect() }
         if needsTracks { publishTracks() }
         if needsChapters { publishChapters() }
         if playbackState { publishPlaybackState() }
@@ -717,6 +905,20 @@ final class MPVPlayerController: NSViewController {
             if getString("track-list/\(index)/type") == "video",
                getString("track-list/\(index)/albumart") != "yes" { result += 1 }
         }
+    }
+
+    /// What mpv believes the output surface is, and where it places the
+    /// video inside it. `osd-dimensions` is the only window onto the VO's
+    /// own dwidth/dheight, which is what decides the letterbox: if it stops
+    /// matching the layer after a resize, mpv never learned about it.
+    var osdDimensions: String {
+        let w = getDouble("osd-dimensions/w") ?? 0
+        let h = getDouble("osd-dimensions/h") ?? 0
+        let ml = getDouble("osd-dimensions/ml") ?? 0
+        let mr = getDouble("osd-dimensions/mr") ?? 0
+        let mt = getDouble("osd-dimensions/mt") ?? 0
+        let mb = getDouble("osd-dimensions/mb") ?? 0
+        return "\(Int(w))x\(Int(h)) margins l=\(Int(ml)) r=\(Int(mr)) t=\(Int(mt)) b=\(Int(mb))"
     }
 
     /// The host drawable size. mpv's dwidth/dheight describe source display

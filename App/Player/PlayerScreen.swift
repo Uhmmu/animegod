@@ -1577,6 +1577,17 @@ struct PlayerScreen: View {
             if ProcessInfo.processInfo.environment["AG_SMOKE_OSD"] == "1" {
                 adjustVolume(by: -5)
             }
+            // AG_SMOKE_RESIZE=1 grows the window while playing, without
+            // touching fullscreen, to see whether mpv follows a plain resize.
+            if ProcessInfo.processInfo.environment["AG_SMOKE_RESIZE"] == "1",
+               let window = state.controller?.view.window {
+                Self.printSmokeState("before-resize", state: state, controlsVisible: controlsVisible, cursorHiddenByPlayer: cursorHiddenByPlayer)
+                var frame = window.frame
+                frame.size = NSSize(width: frame.width + 360, height: frame.height + 140)
+                window.setFrame(frame, display: true, animate: false)
+                try? await Task.sleep(for: .seconds(2))
+                Self.printSmokeState("after-resize", state: state, controlsVisible: controlsVisible, cursorHiddenByPlayer: cursorHiddenByPlayer)
+            }
             try? await Task.sleep(for: .milliseconds(400))
             capture("ag_windowed.png")
             Self.printSmokeState(
@@ -1614,11 +1625,12 @@ struct PlayerScreen: View {
         let controller = state.controller
         let windowFrame = controller?.view.window?.frame ?? .zero
         let viewBounds = controller?.view.bounds ?? .zero
-        let drawable = (controller?.view.layer as? CAMetalLayer)?.drawableSize ?? .zero
+        let surfaceText = controller?.surfaceDiagnostics ?? "nil"
         let rendered = controller?.renderedOutputSize
         let renderedText = rendered.map { "\(Int($0.width))x\(Int($0.height))" } ?? "nil"
         let fullscreen = controller?.view.window?.styleMask.contains(.fullScreen) ?? false
-        FileHandle.standardError.write(Data("SMOKE \(label): window=\(Int(windowFrame.width))x\(Int(windowFrame.height)) fs=\(fullscreen) view=\(Int(viewBounds.width))x\(Int(viewBounds.height)) drawable=\(Int(drawable.width))x\(Int(drawable.height)) surface=\(renderedText) pos=\(Int(state.position))/\(Int(state.duration)) buffered=\(state.bufferedEnd.map { String(Int($0)) } ?? "nil") chapters=\(state.chapters.count) controls=\(controlsVisible) cursorHidden=\(cursorHiddenByPlayer)\n".utf8))
+        FileHandle.standardError.write(Data("SMOKE \(label) mpv-osd: \(controller?.osdDimensions ?? "nil")\n".utf8))
+        FileHandle.standardError.write(Data("SMOKE \(label): window=\(Int(windowFrame.width))x\(Int(windowFrame.height)) fs=\(fullscreen) view=\(Int(viewBounds.width))x\(Int(viewBounds.height)) \(surfaceText) surface=\(renderedText) pos=\(Int(state.position))/\(Int(state.duration)) buffered=\(state.bufferedEnd.map { String(Int($0)) } ?? "nil") chapters=\(state.chapters.count) controls=\(controlsVisible) cursorHidden=\(cursorHiddenByPlayer)\n".utf8))
         let subtitleTracks = state.subtitleTracks.map { "\($0.id):\($0.title)\($0.isExternal ? ":ext" : "")" }
         let onScreen = (controller?.currentSubtitleText ?? "").replacingOccurrences(of: "\n", with: " | ")
         FileHandle.standardError.write(Data("SMOKE \(label) subtitles: sid=\(state.subtitleID.map(String.init) ?? "no") tracks=\(subtitleTracks) text=\"\(onScreen)\" online=\(SubtitleStatusBadge.statusText(state.subtitles.phase))\n".utf8))
