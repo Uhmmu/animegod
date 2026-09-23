@@ -103,7 +103,7 @@ struct AnimeDetailView: View {
     @ViewBuilder
     private var hero: some View {
         HStack(alignment: .top, spacing: 24) {
-            PosterView(urls: model.posterCandidates(for: anime.id))
+            PosterView(urls: model.posterCandidates(for: anime.id), height: 285)
                 .frame(width: 190, height: 285)
 
             VStack(alignment: .leading, spacing: 14) {
@@ -615,23 +615,37 @@ private struct EpisodeCacheControl: View {
 /// is tried instead of showing a broken image.
 struct PosterView: View {
     private let urls: [URL]
-    @State private var image: NSImage?
+    /// The height the poster is drawn at, in points. The image is decoded at
+    /// that size instead of at the CDN's full resolution — a grid of
+    /// full-size posters is what made scrolling stutter.
+    private let displayHeight: CGFloat
+    @Environment(\.displayScale) private var displayScale
+    @State private var image: CGImage?
     @State private var attempt = 0
 
-    init(url: URL?) {
+    init(url: URL?, height: CGFloat = 300) {
         urls = [url].compactMap { $0 }
+        displayHeight = height
     }
 
-    init(urls: [URL]) {
+    init(urls: [URL], height: CGFloat = 300) {
         var seen = Set<URL>()
         self.urls = urls.filter { seen.insert($0).inserted }
+        displayHeight = height
+    }
+
+    /// Bucketed to 64 px so a window resize does not decode the poster again
+    /// for every intermediate size.
+    private var maxPixel: Int {
+        let pixels = displayHeight * max(displayScale, 2)
+        return max(128, Int((pixels / 64).rounded(.up)) * 64)
     }
 
     var body: some View {
         ZStack {
             Rectangle().fill(.quaternary)
             if let image {
-                Image(nsImage: image)
+                Image(decorative: image, scale: displayScale)
                     .resizable()
                     .scaledToFill()
             } else if attempt < urls.count {
@@ -648,10 +662,9 @@ struct PosterView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .task(id: TaskKey(urls: urls, attempt: attempt)) {
+        .task(id: TaskKey(urls: urls, attempt: attempt, maxPixel: maxPixel)) {
             guard attempt < urls.count else { return }
-            if let data = await ArtworkCache.shared.data(for: urls[attempt]),
-               let loaded = NSImage(data: data) {
+            if let loaded = await PosterImageCache.shared.image(for: urls[attempt], maxPixel: maxPixel) {
                 image = loaded
             } else {
                 attempt += 1
@@ -665,6 +678,7 @@ struct PosterView: View {
     private struct TaskKey: Equatable {
         let urls: [URL]
         let attempt: Int
+        let maxPixel: Int
     }
 }
 
@@ -694,7 +708,7 @@ private struct MetadataMatchView: View {
                     List(candidates) { candidate in
                         Button { Task { await select(candidate) } } label: {
                             HStack(spacing: 14) {
-                                PosterView(url: candidate.posterURL).frame(width: 54, height: 81)
+                                PosterView(url: candidate.posterURL, height: 81).frame(width: 54, height: 81)
                                 VStack(alignment: .leading, spacing: 5) {
                                     Text(candidate.title).font(.headline)
                                     if candidate.originalTitle != candidate.title {

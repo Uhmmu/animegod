@@ -77,7 +77,7 @@ private struct AnimeCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            PosterView(urls: posterURLs)
+            PosterView(urls: posterURLs, height: 380)
                 .aspectRatio(2 / 3, contentMode: .fit)
                 .overlay(alignment: .topTrailing) {
                     if let downloadProgress {

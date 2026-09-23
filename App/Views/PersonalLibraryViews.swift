@@ -34,7 +34,7 @@ struct RankingsView: View {
                                 .font(.title2.bold().monospacedDigit())
                                 .frame(width: 58, alignment: .trailing)
                                 .foregroundStyle(.secondary)
-                            PosterView(urls: model.posterCandidates(for: item.id))
+                            PosterView(urls: model.posterCandidates(for: item.id), height: 69)
                                 .frame(width: 46, height: 69)
                             VStack(alignment: .leading, spacing: 5) {
                                 Text(model.metadataByAnimeID[item.id]?.title ?? item.anime.title).font(.headline)

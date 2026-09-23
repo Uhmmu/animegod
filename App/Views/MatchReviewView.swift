@@ -24,7 +24,7 @@ struct MatchReviewView: View {
                                     Task { await model.confirmPendingMatch(pending, candidate: ranked.candidate) }
                                 } label: {
                                     HStack(spacing: 14) {
-                                        PosterView(url: ranked.candidate.posterURL)
+                                        PosterView(url: ranked.candidate.posterURL, height: 69)
                                             .frame(width: 46, height: 69)
                                         VStack(alignment: .leading, spacing: 4) {
                                             Text(ranked.candidate.title).font(.headline)

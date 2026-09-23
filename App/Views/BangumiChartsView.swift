@@ -227,7 +227,7 @@ private struct ChartRow: View {
                 .font(.title2.bold().monospacedDigit())
                 .frame(width: 56, alignment: .trailing)
                 .foregroundStyle(rankColor)
-            PosterView(url: entry.coverURL)
+            PosterView(url: entry.coverURL, height: 66)
                 .frame(width: 44, height: 66)
             VStack(alignment: .leading, spacing: 4) {
                 Text(verbatim: entry.title).font(.headline)

@@ -142,7 +142,7 @@ struct StatisticsView: View {
                             .font(.headline.monospacedDigit())
                             .foregroundStyle(.secondary)
                             .frame(width: 26, alignment: .trailing)
-                        PosterView(urls: model.posterCandidates(for: entry.animeID))
+                        PosterView(urls: model.posterCandidates(for: entry.animeID), height: 60)
                             .frame(width: 40, height: 60)
                         VStack(alignment: .leading, spacing: 3) {
                             Text(entry.title).font(.headline)
