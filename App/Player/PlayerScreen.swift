@@ -48,7 +48,9 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
     @Published var duration: Double
     /// How far ahead the demuxer has read; drawn on the timeline.
     @Published private(set) var bufferedEnd: Double?
-    @Published var paused = false
+    @Published var paused = false {
+        didSet { updateScreenAwake() }
+    }
     @Published var audioTracks: [MediaTrack] = []
     @Published var subtitleTracks: [MediaTrack] = []
     @Published var audioID: Int64?
@@ -60,7 +62,9 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
     @Published var subtitleDelay: Double = 0
     @Published var audioDelay: Double = 0
     @Published var isLoading = true
-    @Published var errorMessage: String?
+    @Published var errorMessage: String? {
+        didSet { updateScreenAwake() }
+    }
     /// False when no playable source existed at init (drive missing, no
     /// cache); the controller must not receive a file to load then.
     private(set) var playbackAvailable = true
@@ -90,6 +94,8 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
     var isDirectPlayback: Bool { directPlayback != nil }
     let startedAt = Date.now
     private var lastPosition: Double?
+    /// Holds off display sleep while a video is actually running.
+    private let screenAwake = PlaybackActivity()
     private var watchedDuration: Double = 0
     private var didEndSession = false
     private var didApplyVersionPolicy = false
@@ -116,6 +122,7 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
         }
         subtitles.host = self
         if playbackAvailable { loadSubtitles(for: episode.mediaFile, url: mediaURL) }
+        updateScreenAwake()
     }
 
     /// Online subtitles follow the file on screen, like danmaku.
@@ -327,6 +334,11 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
         controller?.setSpeed(value)
     }
 
+    /// Display sleep is held off only while a video is really running.
+    private func updateScreenAwake() {
+        screenAwake.setPlaying(playbackAvailable && !paused && errorMessage == nil)
+    }
+
     // MARK: Hold-to-scan (← / → held down)
 
     enum HoldMode { case fastForward, rewind }
@@ -480,6 +492,7 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
     }
 
     func endSession() -> (startedAt: Date, watchedDuration: Double, position: Double, duration: Double)? {
+        screenAwake.setPlaying(false)
         guard !didEndSession else { return nil }
         didEndSession = true
         return (startedAt, watchedDuration, position, duration)
