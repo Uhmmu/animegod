@@ -1,47 +1,41 @@
-# AnimeGod 0.3.0
+# AnimeGod 0.3.1
 
-AnimeGod 0.3.0 makes the whole app available in English, Simplified Chinese
-and Japanese, and gives the player a new native control experience designed
-for watching from the keyboard, trackpad or mouse.
+AnimeGod 0.3.1 makes local playback and downloads more dependable, with
+direct Blu-ray image playback, automatic archive extraction, corrected HDR
+output and smoother everyday browsing and viewing.
 
-## English, Chinese and Japanese
+## Blu-ray images and playback
 
-- The complete interface is now localized in **English**, **Simplified
-  Chinese** and **Japanese**, including the library, player, settings,
-  downloads, search, subtitles, danmaku, errors and system dialogs.
-- Choose a language in **Settings → General → Language**. AnimeGod relaunches
-  once to apply it everywhere.
-- A new Japanese README joins the English and Simplified Chinese guides.
+- Open a Blu-ray `.iso` directly from the library. AnimeGod selects the main
+  feature and preserves chapters and seeking without mounting or unpacking
+  the image first.
+- HDR10 and HLG output now use the correct transfer function, fixing video
+  that could appear almost black on an HDR display.
+- Video continues to fit the window when entering or leaving full screen,
+  without reloading the file or losing the current playback position.
+- Reopening an episode watched to the end starts it from the beginning instead
+  of landing at the final frame.
+- The display stays awake while video is playing and can sleep normally when
+  playback is paused or closed.
 
-## A redesigned player
+## Better-organized downloads
 
-- The control bar now uses consistent icon buttons over subtle top and bottom
-  scrims, leaving more of the video visible. Speed, volume, audio, danmaku,
-  subtitles and full screen are arranged together on the right.
-- Player menus open as compact bubble panels attached to their controls. They
-  remain open while the video plays and close with an outside click or Esc.
-- The episode picker is now a grid grouped by category beside the title, with
-  chapters available from the same area.
-- The new timeline shows chapter boundaries and buffered video. Hover to see
-  the time and chapter, drag for responsive keyframe previews, then release
-  for an exact seek. Click the time to switch between total and remaining
-  time.
-- Tap the left or right arrow to seek 10 seconds. Hold an arrow to scan at 2×;
-  tap and then hold for 3×. Playback speed and danmaku timing return to normal
-  when the key is released.
-- Keyboard and scroll actions now show one clear on-screen status for seeking,
-  volume, danmaku and HDR output. Play and pause briefly appear in the centre.
-  The scroll wheel and up/down arrows adjust volume.
-- Click the speaker to mute, hover it for the volume slider, and click the
-  danmaku button to open its controls.
+- Every torrent now gets its own folder, including single-file releases, so a
+  library folder no longer fills with loose video files.
+- Completed `.rar`, `.zip` and `.7z` releases can be unpacked automatically in
+  their download folder. Multi-part archives are recognized, the original
+  archive is kept, and automatic extraction can be turned off from the
+  download-folder menu.
 
-## Appearance
+## Smoother library and player
 
-- Choose **System**, **Light** or **Dark** in Settings. The library, sheets,
-  menus and panels update immediately; the video player remains dark for a
-  consistent viewing environment.
-- Loading, error, diagnostics, danmaku and player panels now share one
-  restrained translucent visual style.
+- Posters are decoded in the background at the size they are displayed,
+  reducing stutter while scrolling through the library.
+- Download progress now refreshes only the views that show it instead of
+  repeatedly redrawing the entire app.
+- Playback-position updates and dense danmaku use less main-thread work, making
+  controls and comments smoother while preserving precise seeking, history and
+  danmaku timing.
 
 ## Compatibility
 

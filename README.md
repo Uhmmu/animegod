@@ -9,11 +9,11 @@ in one fast SwiftUI application.
 > Give a local anime collection memory, structure, context, and history while
 > preserving the speed and quality of a native macOS application.
 
-**Current release: 0.3.0.** AnimeGod now speaks English, Simplified Chinese
-and Japanese, with an in-app language setting. The player has a redesigned
-control bar, chapter-aware timeline, bubble panels, keyboard scan controls
-and clear on-screen feedback, while the library can follow the Mac's
-appearance or stay light or dark.
+**Current release: 0.3.1.** Blu-ray `.iso` images now play directly, completed
+downloads can unpack archives automatically, and every download stays in its
+own folder. HDR brightness, window and full-screen fitting, replaying finished
+episodes, and display-sleep behaviour are fixed, while poster loading, player
+updates and dense danmaku are smoother.
 
 ## Features
 
