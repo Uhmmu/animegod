@@ -1,6 +1,7 @@
 import AnimeGodCore
 import AppKit
 import Combine
+import QuartzCore
 import SwiftUI
 
 struct MPVPlayerView: NSViewControllerRepresentable {
@@ -44,7 +45,13 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
 
     fileprivate static let subtitlePreferenceKey = "player.subtitle.preference"
 
+    /// The position SwiftUI draws. Deliberately coarser than the player's
+    /// own clock — see `playerDidUpdate`.
     @Published var position: Double
+    /// The newest position mpv reported, at full rate and without
+    /// republishing. Everything that needs an accurate "where are we right
+    /// now" (seeking, the danmaku anchor) reads this, not `position`.
+    private(set) var livePosition: Double
     @Published var duration: Double
     /// How far ahead the demuxer has read; drawn on the timeline.
     @Published private(set) var bufferedEnd: Double?
@@ -96,6 +103,9 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
     private var lastPosition: Double?
     /// Holds off display sleep while a video is actually running.
     private let screenAwake = PlaybackActivity()
+    /// Host time of the last `position` republish, for the throttle in
+    /// `playerDidUpdate`.
+    private var lastPositionPublish: Double = 0
     private var watchedDuration: Double = 0
     private var didEndSession = false
     private var didApplyVersionPolicy = false
@@ -113,7 +123,9 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
         directPlayback = request.directPlayback
         let episode = request.episode
         currentEpisode = episode
-        position = episode.progress?.position ?? 0
+        let startPosition = episode.progress?.position ?? 0
+        position = startPosition
+        livePosition = startPosition
         duration = episode.progress?.duration ?? 0
         if let resolved = resolvePlayback(file: episode.mediaFile) {
             mediaURL = resolved.url
@@ -216,7 +228,7 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
         startAutoCacheIfNeeded(for: file, playedFromCache: resolved.playedFromCache)
         loadDanmaku(for: file, url: resolved.url)
         loadSubtitles(for: file, url: resolved.url)
-        controller?.play(url: resolved.url, position: position)
+        controller?.play(url: resolved.url, position: livePosition)
     }
 
     /// Finalizes the current episode's watch session and prepares playback of
@@ -243,7 +255,7 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
         mediaURL = url
         currentEpisode = episode
         currentIndex = index
-        position = episode.progress?.position ?? 0
+        setPosition(episode.progress?.position ?? 0)
         duration = episode.progress?.duration ?? 0
         watchedDuration = 0
         lastPosition = nil
@@ -310,28 +322,37 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
         paused.toggle()
         // Freeze/resume the danmaku clock immediately. mpv may report the
         // pause property without a simultaneous position update.
-        danmaku.playbackSample(position: position, speed: speed, paused: paused)
+        danmaku.playbackSample(position: livePosition, speed: speed, paused: paused)
         controller?.setPaused(paused)
     }
 
     func seek(to value: Double, exact: Bool = true) {
-        position = value
+        setPosition(value)
         danmaku.playbackSample(position: value, speed: speed, paused: paused)
         controller?.seek(to: value, exact: exact)
     }
 
     func seek(by offset: Double) {
         let upperBound = duration > 0 ? duration : Double.greatestFiniteMagnitude
-        let target = min(max(position + offset, 0), upperBound)
-        position = target
+        let target = min(max(livePosition + offset, 0), upperBound)
+        setPosition(target)
         danmaku.playbackSample(position: target, speed: speed, paused: paused)
         controller?.seek(by: offset)
     }
 
     func setSpeed(_ value: Double) {
         speed = value
-        danmaku.playbackSample(position: position, speed: value, paused: paused)
+        danmaku.playbackSample(position: livePosition, speed: value, paused: paused)
         controller?.setSpeed(value)
+    }
+
+    /// Moves both the drawn and the live position, for the cases where the
+    /// app itself decides where playback is (a seek) rather than mpv
+    /// reporting it.
+    private func setPosition(_ value: Double) {
+        position = value
+        livePosition = value
+        lastPositionPublish = CACurrentMediaTime()
     }
 
     /// Display sleep is held off only while a video is really running.
@@ -450,7 +471,20 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
                 if delta > 0, delta <= 5 { watchedDuration += delta }
             }
             lastPosition = position
-            self.position = position
+            livePosition = position
+            // mpv reports `time-pos` on every rendered frame. The danmaku
+            // clock above wants all of them, SwiftUI wants none of them:
+            // republishing at frame rate re-evaluates the whole player view
+            // 24-60x a second, and that main-thread work is what makes the
+            // danmaku overlay stutter and the controls feel heavy. The
+            // timeline moves well under a pixel in 200 ms, so the published
+            // value is throttled to that — except for a jump (a seek), a
+            // pause, or the first sample, which must land immediately.
+            let now = CACurrentMediaTime()
+            if effectivePaused || abs(position - self.position) > 1 || now - lastPositionPublish >= 0.2 {
+                lastPositionPublish = now
+                self.position = position
+            }
         }
         if let duration {
             self.duration = duration
@@ -463,7 +497,7 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
             // Pause-only events must re-anchor too; otherwise interpolation
             // keeps advancing until another position sample happens.
             danmaku.playbackSample(
-                position: position ?? self.position,
+                position: position ?? livePosition,
                 speed: speed,
                 paused: effectivePaused
             )
@@ -484,7 +518,7 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
     /// Returns the finished session for the episode that just stopped, clearing
     /// per-episode bookkeeping so the next episode starts from a clean slate.
     func takeSession() -> (startedAt: Date, watchedDuration: Double, position: Double, duration: Double)? {
-        let result = (startedAt, watchedDuration, position, duration)
+        let result = (startedAt, watchedDuration, livePosition, duration)
         watchedDuration = 0
         lastPosition = nil
         didEndSession = true
@@ -495,7 +529,7 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
         screenAwake.setPlaying(false)
         guard !didEndSession else { return nil }
         didEndSession = true
-        return (startedAt, watchedDuration, position, duration)
+        return (startedAt, watchedDuration, livePosition, duration)
     }
 
     func playerDidUpdateTracks(audio: [MediaTrack], subtitles: [MediaTrack], audioID: Int64?, subtitleID: Int64?) {
