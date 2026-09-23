@@ -45,8 +45,7 @@ struct RootView: View {
                     // `.tag` has to be the outermost modifier: a `.badge`
                     // applied after it wraps the row and the list stops
                     // matching the selection, so the section does nothing.
-                    Label("Downloads", systemImage: "arrow.down.to.line")
-                        .badge(model.downloads.activeCount)
+                    DownloadsSidebarLabel(downloads: model.downloads)
                         .tag(SidebarItem.downloads)
                     Label("Subscriptions", systemImage: "bell")
                         .badge(model.subscriptions.enabledCount)
@@ -62,7 +61,7 @@ struct RootView: View {
             // push onto; without this wrapper, library cards do nothing.
             NavigationStack(path: $navigationPath) {
                 switch selection {
-                case .library: LibraryView()
+                case .library: LibraryView(downloads: model.downloads)
                 case .continueWatching: ContinueWatchingView()
                 case .bangumiCharts: BangumiChartsView()
                 case .releases: ReleaseSearchView(search: model.releaseSearch, downloads: model.downloads, subscriptions: model.subscriptions)
@@ -174,5 +173,17 @@ struct RootView: View {
         } message: {
             Text(model.errorMessage ?? "")
         }
+    }
+}
+
+/// The Downloads row observes the download manager itself. Its badge counts
+/// running tasks and therefore changes every second; routing that through
+/// AppModel would re-render the whole window at the same rate.
+private struct DownloadsSidebarLabel: View {
+    @ObservedObject var downloads: TorrentDownloadManager
+
+    var body: some View {
+        Label("Downloads", systemImage: "arrow.down.to.line")
+            .badge(downloads.activeCount)
     }
 }

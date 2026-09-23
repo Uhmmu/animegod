@@ -3,6 +3,9 @@ import SwiftUI
 
 struct LibraryView: View {
     @EnvironmentObject private var model: AppModel
+    /// Observed here rather than through AppModel: download progress ticks
+    /// once a second, and only this screen and the sidebar badge show it.
+    @ObservedObject var downloads: TorrentDownloadManager
     @State private var searchText = ""
 
     private var filtered: [LibraryAnime] {
@@ -14,7 +17,7 @@ struct LibraryView: View {
     /// is visible here rather than only under Downloads.
     private var incoming: [TorrentDownloadItem] {
         let libraryIDs = Set(model.library.map(\.anime.id))
-        return model.downloads.items.filter { item in
+        return downloads.items.filter { item in
             guard !item.isComplete else { return false }
             guard let animeID = item.record.animeID else { return true }
             return !libraryIDs.contains(animeID)
@@ -24,7 +27,7 @@ struct LibraryView: View {
 
     /// Progress to draw on a library card for a title still downloading.
     private func downloadProgress(for animeID: UUID) -> Double? {
-        let active = model.downloads.items.filter { $0.record.animeID == animeID && !$0.isComplete }
+        let active = downloads.items.filter { $0.record.animeID == animeID && !$0.isComplete }
         guard !active.isEmpty else { return nil }
         return active.map(\.progress).reduce(0, +) / Double(active.count)
     }

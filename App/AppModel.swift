@@ -65,6 +65,10 @@ final class AppModel: ObservableObject {
         subscriptions = TorrentSubscriptionManager(preferences: torrentSources)
         // Republish translation and danmaku preference state so views
         // observing only AppModel update while batches/settings change.
+        // `downloads` is deliberately not in this list: it publishes once a
+        // second for as long as a task exists, and republishing that through
+        // AppModel re-rendered every view in the app — including the library
+        // grid mid-scroll. Its consumers observe it directly instead.
         translation.objectWillChange
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.objectWillChange.send() }
@@ -78,10 +82,6 @@ final class AppModel: ObservableObject {
             .sink { [weak self] _ in self?.objectWillChange.send() }
             .store(in: &cancellables)
         episodeCache.objectWillChange
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in self?.objectWillChange.send() }
-            .store(in: &cancellables)
-        downloads.objectWillChange
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.objectWillChange.send() }
             .store(in: &cancellables)
