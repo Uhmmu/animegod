@@ -162,12 +162,23 @@ final class DanmakuCanvas: NSView {
     /// instead of scanning the entire movie from zero on its first frame.
     private var latestPlaybackPosition: Double = 0
 
-    /// Layers by comment id; reused across frames, created/removed only on
-    /// structural changes.
-    private var layers: [String: CALayer] = [:]
-    /// Aligned with the engine's active list each structural change so
-    /// per-frame updates never touch the dictionary.
+    /// Layers aligned with the engine's active list, plus the comment ids
+    /// and drawn widths they currently carry. Reconciling these three by a
+    /// two-pointer walk (below) keeps structural frames free of hashing and
+    /// allocation, which matters because a dense danmaku stream spawns or
+    /// expires something on almost every frame.
     private var orderedLayers: [CALayer] = []
+    private var orderedIDs: [String] = []
+    private var orderedWidths: [Double] = []
+    /// Scratch buffers for the reconcile, kept alive so the walk allocates
+    /// nothing per frame.
+    private var scratchLayers: [CALayer] = []
+    private var scratchIDs: [String] = []
+    private var scratchWidths: [Double] = []
+    /// Retired layers, kept in the tree but hidden. Adding and removing
+    /// sublayers is the expensive part of a structural change; reusing a
+    /// hidden layer is not.
+    private var freeLayers: [CALayer] = []
 
     private var frameCount = 0
     private var lastFPSWindow = CACurrentMediaTime()
@@ -330,6 +341,37 @@ final class DanmakuCanvas: NSView {
         recomputeMetrics()
     }
 
+    /// Drops every layer back into the pool. Used when the rasterized
+    /// bitmaps themselves become stale (font size or line height changed),
+    /// since a recycled layer otherwise keeps the old image.
+    private func discardLayers() {
+        for layer in orderedLayers { recycle(layer) }
+        orderedLayers.removeAll(keepingCapacity: true)
+        orderedIDs.removeAll(keepingCapacity: true)
+        orderedWidths.removeAll(keepingCapacity: true)
+    }
+
+    private func recycle(_ layer: CALayer) {
+        layer.isHidden = true
+        if freeLayers.count < 256 {
+            freeLayers.append(layer)
+        } else {
+            layer.removeFromSuperlayer()
+        }
+    }
+
+    private func dequeueLayer() -> CALayer {
+        if let layer = freeLayers.popLast() {
+            layer.isHidden = false
+            return layer
+        }
+        let layer = CALayer()
+        layer.anchorPoint = .zero
+        layer.actions = ["position": NSNull(), "bounds": NSNull(), "contents": NSNull()]
+        hostLayer.addSublayer(layer)
+        return layer
+    }
+
     private func recomputeMetrics() {
         let scale = Int((window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2).rounded())
         // Base size tracks the player height (≈29pt in a 1117pt-tall
@@ -337,7 +379,12 @@ final class DanmakuCanvas: NSView {
         let baseFontSize = min(max(bounds.height * 0.026, 14), 40)
         let fontSize = min(max(baseFontSize * settings.fontScale, 10), 60)
         let spacing = min(max(settings.lineSpacing, 1.05), 2)
+        let metricsChanged = fontSize != rasterizer.fontSize
+            || (fontSize * spacing).rounded() != rasterizer.lineHeight
         rasterizer.update(fontSize: fontSize, lineHeight: (fontSize * spacing).rounded(), scale: scale)
+        // Every cached bitmap was just thrown away; a reused layer would
+        // otherwise keep drawing the old one at the new size.
+        if metricsChanged { discardLayers() }
         engine.updateSettings(settings)
         engine.updateViewport(width: max(bounds.width, 1), height: max(bounds.height, 1), lineHeight: lineHeight)
         syncLayers(structural: true)
@@ -353,33 +400,56 @@ final class DanmakuCanvas: NSView {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         let active = engine.activeComments
-        if structural {
-            let liveIDs = Set(active.map(\.id))
-            for (id, layer) in layers where !liveIDs.contains(id) {
-                layer.removeFromSuperlayer()
-                layers[id] = nil
-            }
-            orderedLayers = active.map { item in
-                if let existing = layers[item.id] { return existing }
-                let layer = CALayer()
-                layer.anchorPoint = .zero
-                if let bitmap = rasterizer.bitmap(for: commentForRaster(item)) {
-                    layer.contents = bitmap
-                }
-                layers[item.id] = layer
-                hostLayer.addSublayer(layer)
-                return layer
-            }
-        }
         let lineRectHeight = lineHeight
+        if structural {
+            // Both lists are in spawn order and expiry compacts in place, so
+            // the new list is the old one minus some entries plus appends:
+            // one forward walk matches them up. Ids that fall out hand their
+            // layer to the pool, new ids take one from it.
+            scratchLayers.removeAll(keepingCapacity: true)
+            scratchIDs.removeAll(keepingCapacity: true)
+            scratchWidths.removeAll(keepingCapacity: true)
+            var old = 0
+            for index in active.indices {
+                let id = active[index].id
+                while old < orderedIDs.count, orderedIDs[old] != id {
+                    recycle(orderedLayers[old])
+                    old += 1
+                }
+                if old < orderedIDs.count {
+                    scratchLayers.append(orderedLayers[old])
+                    scratchWidths.append(orderedWidths[old])
+                    old += 1
+                } else {
+                    let layer = dequeueLayer()
+                    layer.contents = rasterizer.bitmap(for: commentForRaster(active[index]))
+                    scratchLayers.append(layer)
+                    scratchWidths.append(.nan)
+                }
+                scratchIDs.append(id)
+            }
+            while old < orderedIDs.count {
+                recycle(orderedLayers[old])
+                old += 1
+            }
+            swap(&orderedLayers, &scratchLayers)
+            swap(&orderedIDs, &scratchIDs)
+            swap(&orderedWidths, &scratchWidths)
+        }
         for index in active.indices {
             // Engine lanes are expressed from the top edge (lane zero is the
-            // first row). CALayer frames use a bottom-left origin here.
+            // first row). CALayer positions use a bottom-left origin here,
+            // and with anchorPoint .zero the position *is* the frame origin.
             let layerY = max(0, bounds.height - active[index].y - lineRectHeight)
-            orderedLayers[index].frame = CGRect(
-                x: active[index].x, y: layerY,
-                width: max(active[index].width, 1), height: lineRectHeight
-            )
+            let layer = orderedLayers[index]
+            layer.position = CGPoint(x: active[index].x, y: layerY)
+            // Bounds are per-comment and never change while it is on screen;
+            // setting them every frame would re-lay-out the layer for nothing.
+            let width = max(active[index].width, 1)
+            if orderedWidths[index] != width {
+                layer.bounds = CGRect(x: 0, y: 0, width: width, height: lineRectHeight)
+                orderedWidths[index] = width
+            }
         }
         CATransaction.commit()
     }
