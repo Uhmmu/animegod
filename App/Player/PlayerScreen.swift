@@ -123,7 +123,7 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
         directPlayback = request.directPlayback
         let episode = request.episode
         currentEpisode = episode
-        let startPosition = episode.progress?.position ?? 0
+        let startPosition = Self.startPosition(for: episode)
         position = startPosition
         livePosition = startPosition
         duration = episode.progress?.duration ?? 0
@@ -255,7 +255,7 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
         mediaURL = url
         currentEpisode = episode
         currentIndex = index
-        setPosition(episode.progress?.position ?? 0)
+        setPosition(Self.startPosition(for: episode))
         duration = episode.progress?.duration ?? 0
         watchedDuration = 0
         lastPosition = nil
@@ -344,6 +344,19 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
         speed = value
         danmaku.playbackSample(position: livePosition, speed: value, paused: paused)
         controller?.setSpeed(value)
+    }
+
+    /// Where playback starts for an episode. An episode that was played to
+    /// the end starts over instead of resuming: coming back to a file and
+    /// having it open a fraction of a second before EOF looks exactly like a
+    /// file that will not play — mpv reaches the end immediately, and a movie
+    /// has no next episode to advance to, so the window just sits there
+    /// showing nothing. Only the very end counts; someone who stopped during
+    /// the credits still gets their position back.
+    private static func startPosition(for episode: EpisodeMedia) -> Double {
+        guard let progress = episode.progress, progress.position > 0 else { return 0 }
+        guard progress.duration > 0 else { return progress.position }
+        return progress.position >= progress.duration - 15 ? 0 : progress.position
     }
 
     /// Moves both the drawn and the live position, for the cases where the
