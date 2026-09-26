@@ -179,25 +179,39 @@ struct ReleaseSearchView: View {
     private var filterBar: some View {
         let facets = search.facets
         return HStack(spacing: 8) {
-            Picker("Sort", selection: $search.sortOrder) {
-                ForEach(TorrentResultMerger.SortOrder.allCases) { order in
-                    Text(order.displayName).tag(order)
+            Picker("Layout", selection: $search.layout) {
+                ForEach(TorrentSearchModel.Layout.allCases) { layout in
+                    Text(layout.displayName).tag(layout)
                 }
             }
+            .pickerStyle(.segmented)
             .labelsHidden()
             .fixedSize()
+            .help("Episode Sets collects each fansub's episodes into one season you can start in a single click")
+
+            if search.layout == .releases {
+                Picker("Sort", selection: $search.sortOrder) {
+                    ForEach(TorrentResultMerger.SortOrder.allCases) { order in
+                        Text(order.displayName).tag(order)
+                    }
+                }
+                .labelsHidden()
+                .fixedSize()
+            }
 
             Menu(menuTitle("Type", count: search.filter.categories == TorrentCategory.defaultVisible ? 0 : search.filter.categories.count)) {
                 ForEach(TorrentCategory.allCases) { category in
                     Toggle(category.displayName, isOn: setBinding(\.categories, category))
                 }
-                Divider()
-                Picker("Episodes", selection: $search.filter.batchMode) {
-                    ForEach(TorrentResultFilter.BatchMode.allCases) { mode in
-                        Text(mode.displayName).tag(mode)
+                if search.layout == .releases {
+                    Divider()
+                    Picker("Episodes", selection: $search.filter.batchMode) {
+                        ForEach(TorrentResultFilter.BatchMode.allCases) { mode in
+                            Text(mode.displayName).tag(mode)
+                        }
                     }
+                    .pickerStyle(.inline)
                 }
-                .pickerStyle(.inline)
             }
             .fixedSize()
 
@@ -231,7 +245,12 @@ struct ReleaseSearchView: View {
             Toggle("Hide Unrelated", isOn: $search.filter.hidesUnrelated)
                 .toggleStyle(.checkbox)
                 .help("Hide listings whose titles share less than half of the searched words")
-            if search.hasOwnedEpisodes {
+            if search.layout == .episodeSets {
+                Toggle("Fill Gaps", isOn: $search.fillsGapsFromOtherGroups)
+                    .toggleStyle(.checkbox)
+                    .help("Take an episode a fansub never published from the closest other team, instead of leaving a hole in the season")
+            }
+            if search.hasOwnedEpisodes, search.layout == .releases {
                 Toggle("Missing Episodes", isOn: $search.filter.missingEpisodesOnly)
                     .toggleStyle(.checkbox)
                     .help("Only releases that bring an episode your library doesn't have")
@@ -270,6 +289,8 @@ struct ReleaseSearchView: View {
                 Text("Search 动漫花园, 蜜柑计划, Nyaa and other anime indexes at once. Separate a title's aliases with commas to search them together.")
             }
             .frame(maxHeight: .infinity)
+        } else if search.layout == .episodeSets {
+            ReleaseEpisodeSetsView(search: search, downloads: downloads, anime: anime)
         } else if results.isEmpty {
             if search.isSearching {
                 ProgressView("Searching…").frame(maxHeight: .infinity)

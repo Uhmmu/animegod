@@ -177,3 +177,23 @@ twice.
    once — and seeders outrank relevance when picking unattended, because a
    dead release never finishes. Fansub matching is substring-based so a rule
    naming one group matches a collaboration.)*
+6. Episode sets: assemble a fansub's season out of single-episode releases
+   so a whole cour can be started without taking a batch.
+   *(Done: `TorrentEpisodeSetBuilder` in Core with tests, the **Episode
+   Sets** layout in `App/Views/ReleaseEpisodeSetsView.swift`,
+   `TorrentDownloadManager.download(set:)`, and a queue limit on the engine
+   (`maximumActiveDownloads`, default 4). Three rules came out of dry runs
+   against live data (`-smokeEpisodeSets`):
+   **(a)** lines are keyed on the whole release tuple — fansub, season,
+   resolution, codec, source, subtitle languages — not on the fansub alone,
+   or one team's 1080p 简日 and 720p 繁日 end up in one "season";
+   **(b)** episode numbers are split into runs with an 8-episode gap
+   tolerance *per line*, because a sequel tagged S2 and numbered 1–10 shares
+   a search with teams still counting 29–38, and measuring either against
+   1–38 reported every line as almost entirely missing;
+   **(c)** native coverage outranks total coverage and a line more than half
+   borrowed is not offered, or "seasons" that are really other teams' files
+   under one team's name bury the real ones — that alone cut Frieren from 28
+   offered sets to 15.
+   A borrowed episode must share a subtitle language with the line it patches,
+   so a 简日 season is never completed with a raw.)*

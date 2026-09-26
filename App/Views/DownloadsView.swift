@@ -83,6 +83,12 @@ struct DownloadsView: View {
                 Divider()
                 Toggle("Unpack Archives When Finished", isOn: $downloads.extractsArchives)
                     .help("Releases shipped as .rar, .zip or .7z are unpacked where they land, so the library scan finds episodes instead of archives")
+                Picker("Downloads at Once", selection: $downloads.maximumActiveDownloads) {
+                    ForEach(TorrentDownloadManager.activeDownloadChoices, id: \.self) { count in
+                        Text(verbatim: "\(count)").tag(count)
+                    }
+                }
+                .help("A whole season started at once is queued: this many run, the rest wait their turn")
             } label: {
                 Label(folders.currentFolder.displayName, systemImage: "folder")
             }

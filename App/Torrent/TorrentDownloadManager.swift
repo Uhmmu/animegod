@@ -79,6 +79,20 @@ final class TorrentDownloadManager: ObservableObject {
     }
     private static let extractsArchivesKey = "torrent.extractArchives"
 
+    /// How many tasks download at once; the rest wait their turn in the
+    /// engine's queue. Four, not twelve: a whole season started together
+    /// would split one connection budget twelve ways and finish nothing,
+    /// and episodes are watched in order anyway.
+    @Published var maximumActiveDownloads: Int {
+        didSet {
+            UserDefaults.standard.set(maximumActiveDownloads, forKey: Self.maximumActiveDownloadsKey)
+            engine?.maximumActiveDownloads = Int32(maximumActiveDownloads)
+        }
+    }
+    private static let maximumActiveDownloadsKey = "torrent.maxActiveDownloads"
+    static let activeDownloadChoices = [1, 2, 3, 4, 6, 8]
+    static let defaultActiveDownloads = 4
+
     let folders: DownloadFolderStore
     private var database: LibraryDatabase?
     private var engine: AGTorrentEngine?
@@ -92,6 +106,8 @@ final class TorrentDownloadManager: ObservableObject {
     init(folders: DownloadFolderStore = DownloadFolderStore()) {
         self.folders = folders
         extractsArchives = UserDefaults.standard.object(forKey: Self.extractsArchivesKey) as? Bool ?? true
+        maximumActiveDownloads = UserDefaults.standard.object(forKey: Self.maximumActiveDownloadsKey) as? Int
+            ?? Self.defaultActiveDownloads
         folders.objectWillChange
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.objectWillChange.send() }
@@ -141,6 +157,7 @@ final class TorrentDownloadManager: ObservableObject {
             errorMessage = String(localized: "The download engine could not start: \(failure)")
             return nil
         }
+        engine.maximumActiveDownloads = Int32(maximumActiveDownloads)
         self.engine = engine
         startRefreshing()
         return engine
@@ -183,6 +200,44 @@ final class TorrentDownloadManager: ObservableObject {
             episodeLabel: result.release.episodeLabel,
             sequential: sequential
         )
+    }
+
+    /// Starts every episode of an assembled set, in episode order.
+    ///
+    /// All of them are handed to the engine at once and its queue keeps
+    /// `maximumActiveDownloads` running, so the season arrives episode by
+    /// episode rather than as twelve part-files creeping forward together.
+    /// Episodes already in Downloads are skipped, not reported as errors —
+    /// re-running a set to pick up what a fansub published since is the
+    /// normal way to use this.
+    @discardableResult
+    func download(
+        set: TorrentEpisodeSet,
+        anime: Anime? = nil,
+        includingOwned: Bool = false,
+        sequential: Bool = false
+    ) -> Int {
+        let entries = (includingOwned ? set.entries.filter { !$0.isExtra } : set.downloadableEntries)
+            .sorted { $0.episode < $1.episode }
+        var started = 0
+        var skipped = 0
+        for entry in entries {
+            guard records[entry.result.infoHash.hex.lowercased()] == nil else {
+                skipped += 1
+                continue
+            }
+            download(entry.result, anime: anime, sequential: sequential)
+            started += 1
+        }
+        let name = set.group ?? anime?.title ?? String(localized: "this search")
+        if started == 0 {
+            statusMessage = skipped > 0
+                ? String(localized: "Every episode of \(name) is already in Downloads.")
+                : String(localized: "There is nothing left to download in \(name).")
+        } else {
+            statusMessage = String(localized: "Queued \(started) episodes of \(name) · \(maximumActiveDownloads) download at a time.")
+        }
+        return started
     }
 
     func add(

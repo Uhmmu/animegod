@@ -53,11 +53,37 @@ final class TorrentSourcePreferences: ObservableObject {
 /// anime detail sheet makes its own, pre-filled with the title's aliases.
 @MainActor
 final class TorrentSearchModel: ObservableObject {
+    /// How the same results are presented: one row per release, or one row
+    /// per fansub's season.
+    enum Layout: String, CaseIterable, Identifiable {
+        case releases
+        case episodeSets
+
+        var id: String { rawValue }
+
+        var displayName: String {
+            switch self {
+            case .releases: String(localized: "Releases")
+            case .episodeSets: String(localized: "Episode Sets")
+            }
+        }
+    }
+
     @Published var queryText: String
-    @Published private(set) var snapshot: TorrentSearchSnapshot?
+    @Published private(set) var snapshot: TorrentSearchSnapshot? {
+        didSet { episodeSetsCache = nil }
+    }
     @Published private(set) var isSearching = false
-    @Published var filter: TorrentResultFilter
+    @Published var filter: TorrentResultFilter {
+        didSet { if filter != oldValue { episodeSetsCache = nil } }
+    }
     @Published var sortOrder: TorrentResultMerger.SortOrder = .relevance
+    @Published var layout: Layout = .releases
+    /// Fill an episode a fansub never published from the closest other
+    /// team, rather than leaving a hole in the season.
+    @Published var fillsGapsFromOtherGroups = true {
+        didSet { if fillsGapsFromOtherGroups != oldValue { episodeSetsCache = nil } }
+    }
     @Published var statusMessage: String?
 
     let preferences: TorrentSourcePreferences
@@ -65,6 +91,7 @@ final class TorrentSearchModel: ObservableObject {
     private let fetcher = TorrentFileFetcher()
     private var searchTask: Task<Void, Never>?
     private var generation = 0
+    private var episodeSetsCache: [TorrentEpisodeSet]?
 
     init(
         preferences: TorrentSourcePreferences,
@@ -85,6 +112,29 @@ final class TorrentSearchModel: ObservableObject {
     }
 
     var facets: TorrentResultFacets { TorrentResultFacets(results: snapshot?.results ?? []) }
+
+    /// One assembled season per fansub line, best first.
+    ///
+    /// Built from the same filtered results the table shows, minus batches —
+    /// avoiding a 40 GB batch is the whole point — and never narrowed to
+    /// missing episodes, because a set shows the episodes on disk too. The
+    /// result is cached: a search streams ~80 snapshots and SwiftUI
+    /// re-evaluates the list far more often than either changes.
+    var episodeSets: [TorrentEpisodeSet] {
+        if let episodeSetsCache { return episodeSetsCache }
+        var setFilter = filter
+        setFilter.batchMode = .episodesOnly
+        setFilter.missingEpisodesOnly = false
+        let built = TorrentEpisodeSetBuilder.build(
+            from: setFilter.apply(snapshot?.results ?? []),
+            options: TorrentEpisodeSetOptions(
+                ownedEpisodes: filter.ownedEpisodes,
+                allowsSubstitutes: fillsGapsFromOtherGroups
+            )
+        )
+        episodeSetsCache = built
+        return built
+    }
 
     var hiddenCount: Int { (snapshot?.results.count ?? 0) - displayedResults.count }
 
@@ -138,6 +188,12 @@ final class TorrentSearchModel: ObservableObject {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(result.magnet.uri, forType: .string)
         statusMessage = String(localized: "Copied the magnet link for “\(result.title)”.")
+    }
+
+    /// Every release in a set, so it can be handed to another client.
+    func copyMagnets(of set: TorrentEpisodeSet, includingOwned: Bool = false) {
+        let entries = includingOwned ? set.entries.filter { !$0.isExtra } : set.downloadableEntries
+        copyMagnets(entries.map(\.result))
     }
 
     func copyMagnets(_ results: [TorrentSearchResult]) {
