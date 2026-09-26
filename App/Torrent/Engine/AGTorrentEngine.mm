@@ -27,6 +27,11 @@ namespace lt = libtorrent;
 
 static NSString *const AGTorrentErrorDomain = @"com.uhmmu.AnimeGod.torrent";
 
+/// How many finished releases keep seeding at once. Generous on purpose: a
+/// library that has downloaded a few seasons should still be giving back,
+/// and a seed slot is not a download slot.
+static int const AGActiveSeedLimit = 64;
+
 /// Community tracker snapshot injected into tasks that arrive with few
 /// trackers, as magnet-crawler did. DHT and PEX cover the rest.
 static NSArray<NSString *> *AGDefaultTrackers(void) {
@@ -205,9 +210,13 @@ static NSString *AGHexFromHandle(lt::torrent_handle const &handle) {
     // A whole season is started at once, so the queue — not the user —
     // decides how many run: spreading one connection budget over twelve
     // swarms finishes nothing, and the episodes are watched in order.
+    // Seeding is not metered the same way. It costs upload only, and
+    // libtorrent hands out download slots before seed slots, so a large seed
+    // pool can never hold a download back — whereas capping seeds at the
+    // download count paused a finished season one episode at a time.
     pack.set_int(lt::settings_pack::active_downloads, _maximumActiveDownloads);
-    pack.set_int(lt::settings_pack::active_seeds, _maximumActiveDownloads);
-    pack.set_int(lt::settings_pack::active_limit, _maximumActiveDownloads * 2);
+    pack.set_int(lt::settings_pack::active_seeds, AGActiveSeedLimit);
+    pack.set_int(lt::settings_pack::active_limit, _maximumActiveDownloads + AGActiveSeedLimit);
     pack.set_int(lt::settings_pack::alert_queue_size, 5000);
     // Announcing to only the first working tracker misses most of the swarm
     // for anime releases, which list many trackers.
@@ -502,9 +511,8 @@ static NSString *AGHexFromHandle(lt::torrent_handle const &handle) {
     _maximumActiveDownloads = limited;
     lt::settings_pack pack;
     pack.set_int(lt::settings_pack::active_downloads, limited);
-    // Seeding finished releases must never take a downloading slot away.
-    pack.set_int(lt::settings_pack::active_seeds, limited);
-    pack.set_int(lt::settings_pack::active_limit, limited * 2);
+    pack.set_int(lt::settings_pack::active_seeds, AGActiveSeedLimit);
+    pack.set_int(lt::settings_pack::active_limit, limited + AGActiveSeedLimit);
     _session->apply_settings(pack);
 }
 
@@ -621,8 +629,13 @@ static NSString *AGHexFromHandle(lt::torrent_handle const &handle) {
     AGTorrentState state;
     if (status.errc) {
         state = AGTorrentStateErrored;
+    } else if (paused && !autoManaged) {
+        state = AGTorrentStatePaused;
     } else if (paused) {
-        state = autoManaged ? AGTorrentStateQueued : AGTorrentStatePaused;
+        // A *finished* task the seed queue is holding back has still finished.
+        // Calling that "Queued" made a whole completed season look as if it
+        // had fallen back to waiting for a slot, download and all.
+        state = status.is_finished ? AGTorrentStateFinished : AGTorrentStateQueued;
     } else {
         switch (status.state) {
             case lt::torrent_status::checking_files:

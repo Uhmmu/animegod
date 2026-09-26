@@ -18,9 +18,14 @@ struct TorrentDownloadItem: Identifiable, Hashable {
     }
 
     var progress: Double { snapshot?.progress ?? (record.completedAt != nil ? 1 : 0) }
+    /// Once the library has stamped a download complete it stays complete:
+    /// the live state keeps moving (seeding, held back by the seed queue,
+    /// paused by hand) and none of that undoes the fact that the file is on
+    /// disk.
     var isComplete: Bool {
+        if record.completedAt != nil { return true }
         if let state = snapshot?.state { return state == .finished || state == .seeding }
-        return record.completedAt != nil
+        return false
     }
     var isPaused: Bool { snapshot?.state == .paused }
     var totalBytes: Int64 { snapshot?.totalBytes ?? record.totalBytes }
