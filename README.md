@@ -72,6 +72,22 @@ updates and dense danmaku are smoother.
 - Per release: open in your torrent app, copy magnet link(s), save a
   `.torrent` (verified against its info hash), or open the listing page.
   Recent searches are remembered.
+- **Episode Sets** is the answer to not wanting a 40 GB batch. The same
+  results, regrouped into one row per fansub's season: episodes are matched
+  on everything except the number — fansub, season, resolution, codec,
+  source and subtitle languages — so 1080p 简日 stays separate from 720p 繁日
+  instead of being mixed into one pile. Each set shows how much of the
+  season it covers, its total size, and its weakest swarm, and **Download
+  Set** starts the whole thing in one click.
+- **Gaps are filled from the fansub next door**: an episode a team never
+  published is taken from the closest other line — same resolution and
+  subtitle language wherever possible, never a raw for a subtitled season —
+  and marked as borrowed. Episodes nobody published are named, episodes
+  already in your library are skipped, and a "set" that would be mostly
+  other teams' files is not offered as one.
+- Sequels are counted separately: a season tagged S2 and numbered 1–10 is
+  measured against its own numbering, not against the teams still counting
+  29–38 in the same search.
 
 ### Downloads
 - **Built-in BitTorrent engine** (libtorrent, statically linked): downloading
@@ -92,6 +108,11 @@ updates and dense danmaku are smoother.
 - **Connectivity is visible**, because it is what limits BitTorrent speed:
   DHT node count and whether UPnP/NAT-PMP opened the port. If the port could
   not be mapped, the panel explains what forwarding it would gain.
+- **A whole season is queued, not stampeded**: starting an Episode Set hands
+  every episode to the engine at once, and it runs four at a time (1–8 in the
+  Downloads folder menu) with the rest waiting their turn, in episode order.
+  Splitting one connection budget twelve ways finishes nothing, and episodes
+  are watched in order anyway.
 - **Play while downloading**: a sequential download becomes playable once
   32 MiB of its start is on disk, and the Play button opens it in AnimeGod's
   own player while the rest keeps arriving. Its file is moved to the front of

@@ -35,6 +35,7 @@ struct AnimeGodApp: App {
         // never builds AppModel or touches the library.
         if TorrentEngineSmokeTest.isRequested { TorrentEngineSmokeTest.runIfRequested() }
         if SubscriptionSmokeTest.isRequested { SubscriptionSmokeTest.run() }
+        if EpisodeSetSmokeTest.isRequested { EpisodeSetSmokeTest.run() }
         if FolderAccessSmokeTest.isRequested { FolderAccessSmokeTest.run() }
         if ArchiveSmokeTest.isRequested { ArchiveSmokeTest.run() }
         if SubtitleSmokeTest.isRequested { SubtitleSmokeTest.run() }

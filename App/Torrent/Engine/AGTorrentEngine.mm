@@ -145,6 +145,7 @@ static NSString *AGHexFromHandle(lt::torrent_handle const &handle) {
     BOOL _stopped;
     int _listenPort;
     int _dhtNodes;
+    int _maximumActiveDownloads;
     int _dhtNodesMetricIndex;
     int _statsTick;
     int _alertCount;
@@ -165,6 +166,7 @@ static NSString *AGHexFromHandle(lt::torrent_handle const &handle) {
     _stateDirectory = stateDirectory;
     _listenPort = listenPort;
     _dhtNodes = 0;
+    _maximumActiveDownloads = 4;
     _alertQueue = dispatch_queue_create("com.uhmmu.AnimeGod.torrent.alerts", DISPATCH_QUEUE_SERIAL);
     [NSFileManager.defaultManager createDirectoryAtURL:stateDirectory
                            withIntermediateDirectories:YES
@@ -200,9 +202,12 @@ static NSString *AGHexFromHandle(lt::torrent_handle const &handle) {
                  "dht.libtorrent.org:25401,router.bittorrent.com:6881,"
                  "router.utorrent.com:6881,dht.transmissionbt.com:6881");
     pack.set_int(lt::settings_pack::connections_limit, 800);
-    pack.set_int(lt::settings_pack::active_downloads, 8);
-    pack.set_int(lt::settings_pack::active_seeds, 8);
-    pack.set_int(lt::settings_pack::active_limit, 16);
+    // A whole season is started at once, so the queue — not the user —
+    // decides how many run: spreading one connection budget over twelve
+    // swarms finishes nothing, and the episodes are watched in order.
+    pack.set_int(lt::settings_pack::active_downloads, _maximumActiveDownloads);
+    pack.set_int(lt::settings_pack::active_seeds, _maximumActiveDownloads);
+    pack.set_int(lt::settings_pack::active_limit, _maximumActiveDownloads * 2);
     pack.set_int(lt::settings_pack::alert_queue_size, 5000);
     // Announcing to only the first working tracker misses most of the swarm
     // for anime releases, which list many trackers.
@@ -491,6 +496,22 @@ static NSString *AGHexFromHandle(lt::torrent_handle const &handle) {
     return _session->find_torrent(hash);
 }
 
+- (void)setMaximumActiveDownloads:(int)count {
+    if (!_session) { return; }
+    int const limited = MAX(1, MIN(count, 24));
+    _maximumActiveDownloads = limited;
+    lt::settings_pack pack;
+    pack.set_int(lt::settings_pack::active_downloads, limited);
+    // Seeding finished releases must never take a downloading slot away.
+    pack.set_int(lt::settings_pack::active_seeds, limited);
+    pack.set_int(lt::settings_pack::active_limit, limited * 2);
+    _session->apply_settings(pack);
+}
+
+- (int)maximumActiveDownloads {
+    return _maximumActiveDownloads;
+}
+
 - (void)addTrackers:(NSArray<NSString *> *)trackers forInfoHash:(NSString *)infoHash {
     lt::torrent_handle handle = [self handleForInfoHash:infoHash];
     if (!handle.is_valid()) { return; }
@@ -593,11 +614,15 @@ static NSString *AGHexFromHandle(lt::torrent_handle const &handle) {
     snapshot.errorMessage = status.errc ? [NSString stringWithUTF8String:status.errc.message().c_str()] : nil;
 
     bool const paused = static_cast<bool>(status.flags & lt::torrent_flags::paused);
+    // A task the queue is holding back is paused *and* still auto-managed.
+    // Reporting that as "Paused" would look like the user stopped it, with
+    // a Resume button that does nothing: it is waiting for a free slot.
+    bool const autoManaged = static_cast<bool>(status.flags & lt::torrent_flags::auto_managed);
     AGTorrentState state;
     if (status.errc) {
         state = AGTorrentStateErrored;
     } else if (paused) {
-        state = AGTorrentStatePaused;
+        state = autoManaged ? AGTorrentStateQueued : AGTorrentStatePaused;
     } else {
         switch (status.state) {
             case lt::torrent_status::checking_files:

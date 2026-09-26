@@ -96,6 +96,10 @@ typedef NS_ENUM(NSInteger, AGTorrentState) {
                            sequential:(BOOL)sequential
                                 error:(NSError **)error;
 
+/// How many tasks libtorrent lets download at once; the rest are queued
+/// and start as slots free up. Clamped to 1…24.
+@property (nonatomic) int maximumActiveDownloads;
+
 /// Extra trackers for a task that arrived with few or none.
 - (void)addTrackers:(NSArray<NSString *> *)trackers forInfoHash:(NSString *)infoHash;
 
