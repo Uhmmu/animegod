@@ -397,7 +397,7 @@ struct ReleaseSearchView: View {
             }
         } else if selected.count > 1 {
             Button("Download \(selected.count) Releases") {
-                for result in selected { downloads.download(result, anime: anime) }
+                downloads.download(selected, anime: anime)
             }
             Button("Copy \(selected.count) Magnet Links") { search.copyMagnets(selected) }
         }

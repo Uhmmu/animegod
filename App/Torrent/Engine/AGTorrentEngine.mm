@@ -92,6 +92,7 @@ static NSString *AGHexFromHandle(lt::torrent_handle const &handle) {
 @interface AGTorrentSnapshot ()
 @property (nonatomic, copy) NSString *infoHash;
 @property (nonatomic, copy) NSString *name;
+@property (nonatomic, copy, nullable) NSString *contentName;
 @property (nonatomic, copy) NSString *savePath;
 @property (nonatomic) AGTorrentState state;
 @property (nonatomic) double progress;
@@ -154,6 +155,7 @@ static NSString *AGHexFromHandle(lt::torrent_handle const &handle) {
     int _dhtNodesMetricIndex;
     int _statsTick;
     int _alertCount;
+    NSMutableSet<NSString *> *_directoriesToPrune;
     NSNumber *_portMapped;
     NSString *_portMapDetail;
     NSString *_listenError;
@@ -172,6 +174,7 @@ static NSString *AGHexFromHandle(lt::torrent_handle const &handle) {
     _listenPort = listenPort;
     _dhtNodes = 0;
     _maximumActiveDownloads = 4;
+    _directoriesToPrune = [NSMutableSet new];
     _alertQueue = dispatch_queue_create("com.uhmmu.AnimeGod.torrent.alerts", DISPATCH_QUEUE_SERIAL);
     [NSFileManager.defaultManager createDirectoryAtURL:stateDirectory
                            withIntermediateDirectories:YES
@@ -298,6 +301,8 @@ static NSString *AGHexFromHandle(lt::torrent_handle const &handle) {
     static int tick = 0;
     tick++;
     _session->post_session_stats();
+    // A rename whose alert was missed still gets its folder cleaned up.
+    [self pruneEmptiedDirectories];
     for (auto const &handle : _session->get_torrents()) {
         if (!handle.is_valid()) { continue; }
         if (handle.need_save_resume_data()) {
@@ -333,8 +338,12 @@ static NSString *AGHexFromHandle(lt::torrent_handle const &handle) {
             [self writeResumeData:resume];
         } else if (auto *metadata = lt::alert_cast<lt::metadata_received_alert>(alert)) {
             [self writeMetadataForHandle:metadata->handle];
-            [self giveSingleFileTorrentItsOwnFolder:metadata->handle];
+            [self placeTorrentInItsFolder:metadata->handle];
             metadata->handle.save_resume_data(lt::torrent_handle::save_info_dict);
+        } else if (lt::alert_cast<lt::file_renamed_alert>(alert)) {
+            [self pruneEmptiedDirectories];
+        } else if (auto *renameFailed = lt::alert_cast<lt::file_rename_failed_alert>(alert)) {
+            _lastAlertMessage = [NSString stringWithUTF8String:renameFailed->message().c_str()];
         } else if (auto *stats = lt::alert_cast<lt::session_stats_alert>(alert)) {
             if (_dhtNodesMetricIndex >= 0) {
                 _dhtNodes = static_cast<int>(stats->counters()[_dhtNodesMetricIndex]);
@@ -362,7 +371,7 @@ static NSString *AGHexFromHandle(lt::torrent_handle const &handle) {
                 // A `.torrent` (or a resumed task) already has its metadata,
                 // so the folder has to be settled here as well as on the
                 // magnet path.
-                if ([self giveSingleFileTorrentItsOwnFolder:added->handle]) {
+                if ([self placeTorrentInItsFolder:added->handle]) {
                     added->handle.save_resume_data(lt::torrent_handle::save_info_dict);
                 }
             }
@@ -381,7 +390,53 @@ static NSString *AGHexFromHandle(lt::torrent_handle const &handle) {
           atomically:YES];
 }
 
-/// Puts a single-file torrent inside a folder of its own.
+- (void)schedulePruneOfDirectory:(NSString *)path {
+    @synchronized (self) { [_directoriesToPrune addObject:path]; }
+}
+
+/// Removes the folders a rename emptied.
+///
+/// `rmdir` refuses a folder with anything in it, which is exactly the
+/// guarantee wanted: nothing of the user's is ever taken with it. The one
+/// thing that does not count as content is a `.DS_Store` the Finder wrote
+/// while looking at the folder — it goes with the folder it describes.
+- (void)pruneEmptiedDirectories {
+    NSSet<NSString *> *pending;
+    @synchronized (self) { pending = [_directoriesToPrune copy]; }
+    if (pending.count == 0) { return; }
+    NSFileManager *files = NSFileManager.defaultManager;
+    NSMutableSet<NSString *> *settled = [NSMutableSet new];
+    for (NSString *path in pending) {
+        NSArray<NSString *> *contents = [files contentsOfDirectoryAtPath:path error:nil];
+        if (contents == nil) { [settled addObject:path]; continue; }
+        if (contents.count == 1 && [contents.firstObject isEqualToString:@".DS_Store"]) {
+            [files removeItemAtPath:[path stringByAppendingPathComponent:@".DS_Store"] error:nil];
+        }
+        if (rmdir(path.fileSystemRepresentation) == 0 || errno == ENOENT) { [settled addObject:path]; }
+    }
+    @synchronized (self) { [_directoriesToPrune minusSet:settled]; }
+}
+
+/// The folder a task was asked to land in, if the caller named one when it
+/// was added. Kept beside the task's resume data because the rename it
+/// drives happens when metadata arrives, which can be many launches later.
+- (nullable NSString *)requestedFolderNameForInfoHash:(NSString *)infoHash {
+    NSData *data = [NSData dataWithContentsOfURL:[self stateFileForInfoHash:infoHash extension:@"folder"]];
+    if (data.length == 0) { return nil; }
+    NSString *name = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+    return name.length > 0 ? name : nil;
+}
+
+- (void)rememberFolderName:(nullable NSString *)folderName forInfoHash:(NSString *)infoHash {
+    NSURL *url = [self stateFileForInfoHash:infoHash extension:@"folder"];
+    if (folderName.length == 0) {
+        [NSFileManager.defaultManager removeItemAtURL:url error:nil];
+        return;
+    }
+    [[folderName dataUsingEncoding:NSUTF8StringEncoding] writeToURL:url atomically:YES];
+}
+
+/// Puts a task inside the folder it belongs in.
 ///
 /// A one-file torrent writes straight into the download folder, so a library
 /// folder slowly fills with loose `.mkv`s while every batch release sits in
@@ -389,12 +444,50 @@ static NSString *AGHexFromHandle(lt::torrent_handle const &handle) {
 /// expresses that, and doing it the moment metadata lands means the data is
 /// written in the right place rather than moved afterwards.
 ///
-/// Idempotent: a task that already has a folder keeps it, so this can run
-/// again on every launch. Returns YES when it changed anything.
-- (BOOL)giveSingleFileTorrentItsOwnFolder:(lt::torrent_handle const &)handle {
+/// When the caller named a folder — every episode of one set names the same
+/// one — that name is used instead, for batch releases too, so a season
+/// arrives as a season rather than as twelve folders side by side.
+///
+/// Idempotent: a task that is already in the right folder keeps it, so this
+/// can run again on every launch. Returns YES when it changed anything.
+- (BOOL)placeTorrentInItsFolder:(lt::torrent_handle const &)handle {
     if (!handle.is_valid()) { return NO; }
     std::shared_ptr<const lt::torrent_info> info = handle.torrent_file();
-    if (!info || !info->is_valid() || info->num_files() != 1) { return NO; }
+    if (!info || !info->is_valid() || info->num_files() < 1) { return NO; }
+    NSString *requested = [self requestedFolderNameForInfoHash:AGHexFromHandle(handle)];
+
+    if (requested.length > 0) {
+        std::string const prefix = std::string(requested.UTF8String) + "/";
+        std::string const savePath = handle.status(lt::status_flags_t{}).save_path;
+        // A one-file task has no structure of its own to keep: any folder it
+        // sits in now is one this method made for it, and a named folder is
+        // meant to replace it. A batch brings real structure, so that is
+        // moved wholesale instead.
+        bool const single = info->num_files() == 1;
+        BOOL changed = NO;
+        for (lt::file_index_t index : info->files().file_range()) {
+            std::string const path = info->files().file_path(index);
+            std::string target;
+            if (single) {
+                size_t const slash = path.rfind('/');
+                if (slash != std::string::npos) {
+                    // The folder this task is being taken out of is left
+                    // behind empty by the rename; remember it so it goes too.
+                    [self schedulePruneOfDirectory:
+                        [NSString stringWithUTF8String:(savePath + "/" + path.substr(0, slash)).c_str()]];
+                }
+                target = prefix + (slash == std::string::npos ? path : path.substr(slash + 1));
+            } else {
+                target = path.rfind(prefix, 0) == 0 ? path : prefix + path;
+            }
+            if (target == path) { continue; }
+            handle.rename_file(index, target);
+            changed = YES;
+        }
+        return changed;
+    }
+
+    if (info->num_files() != 1) { return NO; }
     std::string const path = info->files().file_path(lt::file_index_t{0});
     // Already inside a folder — including one we created on an earlier run.
     if (path.find('/') != std::string::npos) { return NO; }
@@ -434,6 +527,7 @@ static NSString *AGHexFromHandle(lt::torrent_handle const &handle) {
 - (nullable NSString *)addMagnet:(NSString *)magnetURI
                         savePath:(NSURL *)savePath
                       sequential:(BOOL)sequential
+                      folderName:(nullable NSString *)folderName
                            error:(NSError **)error {
     if (!_session) {
         if (error) {
@@ -452,6 +546,9 @@ static NSString *AGHexFromHandle(lt::torrent_handle const &handle) {
         return nil;
     }
     [self applyDefaultsToParams:params savePath:savePath sequential:sequential];
+    // Written before the torrent is added: the placement runs from an alert,
+    // which can fire before this call has even returned.
+    [self rememberFolderName:folderName forInfoHash:AGHexFromHash(params.info_hashes.get_best())];
     lt::torrent_handle handle = _session->add_torrent(std::move(params), ec);
     if (ec || !handle.is_valid()) {
         if (error) {
@@ -466,6 +563,7 @@ static NSString *AGHexFromHandle(lt::torrent_handle const &handle) {
 - (nullable NSString *)addTorrentData:(NSData *)data
                              savePath:(NSURL *)savePath
                            sequential:(BOOL)sequential
+                           folderName:(nullable NSString *)folderName
                                 error:(NSError **)error {
     if (!_session) {
         if (error) {
@@ -487,6 +585,7 @@ static NSString *AGHexFromHandle(lt::torrent_handle const &handle) {
     lt::add_torrent_params params;
     params.ti = info;
     [self applyDefaultsToParams:params savePath:savePath sequential:sequential];
+    [self rememberFolderName:folderName forInfoHash:AGHexFromHash(info->info_hashes().get_best())];
     lt::torrent_handle handle = _session->add_torrent(std::move(params), ec);
     if (ec || !handle.is_valid()) {
         if (error) {
@@ -554,6 +653,7 @@ static NSString *AGHexFromHandle(lt::torrent_handle const &handle) {
     NSFileManager *files = NSFileManager.defaultManager;
     [files removeItemAtURL:[self stateFileForInfoHash:infoHash extension:@"resume"] error:nil];
     [files removeItemAtURL:[self stateFileForInfoHash:infoHash extension:@"torrent"] error:nil];
+    [files removeItemAtURL:[self stateFileForInfoHash:infoHash extension:@"folder"] error:nil];
 }
 
 - (void)setSequential:(BOOL)sequential forInfoHash:(NSString *)infoHash {
@@ -603,6 +703,15 @@ static NSString *AGHexFromHandle(lt::torrent_handle const &handle) {
     }
 }
 
+- (void)gather:(NSString *)infoHash intoFolder:(NSString *)folderName {
+    lt::torrent_handle handle = [self handleForInfoHash:infoHash];
+    if (!handle.is_valid() || folderName.length == 0) { return; }
+    [self rememberFolderName:folderName forInfoHash:infoHash];
+    if ([self placeTorrentInItsFolder:handle]) {
+        handle.save_resume_data(lt::torrent_handle::save_info_dict);
+    }
+}
+
 - (void)moveStorage:(NSString *)infoHash toFolder:(NSURL *)folder {
     lt::torrent_handle handle = [self handleForInfoHash:infoHash];
     if (!handle.is_valid()) { return; }
@@ -618,6 +727,10 @@ static NSString *AGHexFromHandle(lt::torrent_handle const &handle) {
     AGTorrentSnapshot *snapshot = [AGTorrentSnapshot new];
     snapshot.infoHash = AGHexFromHash(status.info_hashes.get_best());
     snapshot.name = status.name.empty() ? @"" : [NSString stringWithUTF8String:status.name.c_str()];
+    if (auto info = status.handle.is_valid() ? status.handle.torrent_file() : nullptr) {
+        std::string const &content = info->name();
+        snapshot.contentName = content.empty() ? nil : [NSString stringWithUTF8String:content.c_str()];
+    }
     snapshot.savePath = [NSString stringWithUTF8String:status.save_path.c_str()];
     snapshot.errorMessage = status.errc ? [NSString stringWithUTF8String:status.errc.message().c_str()] : nil;
 

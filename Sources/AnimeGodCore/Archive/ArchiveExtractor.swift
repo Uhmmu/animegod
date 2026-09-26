@@ -149,8 +149,19 @@ public enum ArchiveExtractor {
     ///
     /// Blocking: call it off the main actor.
     public static func extractAll(in folder: URL) -> Outcome {
+        extractAll(files: archives(in: folder))
+    }
+
+    /// Unpacks the archives among `files`, ignoring everything else.
+    ///
+    /// What a download that shares its folder with others uses — a season
+    /// started as a set — so finishing one episode never tries to open the
+    /// half-written archive of the episode beside it.
+    ///
+    /// Blocking: call it off the main actor.
+    public static func extractAll(files: [URL]) -> Outcome {
         var outcome = Outcome()
-        for archive in archives(in: folder) {
+        for archive in files where isPrimaryArchive(archive.lastPathComponent) {
             do {
                 if let destination = try extract(archive) {
                     outcome.extracted.append(destination)

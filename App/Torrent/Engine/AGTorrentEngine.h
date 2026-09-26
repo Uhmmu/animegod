@@ -19,6 +19,11 @@ typedef NS_ENUM(NSInteger, AGTorrentState) {
 @interface AGTorrentSnapshot : NSObject
 @property (nonatomic, readonly, copy) NSString *infoHash;
 @property (nonatomic, readonly, copy) NSString *name;
+/// The name inside the torrent itself, once metadata has arrived. A magnet's
+/// `dn` is whatever the indexer called the release — for anime that is often
+/// every alias of the work at once — so anything that has to read a title
+/// back out of a task uses this instead. Nil until metadata arrives.
+@property (nonatomic, readonly, copy, nullable) NSString *contentName;
 @property (nonatomic, readonly, copy) NSString *savePath;
 @property (nonatomic, readonly) AGTorrentState state;
 /// 0–1 over the bytes that were actually selected for download.
@@ -85,15 +90,22 @@ typedef NS_ENUM(NSInteger, AGTorrentState) {
 @property (nonatomic, readonly, copy, nullable) NSString *startupError;
 
 /// Adds a magnet link. Returns the info hash, or nil with `error` set.
+///
+/// `folderName` is the folder under `savePath` the files must land in. Pass
+/// the same one for every episode of a set and the season arrives as one
+/// folder; pass nil and a single-file task is given a folder named after
+/// itself, as before.
 - (nullable NSString *)addMagnet:(NSString *)magnetURI
                         savePath:(NSURL *)savePath
                       sequential:(BOOL)sequential
+                      folderName:(nullable NSString *)folderName
                            error:(NSError **)error;
 
 /// Adds a `.torrent` file's contents (already verified by the caller).
 - (nullable NSString *)addTorrentData:(NSData *)data
                              savePath:(NSURL *)savePath
                            sequential:(BOOL)sequential
+                           folderName:(nullable NSString *)folderName
                                 error:(NSError **)error;
 
 /// How many tasks libtorrent lets download at once; the rest are queued
@@ -123,6 +135,11 @@ typedef NS_ENUM(NSInteger, AGTorrentState) {
 /// Moves a task's files to another folder without interrupting it —
 /// libtorrent relocates the storage and keeps seeding from the new place.
 - (void)moveStorage:(NSString *)infoHash toFolder:(NSURL *)folder;
+
+/// Moves a task's files into `folderName` under its save path, the folder a
+/// task added as part of a set already lands in. libtorrent does the move,
+/// so a finished task keeps seeding from the new location. Idempotent.
+- (void)gather:(NSString *)infoHash intoFolder:(NSString *)folderName;
 
 /// The one folder a task's files live in, relative to its save path. Every
 /// task has one: batches bring their own, and a single-file torrent is put

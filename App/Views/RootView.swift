@@ -106,6 +106,10 @@ struct RootView: View {
             MatchReviewView()
                 .environmentObject(model)
         }
+        .sheet(item: $model.incomingMatchPrompt) { _ in
+            IncomingMatchSheet()
+                .environmentObject(model)
+        }
         .onChange(of: model.playerRequest?.id) { _, _ in
             guard model.playerRequest != nil else { return }
             openWindow(id: "player")
