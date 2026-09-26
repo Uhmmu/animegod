@@ -518,6 +518,28 @@
         }
       }
     },
+    "%lld of %lld episodes" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld of %2$lld episodes"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%2$lld 話中 %1$lld 話"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%2$lld 集中的 %1$lld 集"
+          }
+        }
+      }
+    },
     "%lld ratings" : {
       "localizations" : {
         "en" : {
@@ -2784,6 +2806,28 @@
         }
       }
     },
+    "Could not link “%@”: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Could not link “%1$@”: %2$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%1$@」を紐づけられませんでした：%2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法关联「%1$@」：%2$@"
+          }
+        }
+      }
+    },
     "Could not load %@ metadata: %@" : {
       "localizations" : {
         "en" : {
@@ -4668,6 +4712,22 @@
         }
       }
     },
+    "Gather This Anime Into “%@”" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この作品を「%@」にまとめる"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把这部番整理进「%@」"
+          }
+        }
+      }
+    },
     "General" : {
       "localizations" : {
         "ja" : {
@@ -5912,6 +5972,28 @@
         }
       }
     },
+    "Moving %lld downloads into “%@”…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Moving %1$lld downloads into “%2$@”…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld 件のダウンロードを「%2$@」へ移動しています…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在把 %1$lld 个下载移入「%2$@」…"
+          }
+        }
+      }
+    },
     "Moving “%@” to %@…" : {
       "localizations" : {
         "en" : {
@@ -6362,6 +6444,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "没有资料库文件夹"
+          }
+        }
+      }
+    },
+    "No Match Found" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一致する作品がありません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有找到匹配"
           }
         }
       }
@@ -6970,6 +7068,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "没有缓存"
+          }
+        }
+      }
+    },
+    "Nothing came back for “%@”. Try another spelling, or skip and match it later from the anime's page." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」では何も見つかりませんでした。別の表記で試すか、スキップして後から作品ページで紐づけてください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜「%@」没有结果。换个写法试试，或者跳过，以后在番剧页面里匹配。"
           }
         }
       }
@@ -9014,6 +9128,22 @@
         }
       }
     },
+    "Search for the anime" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "作品を検索"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜索番剧"
+          }
+        }
+      }
+    },
     "Search library" : {
       "localizations" : {
         "ja" : {
@@ -9472,6 +9602,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "大小"
+          }
+        }
+      }
+    },
+    "Skip" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スキップ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "跳过"
           }
         }
       }
@@ -10988,6 +11134,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要搜索的动画资源站"
+          }
+        }
+      }
+    },
+    "Which anime is this?" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "どの作品ですか？"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这是哪部番？"
           }
         }
       }

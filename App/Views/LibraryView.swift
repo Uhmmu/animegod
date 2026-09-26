@@ -13,16 +13,64 @@ struct LibraryView: View {
         return model.library.filter { $0.anime.title.localizedCaseInsensitiveContains(searchText) }
     }
 
-    /// Downloads that are not in the library yet, so a title being fetched
-    /// is visible here rather than only under Downloads.
-    private var incoming: [TorrentDownloadItem] {
+    /// Downloads that are not in the library yet, so a title being fetched is
+    /// visible here rather than only under Downloads.
+    private var pendingDownloads: [TorrentDownloadItem] {
         let libraryIDs = Set(model.library.map(\.anime.id))
         return downloads.items.filter { item in
             guard !item.isComplete else { return false }
             guard let animeID = item.record.animeID else { return true }
             return !libraryIDs.contains(animeID)
         }
+    }
+
+    /// The same downloads grouped by the work they belong to: a season
+    /// started as a set is one card here, not twelve, because twelve cards
+    /// for one show is not what "downloading" looks like to a viewer.
+    private var incoming: [IncomingWork] {
+        var order: [String] = []
+        var grouped: [String: [TorrentDownloadItem]] = [:]
+        for item in pendingDownloads {
+            let key = item.record.animeID?.uuidString
+                ?? TorrentDownloadFolder.sharedSeriesTitle(of: [item.title])
+                ?? item.record.infoHash
+            if grouped[key] == nil { order.append(key) }
+            grouped[key, default: []].append(item)
+        }
+        return order.compactMap { key -> IncomingWork? in
+            guard let items = grouped[key], let first = items.first else { return nil }
+            let series = TorrentDownloadFolder.sharedSeriesTitle(of: items.map(\.title))
+            // A work matched while it downloads has a real anime row, so its
+            // cover and page come from the library like any other card's.
+            let animeID = first.record.animeID
+            let anime = animeID.flatMap { model.incomingAnime[$0] }
+            let posters = animeID.map { model.posterCandidates(for: $0) } ?? []
+            let matched = series.flatMap { model.incomingMatches[$0] }
+            return IncomingWork(
+                id: key,
+                title: animeID.flatMap { model.metadataByAnimeID[$0]?.title }
+                    ?? first.record.animeTitle
+                    ?? matched?.title
+                    ?? series
+                    ?? first.title,
+                posterURLs: posters.isEmpty ? [matched?.posterURL].compactMap { $0 } : posters,
+                anime: anime,
+                items: items
+            )
+        }
         .filter { searchText.isEmpty || $0.title.localizedCaseInsensitiveContains(searchText) }
+    }
+
+    /// Anime rows that downloads point at but the library has no files for
+    /// yet, so their cards can open after a relaunch too.
+    private var incomingAnimeIDs: [UUID] {
+        Array(Set(pendingDownloads.compactMap(\.record.animeID))).sorted { $0.uuidString < $1.uuidString }
+    }
+
+    /// The works being downloaded, for the metadata lookup that gives their
+    /// cards a cover before a single file has landed.
+    private var incomingSeriesTitles: [String] {
+        Array(Set(pendingDownloads.compactMap { TorrentDownloadFolder.sharedSeriesTitle(of: [$0.title]) })).sorted()
     }
 
     /// Progress to draw on a library card for a title still downloading.
@@ -46,8 +94,15 @@ struct LibraryView: View {
             } else {
                 ScrollView {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 170), spacing: 18)], spacing: 24) {
-                    ForEach(incoming) { item in
-                        DownloadingCard(item: item)
+                    ForEach(incoming) { work in
+                        if let anime = work.anime {
+                            NavigationLink(value: anime) {
+                                DownloadingCard(work: work)
+                            }
+                            .buttonStyle(.plain)
+                        } else {
+                            DownloadingCard(work: work)
+                        }
                     }
                     ForEach(filtered) { item in
                         NavigationLink(value: item.anime) {
@@ -68,6 +123,12 @@ struct LibraryView: View {
         }
         .navigationTitle("All Anime")
         .searchable(text: $searchText, placement: .toolbar, prompt: "Search library")
+        .task(id: incomingSeriesTitles) {
+            await model.resolveIncomingMatches(seriesTitles: incomingSeriesTitles)
+        }
+        .task(id: incomingAnimeIDs) {
+            await model.loadIncomingAnime(ids: incomingAnimeIDs)
+        }
     }
 }
 
@@ -102,42 +163,69 @@ private struct AnimeCard: View {
 }
 
 
+/// One work being downloaded: every episode of it that is still running,
+/// under the name and cover the metadata lookup found for it.
+struct IncomingWork: Identifiable {
+    let id: String
+    let title: String
+    let posterURLs: [URL]
+    /// Set once the work has been matched, which is what makes the card
+    /// open the anime's own page.
+    let anime: Anime?
+    let items: [TorrentDownloadItem]
+
+    var progress: Double {
+        guard !items.isEmpty else { return 0 }
+        return items.map(\.progress).reduce(0, +) / Double(items.count)
+    }
+
+    /// Episodes of this work that have landed, out of the ones running.
+    var finishedCount: Int { items.filter { $0.progress >= 1 }.count }
+}
+
 /// A title being downloaded, shown beside the library so it is visible from
 /// the moment it starts rather than only once it lands on disk.
 private struct DownloadingCard: View {
-    @EnvironmentObject private var model: AppModel
-    let item: TorrentDownloadItem
+    let work: IncomingWork
 
-    /// The release title parsed down to the work's name, since a raw release
-    /// name is unreadable at card size.
-    private var displayTitle: String {
-        if let animeTitle = item.record.animeTitle, !animeTitle.isEmpty { return animeTitle }
-        let parsed = AnimeFilenameParser().parse(url: URL(fileURLWithPath: item.title))
-        return parsed.title.isEmpty ? item.title : parsed.title
+    private var statusText: String {
+        guard work.items.count > 1 else { return work.items.first?.statusText ?? "" }
+        return String(localized: "\(work.finishedCount) of \(work.items.count) episodes")
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(.quaternary)
-                DownloadRing(progress: item.progress)
-                    .frame(width: 56, height: 56)
+            Group {
+                if !work.posterURLs.isEmpty {
+                    PosterView(urls: work.posterURLs, height: 380)
+                        .overlay(alignment: .topTrailing) {
+                            DownloadRing(progress: work.progress)
+                                .frame(width: 30, height: 30)
+                                .padding(8)
+                        }
+                } else {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(.quaternary)
+                        DownloadRing(progress: work.progress)
+                            .frame(width: 56, height: 56)
+                    }
+                }
             }
             .aspectRatio(2 / 3, contentMode: .fit)
 
-            Text(displayTitle)
+            Text(work.title)
                 .font(.headline)
                 .lineLimit(2)
-            Text(item.statusText)
+            Text(statusText)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
         }
         .contentShape(Rectangle())
-        .help(item.title)
+        .help(work.items.map(\.title).joined(separator: "\n"))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(displayTitle), downloading, \(Int(item.progress * 100)) percent")
+        .accessibilityLabel("\(work.title), downloading, \(Int(work.progress * 100)) percent")
     }
 }
 

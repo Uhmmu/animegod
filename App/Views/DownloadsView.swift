@@ -197,6 +197,12 @@ private struct DownloadRow: View {
         downloads.playableVideoFile(for: item)
     }
 
+    /// The folder this anime's downloads would be gathered into, when they
+    /// are not already sharing one.
+    private var gatherName: String? {
+        downloads.gatherFolderName(for: downloads.siblings(of: item))
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
@@ -241,6 +247,11 @@ private struct DownloadRow: View {
                 }
             }
             Button("Show in Finder") { downloads.revealInFinder(item) }
+            if let name = gatherName {
+                Button("Gather This Anime Into “\(name)”") {
+                    downloads.gatherIntoOneFolder(downloads.siblings(of: item), named: name)
+                }
+            }
             if (item.snapshot?.savePath ?? item.record.savePath) != folders.currentFolder.path {
                 Button("Move to \(folders.currentFolder.displayName)") { downloads.moveToCurrentFolder(item) }
             }

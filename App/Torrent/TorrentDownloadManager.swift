@@ -11,8 +11,15 @@ struct TorrentDownloadItem: Identifiable, Hashable {
 
     var id: String { record.infoHash }
 
-    /// The engine's name once metadata arrives, else the searched title.
+    /// What the torrent calls itself once metadata arrives, else the name
+    /// the magnet or the search gave it.
+    ///
+    /// The torrent's own name is preferred because an indexer's magnet often
+    /// names every alias of the work at once — "尼古喵喵 / ヤニねこ / Yani Neko
+    /// / Chainsmoker Cat" — and anything reading a series title back out of
+    /// that picks an alias at random.
     var title: String {
+        if let name = snapshot?.contentName, !name.isEmpty { return name }
         if let name = snapshot?.name, !name.isEmpty { return name }
         return record.title
     }
@@ -76,6 +83,10 @@ final class TorrentDownloadManager: ObservableObject {
     /// Called once per download when it completes, so the library can pick
     /// the files up.
     var onDownloadFinished: ((TorrentDownloadRecord) -> Void)?
+    /// Called with the work a newly started download is of, so it can be
+    /// matched to an anime while it downloads rather than afterwards. Fires
+    /// once per work: a set is one show, not twelve.
+    var onWorkStarted: ((String) -> Void)?
 
     /// Unpack `.rar`/`.zip`/`.7z` releases once they finish. On by default:
     /// an archive that is not opened is a download with no episode in it.
@@ -193,8 +204,17 @@ final class TorrentDownloadManager: ObservableObject {
     func download(
         _ result: TorrentSearchResult,
         anime: Anime? = nil,
-        sequential: Bool = false
+        sequential: Bool = false,
+        folderName: String? = nil
     ) {
+        // A download started from an anime's own page belongs in that
+        // anime's folder even on its own: the next episode grabbed the same
+        // way joins it instead of starting a folder of its own.
+        var folder = folderName
+        if folder == nil, let title = anime?.title {
+            let sanitised = TorrentDownloadFolder.sanitised(title)
+            folder = sanitised.isEmpty ? nil : sanitised
+        }
         add(
             magnet: result.magnet.uri,
             infoHash: result.infoHash.hex,
@@ -203,8 +223,34 @@ final class TorrentDownloadManager: ObservableObject {
             animeID: anime?.id,
             animeTitle: anime?.title,
             episodeLabel: result.release.episodeLabel,
-            sequential: sequential
+            sequential: sequential,
+            folderName: folder
         )
+        // Only a download that arrived without an anime needs asking about:
+        // one started from an anime's own page is already linked. The
+        // listener answers per work, so a whole set asks once.
+        if anime == nil, let series = TorrentDownloadFolder.sharedSeriesTitle(of: [result.title]) {
+            onWorkStarted?(series)
+        }
+    }
+
+    /// Starts several releases picked out of one search.
+    ///
+    /// Choosing twelve rows and pressing Download is the same intent as
+    /// pressing Download Set, so they are treated the same: if the releases
+    /// turn out to be of one work, they share its folder.
+    func download(
+        _ results: [TorrentSearchResult],
+        anime: Anime? = nil,
+        sequential: Bool = false
+    ) {
+        let folderName = TorrentDownloadFolder.name(
+            animeTitle: anime?.title,
+            releaseNames: results.map(\.title)
+        )
+        for result in results {
+            download(result, anime: anime, sequential: sequential, folderName: folderName)
+        }
     }
 
     /// Starts every episode of an assembled set, in episode order.
@@ -224,6 +270,7 @@ final class TorrentDownloadManager: ObservableObject {
     ) -> Int {
         let entries = (includingOwned ? set.entries.filter { !$0.isExtra } : set.downloadableEntries)
             .sorted { $0.episode < $1.episode }
+        let folderName = set.suggestedFolderName(animeTitle: anime?.title)
         var started = 0
         var skipped = 0
         for entry in entries {
@@ -231,7 +278,7 @@ final class TorrentDownloadManager: ObservableObject {
                 skipped += 1
                 continue
             }
-            download(entry.result, anime: anime, sequential: sequential)
+            download(entry.result, anime: anime, sequential: sequential, folderName: folderName)
             started += 1
         }
         let name = set.group ?? anime?.title ?? String(localized: "this search")
@@ -253,7 +300,8 @@ final class TorrentDownloadManager: ObservableObject {
         animeID: UUID? = nil,
         animeTitle: String? = nil,
         episodeLabel: String? = nil,
-        sequential: Bool = false
+        sequential: Bool = false,
+        folderName: String? = nil
     ) {
         guard let engine = startEngineIfNeeded() else { return }
         if records[infoHash.lowercased()] != nil {
@@ -262,7 +310,12 @@ final class TorrentDownloadManager: ObservableObject {
         }
         let folder = folders.folderForNewDownload()
         do {
-            let hash = try engine.addMagnet(magnet, savePath: folder, sequential: sequential)
+            let hash = try engine.addMagnet(
+                magnet,
+                savePath: folder,
+                sequential: sequential,
+                folderName: folderName
+            )
             if !trackers.isEmpty { engine.addTrackers(trackers, forInfoHash: hash) }
             let record = TorrentDownloadRecord(
                 infoHash: hash,
@@ -329,6 +382,81 @@ final class TorrentDownloadManager: ObservableObject {
     /// Moves every task that is not already in the current folder.
     func moveAllToCurrentFolder() {
         for item in items { moveToCurrentFolder(item) }
+    }
+
+    /// Links every download of one work to the anime it turned out to be.
+    ///
+    /// Called when a work is matched while it is still downloading, so the
+    /// rows stop being anonymous magnets: the library can draw their cover,
+    /// open their page, and count them as one show.
+    func link(seriesTitle: String, toAnimeID animeID: UUID, title: String) async {
+        let matching = records.values.filter { record in
+            record.animeID == nil
+                && TorrentDownloadFolder.sharedSeriesTitle(of: [seriesTitle]) ==
+                   TorrentDownloadFolder.sharedSeriesTitle(of: [displayName(of: record)])
+        }
+        guard !matching.isEmpty else { return }
+        for var record in matching {
+            record.animeID = animeID
+            record.animeTitle = title
+            records[record.infoHash] = record
+            let saved = record
+            try? await database?.saveTorrentDownload(saved)
+        }
+        refresh()
+    }
+
+    /// The name a record is known by right now — the torrent's own once
+    /// metadata has arrived, which is what grouping keys on everywhere else.
+    private func displayName(of record: TorrentDownloadRecord) -> String {
+        engine?.snapshot(forInfoHash: record.infoHash)?.contentName ?? record.title
+    }
+
+    /// Every download of the same work as `item`, itself included — what
+    /// "gather this into one folder" acts on.
+    ///
+    /// A download started from an anime's own page goes by what it is bound
+    /// to. One started from a plain search is bound to nothing, so the
+    /// series title read out of the release names stands in: that is how the
+    /// twelve episodes of a set are recognised as one season.
+    func siblings(of item: TorrentDownloadItem) -> [TorrentDownloadItem] {
+        if let animeID = item.record.animeID {
+            return items.filter { $0.record.animeID == animeID }
+        }
+        guard let series = TorrentDownloadFolder.sharedSeriesTitle(of: [item.title]) else { return [item] }
+        return items.filter {
+            $0.record.animeID == nil
+                && TorrentDownloadFolder.sharedSeriesTitle(of: [$0.title]) == series
+        }
+    }
+
+    /// The folder these downloads would be gathered into. Nil when there is
+    /// nothing to name it after, when they are all in it already, or when
+    /// there is only one — moving a lone download achieves nothing.
+    func gatherFolderName(for items: [TorrentDownloadItem]) -> String? {
+        guard items.count > 1 else { return nil }
+        guard let name = TorrentDownloadFolder.name(
+            animeTitle: items.compactMap(\.record.animeTitle).first,
+            releaseNames: items.map(\.title)
+        ) else { return nil }
+        let alreadyThere = items.allSatisfy { engine?.contentFolderName(forInfoHash: $0.record.infoHash) == name }
+        return alreadyThere ? nil : name
+    }
+
+    /// Puts downloads that arrived one at a time into a single folder, the
+    /// way a set started in one go already arrives. The engine moves the
+    /// files — so seeding carries on from the new location — and removes the
+    /// folders it empties doing so.
+    func gatherIntoOneFolder(_ items: [TorrentDownloadItem], named name: String) {
+        guard let engine else {
+            errorMessage = String(localized: "The download engine is not running, so files cannot be moved.")
+            return
+        }
+        for item in items {
+            engine.gather(item.record.infoHash, intoFolder: name)
+        }
+        statusMessage = String(localized: "Moving \(items.count) downloads into “\(name)”…")
+        refresh()
     }
 
     func reannounce(_ item: TorrentDownloadItem) {
@@ -439,7 +567,7 @@ final class TorrentDownloadManager: ObservableObject {
             let hash = snapshot.infoHash.lowercased()
             guard var record = records[hash] else { continue }
             let isComplete = snapshot.state == .finished || snapshot.state == .seeding
-            let name = snapshot.name.isEmpty ? nil : snapshot.name
+            let name = snapshot.contentName ?? (snapshot.name.isEmpty ? nil : snapshot.name)
             let changedTitle = name != nil && name != record.title ? name : nil
             let changedSize = snapshot.totalBytes > 0 && snapshot.totalBytes != record.totalBytes ? snapshot.totalBytes : nil
             let completedAt: Date? = (isComplete && record.completedAt == nil) ? .now : nil
@@ -449,7 +577,7 @@ final class TorrentDownloadManager: ObservableObject {
             if let changedSize { record.totalBytes = changedSize }
             if let completedAt { record.completedAt = completedAt }
             records[hash] = record
-            if completedAt != nil { finish(record, folder: contentFolderPath(forInfoHash: hash)) }
+            if completedAt != nil { finish(record, files: fileURLs(forInfoHash: hash)) }
             Task { [database] in
                 try? await database?.updateTorrentDownload(
                     infoHash: hash,
@@ -462,26 +590,31 @@ final class TorrentDownloadManager: ObservableObject {
         }
     }
 
-    private func contentFolderPath(forInfoHash hash: String) -> URL? {
-        guard let record = records[hash] else { return nil }
-        guard let name = engine?.contentFolderName(forInfoHash: hash), !name.isEmpty else { return nil }
-        return URL(fileURLWithPath: record.savePath).appending(path: name)
+    /// Every file of a task, where it sits on disk.
+    private func fileURLs(forInfoHash hash: String) -> [URL] {
+        guard let record = records[hash], let files = engine?.files(forInfoHash: hash) else { return [] }
+        let root = URL(fileURLWithPath: record.savePath)
+        return files.map { root.appending(path: $0.path) }
     }
 
     /// What happens the moment a download completes: archives are unpacked
     /// where they landed, and only then is the library told to look, so the
     /// scan that follows sees episodes rather than `.rar` files.
     ///
+    /// Only this task's own files are opened. A set shares one folder, so
+    /// unpacking the folder would reach into episodes that are still
+    /// arriving.
+    ///
     /// Unpacking is best-effort. A release that cannot be opened is reported
     /// and the download still counts as finished.
-    private func finish(_ record: TorrentDownloadRecord, folder: URL?) {
-        guard extractsArchives, let folder else {
+    private func finish(_ record: TorrentDownloadRecord, files: [URL]) {
+        guard extractsArchives, !files.isEmpty else {
             onDownloadFinished?(record)
             return
         }
         Task { [weak self] in
             let outcome = await Task.detached(priority: .utility) {
-                ArchiveExtractor.extractAll(in: folder)
+                ArchiveExtractor.extractAll(files: files)
             }.value
             guard let self else { return }
             if !outcome.extracted.isEmpty {

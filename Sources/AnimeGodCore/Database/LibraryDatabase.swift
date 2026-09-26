@@ -246,6 +246,32 @@ public actor LibraryDatabase {
         )
     }
 
+    /// The anime a work is filed under, created if the library has never
+    /// seen it.
+    ///
+    /// A download links itself to one of these before any of its files
+    /// exist, so the work can be matched, covered and browsed while it is
+    /// still arriving. The scan that follows finds the row already there and
+    /// hangs the episodes off it — which is why this must use exactly the
+    /// same identity rule the scanner does.
+    public func findOrCreateAnime(title: String) throws -> Anime {
+        try database.write { db in
+            let id = try Self.findOrCreateAnime(title: title, in: db)
+            guard let row = try Row.fetchOne(db, sql: "SELECT * FROM anime WHERE id = ?", arguments: [id]) else {
+                throw DatabaseError(message: "anime \(id) vanished as it was created")
+            }
+            return Self.decodeAnime(row)
+        }
+    }
+
+    /// One anime by id, whether or not any of its files are on disk yet.
+    public func anime(id: UUID) throws -> Anime? {
+        try database.read { db in
+            try Row.fetchOne(db, sql: "SELECT * FROM anime WHERE id = ?", arguments: [id.uuidString])
+                .map(Self.decodeAnime)
+        }
+    }
+
     public func library() throws -> [LibraryAnime] {
         try database.read { db in
             let rows = try Row.fetchAll(db, sql: """

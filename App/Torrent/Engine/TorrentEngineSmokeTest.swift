@@ -63,8 +63,12 @@ enum TorrentEngineSmokeTest {
         }
 
         do {
-            _ = try seeder.addTorrentData(torrent, savePath: seedFiles, sequential: false)
-            let hash = try leecher.addTorrentData(torrent, savePath: leechFiles, sequential: true)
+            // The seeder is given a folder by name, the way every episode of
+            // a set is, and the leecher is given none: one run covers both
+            // ways a task can be placed.
+            let namedFolder = "Season Pack"
+            _ = try seeder.addTorrentData(torrent, savePath: seedFiles, sequential: false, folderName: namedFolder)
+            let hash = try leecher.addTorrentData(torrent, savePath: leechFiles, sequential: true, folderName: nil)
             let entries = leecher.files(forInfoHash: hash).map { "\($0.path) (\($0.length) bytes)" }
             print("SMOKE loopback hash=\(hash) size=\(megabytes) MiB files=\(entries)")
             print("SMOKE seed dir=\(seedFiles.path) leech dir=\(leechFiles.path)")
@@ -100,10 +104,12 @@ enum TorrentEngineSmokeTest {
             let resumeFiles = (try? FileManager.default.contentsOfDirectory(
                 at: root.appending(path: "leech-state"), includingPropertiesForKeys: nil
             ))?.filter { $0.pathExtension == "resume" } ?? []
-            let seeded = FileManager.default.fileExists(atPath: seedFiles.appending(path: "sample/sample.bin").path)
-            print("SMOKE loopback complete=\(completed) bytesMatch=\(same) resumeFiles=\(resumeFiles.count) ownFolder=\(seeded)")
+            let ownFolder = FileManager.default.fileExists(atPath: downloaded.path)
+            let named = FileManager.default.fileExists(
+                atPath: seedFiles.appending(path: "\(namedFolder)/sample.bin").path)
+            print("SMOKE loopback complete=\(completed) bytesMatch=\(same) resumeFiles=\(resumeFiles.count) ownFolder=\(ownFolder) namedFolder=\(named)")
             try? FileManager.default.removeItem(at: root)
-            exit(completed && same && !resumeFiles.isEmpty ? 0 : 1)
+            exit(completed && same && !resumeFiles.isEmpty && ownFolder && named ? 0 : 1)
         } catch {
             print("SMOKE loopback failed: \(error.localizedDescription)")
             exit(1)
@@ -133,10 +139,10 @@ enum TorrentEngineSmokeTest {
         let hash: String
         do {
             if source.hasPrefix("magnet:") {
-                hash = try engine.addMagnet(source, savePath: saveDirectory, sequential: true)
+                hash = try engine.addMagnet(source, savePath: saveDirectory, sequential: true, folderName: nil)
             } else {
                 let data = try Data(contentsOf: URL(fileURLWithPath: source))
-                hash = try engine.addTorrentData(data, savePath: saveDirectory, sequential: true)
+                hash = try engine.addTorrentData(data, savePath: saveDirectory, sequential: true, folderName: nil)
             }
         } catch {
             print("SMOKE could not add the task: \(error.localizedDescription)")
