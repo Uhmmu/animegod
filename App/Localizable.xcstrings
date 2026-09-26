@@ -11723,6 +11723,22 @@
     "“%@”" : {
       "shouldTranslate" : false
     },
+    "“%@” has finished, but its files are no longer where it left them. It is paused rather than downloaded again — move them back, or resume it to fetch them afresh." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」は完了していますが、ファイルが当時の場所にありません。再ダウンロードせず一時停止しました — ファイルを戻すか、再開して取得し直してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」已下载完成，但文件已不在当时的位置。已暂停，而不是重新下载——把文件挤回原处，或者继续任务重新获取。"
+          }
+        }
+      }
+    },
     "“%@” has no Blu-ray video on it." : {
       "localizations" : {
         "ja" : {
