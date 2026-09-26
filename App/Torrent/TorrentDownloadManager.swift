@@ -114,6 +114,9 @@ final class TorrentDownloadManager: ObservableObject {
     private var engine: AGTorrentEngine?
     private var records: [String: TorrentDownloadRecord] = [:]
     private var refreshTimer: Timer?
+    /// Tasks already stopped for missing files, so one moved folder does not
+    /// re-report itself every second.
+    private var hashesWithMissingFiles: Set<String> = []
     private var cancellables: Set<AnyCancellable> = []
 
     /// Preferred listen port; libtorrent picks another if it is taken.
@@ -343,6 +346,9 @@ final class TorrentDownloadManager: ObservableObject {
     }
 
     func resume(_ item: TorrentDownloadItem) {
+        // Resuming is the user saying "fetch it again", so the stop for
+        // missing files is lifted and can be applied afresh next time.
+        hashesWithMissingFiles.remove(item.record.infoHash.lowercased())
         startEngineIfNeeded()?.resume(item.record.infoHash)
         refresh()
     }
@@ -551,6 +557,31 @@ final class TorrentDownloadManager: ObservableObject {
         sessionInfo = engine.sessionInfo()
         rebuildItems(snapshots: snapshots)
         persistProgress(snapshots)
+        pauseTasksWhoseFilesAreGone(snapshots)
+    }
+
+    /// A finished download whose files are no longer where the engine left
+    /// them is paused, not fetched all over again.
+    ///
+    /// Moving a finished episode in the Finder is an ordinary thing to do,
+    /// and libtorrent's answer to a file that is not there is to download it
+    /// from scratch — which is how one episode of a season came back as a
+    /// second 600 MB copy in a folder of its own. Stopping and saying so
+    /// costs the user a click; the alternative costs them the download.
+    private func pauseTasksWhoseFilesAreGone(_ snapshots: [AGTorrentSnapshot]) {
+        for snapshot in snapshots {
+            let hash = snapshot.infoHash.lowercased()
+            guard !hashesWithMissingFiles.contains(hash) else { continue }
+            guard let record = records[hash], record.completedAt != nil else { continue }
+            guard snapshot.hasMetadata, snapshot.progress < 1 else { continue }
+            guard snapshot.state != .paused, snapshot.state != .checking else { continue }
+            let files = fileURLs(forInfoHash: hash)
+            guard !files.isEmpty else { continue }
+            guard files.contains(where: { !FileManager.default.fileExists(atPath: $0.path) }) else { continue }
+            hashesWithMissingFiles.insert(hash)
+            engine?.pause(hash)
+            errorMessage = String(localized: "“\(record.title)” has finished, but its files are no longer where it left them. It is paused rather than downloaded again — move them back, or resume it to fetch them afresh.")
+        }
     }
 
     private func rebuildItems(snapshots: [AGTorrentSnapshot]) {
