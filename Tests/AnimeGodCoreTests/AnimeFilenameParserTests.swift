@@ -141,3 +141,46 @@ struct AnimeFilenameParserTests {
         #expect(parser.collectionTitle(from: input) == expected)
     }
 }
+
+@Suite("Checksums in folder names")
+struct AnimeFilenameParserChecksumTests {
+    @Test("A CRC in a folder name is not part of the work's title")
+    func stripsChecksums() {
+        let parser = AnimeFilenameParser()
+        // The title is what names the library entry and what every metadata
+        // provider is asked for, so a checksum in it costs the work its match.
+        #expect(parser.collectionTitle(from: "劇場版 夜は短し歩けよ乙女 (E7E8AD1D)") == "劇場版 夜は短し歩けよ乙女")
+        #expect(parser.collectionTitle(from: "Penguin Highway (1A2B3C4D)") == "Penguin Highway")
+        // Four digits that happen to look like a year are not a checksum, and
+        // a real word in brackets is part of the name.
+        #expect(parser.collectionTitle(from: "Steins;Gate (Fuka Ryouiki)") == "Steins;Gate (Fuka Ryouiki)")
+    }
+}
+
+@Suite("Decomposed filenames")
+struct AnimeFilenameParserNormalisationTests {
+    /// The same title as macOS hands it back from the file system.
+    private let decomposed = "あの日見た花の名前を僕達はまだ知らない。".decomposedStringWithCanonicalMapping
+
+    @Test("A title read off a Japanese folder name is precomposed")
+    func precomposesTitles() {
+        let parser = AnimeFilenameParser()
+        // Swift compares the two spellings equal, which is why nothing in the
+        // app ever noticed. Only the scalars differ — and those are the bytes
+        // that go to a metadata provider.
+        let expected = "あの日見た花の名前を僕達はまだ知らない。"
+        #expect(decomposed.unicodeScalars.count > expected.unicodeScalars.count)
+        #expect(parser.collectionTitle(from: decomposed).unicodeScalars.elementsEqual(expected.unicodeScalars))
+
+        let url = URL(fileURLWithPath: "/\(decomposed)/\(decomposed) - 01 [1080p].mkv")
+        #expect(parser.parse(url: url).title.unicodeScalars.elementsEqual(expected.unicodeScalars))
+    }
+
+    @Test("Precomposition does not change which library row a title belongs to")
+    func identityIsUnchanged() async throws {
+        let database = try LibraryDatabase(inMemory: true)
+        let first = try await database.findOrCreateAnime(title: decomposed)
+        let second = try await database.findOrCreateAnime(title: "あの日見た花の名前を僕達はまだ知らない。")
+        #expect(first.id == second.id)
+    }
+}

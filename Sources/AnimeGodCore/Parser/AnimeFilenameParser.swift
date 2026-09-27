@@ -71,7 +71,7 @@ public struct AnimeFilenameParser: Sendable {
     /// Produces a stable anime title from a release folder. Release folders are
     /// a better grouping boundary than individual extras such as PVs and menus.
     public func collectionTitle(from folderName: String) -> String {
-        var value = folderName
+        var value = Self.precomposed(folderName)
         if Self.mediaExtensions.contains(URL(fileURLWithPath: value).pathExtension.lowercased()) {
             value = URL(fileURLWithPath: value).deletingPathExtension().lastPathComponent
         }
@@ -94,8 +94,19 @@ public struct AnimeFilenameParser: Sendable {
         return normalizedCollectionTitle(withoutGroups)
     }
 
+    /// macOS hands filenames back **decomposed**: 「まだ」 arrives as
+    /// `ま` + `た` + U+3099, one codepoint longer than the same string typed
+    /// anywhere else. It looks identical and compares equal to nothing — the
+    /// anime indexes store precomposed text, so a title read off a Japanese
+    /// folder name matched zero results on AniList, for every work with a
+    /// dakuten in it. Everything this parser returns is precomposed, because
+    /// what it returns is what gets searched for.
+    static func precomposed(_ value: String) -> String {
+        value.precomposedStringWithCanonicalMapping
+    }
+
     public func parse(url: URL, libraryRoot: URL? = nil) -> ParsedAnimeFilename {
-        let baseName = url.deletingPathExtension().lastPathComponent
+        let baseName = Self.precomposed(url.deletingPathExtension().lastPathComponent)
         // Dots act as word separators in scene names, but keep dots that sit
         // between digits so fractional episodes like "13.5" survive.
         var working = baseName.replacingOccurrences(
@@ -148,7 +159,7 @@ public struct AnimeFilenameParser: Sendable {
             episodeText = number
         }
 
-        let parentTitle = inferredParentTitle(for: url, root: libraryRoot)
+        let parentTitle = inferredParentTitle(for: url, root: libraryRoot).map(Self.precomposed)
         var title = cleanTitle(working, removing: matchedToken)
         if title.isEmpty || title.range(of: #"(?i)^(episode|ep)\s*\d+$"#, options: .regularExpression) != nil {
             title = parentTitle ?? title
@@ -269,6 +280,11 @@ public struct AnimeFilenameParser: Sendable {
 
     private func isReleaseNoise(_ value: String) -> Bool {
         let folded = value.folding(options: [.caseInsensitive, .widthInsensitive], locale: .current)
+        // A bare CRC32 — `(E7E8AD1D)` — is a checksum of the file, and it ends
+        // up in the work's title when it sits in a folder name: the library
+        // called a film "劇場版 夜は短し歩けよ乙女 (E7E8AD1D)" and handed that
+        // to every metadata provider as the thing to search for.
+        if folded.range(of: #"(?i)^[0-9a-f]{8}$"#, options: .regularExpression) != nil { return true }
         let technical = #"(?i)(?:^|[^a-z0-9])(?:4k|hdr|uhd|2160p?|1080p?|720p?|480p?|bd(?:rip)?|blu-?ray|web(?:-?dl)?|hevc|x26[45]|avc|av1|10bit|ma10p|flac|aac|ddp|dts|mkv|mp4|chs|cht|jpn|eng|gb|简繁|字幕|外挂|内封)(?:[^a-z0-9]|$)"#
         // "前篇+后篇"-style bracket labels describe the release set, not a work.
         let partSet = ["前篇", "前編", "后篇", "後編", "上巻", "下巻", "上卷", "下卷"]

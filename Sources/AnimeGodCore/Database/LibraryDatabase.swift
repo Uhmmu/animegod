@@ -1482,7 +1482,13 @@ public actor LibraryDatabase {
     }
 
     private static func normalize(_ value: String) -> String {
-        value.folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive], locale: .current)
+        // Precomposed first. macOS returns filenames decomposed, so 「まだ」
+        // arrives as `ま` + `た` + U+3099 — and diacritic-insensitive folding
+        // then *removes* the combining mark while leaving a precomposed `だ`
+        // alone, so the two spellings of one title folded to different keys
+        // and the same work could be filed twice.
+        value.precomposedStringWithCanonicalMapping
+            .folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive], locale: .current)
             .replacingOccurrences(of: #"[^\p{L}\p{N}]+"#, with: "", options: .regularExpression)
     }
 
@@ -1861,6 +1867,58 @@ public actor LibraryDatabase {
                 table.uniqueKey(["videoKey", "provider", "providerSubtitleID"])
             }
             try db.create(index: "subtitleDownload_video", on: "subtitleDownload", columns: ["videoKey"])
+        }
+        migrator.registerMigration("v13_precomposed_titles") { db in
+            // Titles scanned from macOS folder names are stored decomposed —
+            // 「まだ」 as `ま` + `た` + U+3099 — because that is how the file
+            // system hands them back. Swift compares the two spellings equal,
+            // so nothing in the app ever noticed; the bytes sent to a metadata
+            // provider are not equal, and every Japanese title with a dakuten
+            // in it searched for a string no index holds.
+            //
+            // `normalizedTitle` has to be rewritten with them: it is
+            // diacritic-folded, which *removes* a combining mark and leaves a
+            // precomposed one alone, so the old keys and the new ones do not
+            // agree and the next scan would file those works a second time.
+            for row in try Row.fetchAll(db, sql: "SELECT id, title, sortTitle, normalizedTitle FROM anime") {
+                let id: String = row["id"]
+                let title: String = row["title"]
+                let sortTitle: String = row["sortTitle"]
+                let storedKey: String = row["normalizedTitle"]
+                let precomposed = title.precomposedStringWithCanonicalMapping
+                let key = normalize(precomposed)
+                guard precomposed.unicodeScalars.elementsEqual(title.unicodeScalars) == false || key != storedKey else {
+                    continue
+                }
+                // Both spellings already in the library is one work filed
+                // twice; keep the row that holds the files.
+                if let twin = try String.fetchOne(
+                    db,
+                    sql: "SELECT id FROM anime WHERE normalizedTitle = ? AND id != ?",
+                    arguments: [key, id]
+                ) {
+                    let hasFiles = try Bool.fetchOne(db, sql: """
+                        SELECT EXISTS (
+                            SELECT 1 FROM episode e JOIN mediaFile m ON m.episodeID = e.id WHERE e.animeID = ?
+                        )
+                        """, arguments: [id]) ?? false
+                    let (from, to) = hasFiles ? (twin, id) : (id, twin)
+                    try migrateIdentity(from: from, to: to, in: db)
+                    try db.execute(sql: "UPDATE episode SET animeID = ? WHERE animeID = ?", arguments: [to, from])
+                    try db.execute(sql: "DELETE FROM anime WHERE id = ?", arguments: [from])
+                    if to == id {
+                        try db.execute(
+                            sql: "UPDATE anime SET title = ?, sortTitle = ?, normalizedTitle = ? WHERE id = ?",
+                            arguments: [precomposed, sortTitle.precomposedStringWithCanonicalMapping, key, id]
+                        )
+                    }
+                    continue
+                }
+                try db.execute(
+                    sql: "UPDATE anime SET title = ?, sortTitle = ?, normalizedTitle = ? WHERE id = ?",
+                    arguments: [precomposed, sortTitle.precomposedStringWithCanonicalMapping, key, id]
+                )
+            }
         }
         return migrator
     }

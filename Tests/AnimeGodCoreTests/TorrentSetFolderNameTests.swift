@@ -49,6 +49,34 @@ struct TorrentDownloadFolderTests {
         #expect(TorrentDownloadFolder.seriesTitle(of: listed[0]) == "Yani Neko")
     }
 
+    @Test("An index title is cut at its technical tail, not read as part of the name")
+    func trimsTheTechnicalTail() {
+        // The tags the filename parser does not recognise used to survive into
+        // the title — and that title named the folder, named the anime row and
+        // was handed to Bangumi as the search query.
+        #expect(TorrentDownloadFolder.seriesTitle(
+            of: "[ANi] 藥師少女的獨語 / Kusuriya no Hitorigoto - 13 [1080P][Baha][WEB-DL][AAC AVC][CHT].mp4"
+        ) == "Kusuriya no Hitorigoto")
+        #expect(TorrentDownloadFolder.seriesTitle(
+            of: "[喵萌奶茶屋&LoliHouse] BanG Dream! Ave Mujica - 05 [WebRip 1080p HEVC-10bit AAC][简繁日内封字幕]"
+        ) == "BanG Dream! Ave Mujica")
+    }
+
+    @Test("A title made only of brackets is named after the group that holds the work")
+    func allBracketTitles() {
+        // 幻樱-style names put the episode number in a bracket of its own, so
+        // every episode parsed to a different title, no two of twelve agreed
+        // on a folder, and a season arrived as twelve works.
+        let season = (1...12).map {
+            "【幻樱字幕组】【4月新番】【鬼灭之刃 Kimetsu no Yaiba】【\($0)】【GB_MP4】【1920X1080】"
+        }
+        #expect(TorrentDownloadFolder.seriesTitle(of: season[0]) == "鬼灭之刃 Kimetsu no Yaiba")
+        #expect(TorrentDownloadFolder.name(animeTitle: nil, releaseNames: season) == "鬼灭之刃 Kimetsu no Yaiba")
+        #expect(TorrentDownloadFolder.seriesTitle(
+            of: "[Nekomoe kissaten][Solo Leveling][01][1080p][JPSC].mp4"
+        ) == "Solo Leveling")
+    }
+
     @Test("A work with no Latin alias keeps the first one")
     func noLatinAlias() {
         #expect(TorrentDownloadFolder.seriesTitle(of: "[VCB-Studio] 少女终末旅行 / 少女終末旅行 - 01") == "少女终末旅行")

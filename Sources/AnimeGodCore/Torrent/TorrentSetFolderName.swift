@@ -58,7 +58,7 @@ public enum TorrentDownloadFolder {
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
             .compactMap { alias -> String? in
-                let title = parser.parse(url: URL(fileURLWithPath: "/" + alias)).title
+                let title = parser.parse(url: URL(fileURLWithPath: "/" + withoutTrailingTags(alias))).title
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                 return title.isEmpty ? nil : title
             }
@@ -67,6 +67,88 @@ public enum TorrentDownloadFolder {
         // name the files themselves after — so the folder agrees with what
         // is inside it, and with what the scanner will call the work.
         return aliases.first(where: isLatinScript) ?? aliases[0]
+    }
+
+    /// One alias with its technical tail cut off.
+    ///
+    /// The filename parser drops the tags it recognises — resolutions,
+    /// codecs, CRCs — but an index title is a pile of brackets, and the ones
+    /// it does not recognise stay: `[ANi] 藥師少女的獨語 / Kusuriya no
+    /// Hitorigoto - 13 [1080P][Baha][WEB-DL][AAC AVC][CHT]` came out as
+    /// "Kusuriya no Hitorigoto Baha CHT", which then named the folder, named
+    /// the anime row, and was handed to Bangumi as the search query — so the
+    /// work never matched. In a release title everything from the first
+    /// bracket after the fansub's own is the technical tail, so cutting there
+    /// is both simple and right.
+    static func withoutTrailingTags(_ alias: String) -> String {
+        var value = alias
+        var leading = ""
+        // The fansub's own leading bracket is not the tail; the parser wants
+        // it, because that is where it reads the group from.
+        if let close = closingIndexOfLeadingBracket(in: value) {
+            leading = String(value[...close])
+            value = String(value[value.index(after: close)...])
+        }
+        let tail = value.firstIndex(where: Self.openingBrackets.contains)
+        if let tail { value = String(value[..<tail]) }
+        let trimmed = (leading + value).trimmingCharacters(in: .whitespaces)
+        // Nothing left outside the brackets: this is the all-bracket style
+        // (【字幕组】【4月新番】【鬼灭之刃 Kimetsu no Yaiba】【26】【1920X1080】),
+        // where the work's name is one of the groups. Guessing wrong here is
+        // not cosmetic — the episode number is a group of its own, so every
+        // episode parsed to a different title, no two of the twelve agreed on
+        // a folder, and a season downloaded as a set arrived as twelve
+        // separate works on the home screen.
+        if value.trimmingCharacters(in: .whitespaces).count < 2, let inside = titleInsideBrackets(of: alias) {
+            return inside
+        }
+        return trimmed.isEmpty ? alias : trimmed
+    }
+
+    private static let openingBrackets: Set<Character> = ["[", "(", "【", "（"]
+
+    /// The end of the leading bracket group, whichever kind it uses.
+    private static func closingIndexOfLeadingBracket(in value: String) -> String.Index? {
+        guard let first = value.first else { return nil }
+        let closing: Character
+        switch first {
+        case "[": closing = "]"
+        case "【": closing = "】"
+        default: return nil
+        }
+        return value.firstIndex(of: closing)
+    }
+
+    /// The group that names the work, out of a title made only of brackets.
+    ///
+    /// The first group is the fansub. Of the rest, the longest one that
+    /// carries letters is the title: the others are an episode number, a
+    /// resolution, a container, a language pair or a broadcast season, and
+    /// all of those are short.
+    private static func titleInsideBrackets(of alias: String) -> String? {
+        let pattern = #"[\[【]([^\]】]*)[\]】]"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+        let groups = regex.matches(in: alias, range: NSRange(alias.startIndex..., in: alias))
+            .compactMap { match -> String? in
+                guard let range = Range(match.range(at: 1), in: alias) else { return nil }
+                return alias[range].trimmingCharacters(in: .whitespaces)
+            }
+        let candidates = groups.dropFirst().filter { group in
+            guard group.count >= 2 else { return false }
+            // Anything without a letter is a number, a date or a size.
+            guard group.contains(where: { $0.isLetter }) else { return false }
+            return !isTechnicalTag(group)
+        }
+        return candidates.max { ($0.count, $1) < ($1.count, $0) }
+    }
+
+    /// Bracket contents that describe the file rather than the work.
+    private static func isTechnicalTag(_ group: String) -> Bool {
+        let folded = group.folding(options: [.caseInsensitive, .widthInsensitive], locale: nil)
+        let pattern = #"(?i)^(?:(?:\d+[xX×]\d+)|(?:(?:2160|1080|720|480)[pi]?)|4k|hdr|uhd|bd(?:rip)?|blu-?ray|web-?(?:dl|rip)?|hevc|avc|av1|x26[45]|10bit|8bit|ma10p|flac|aac|ddp?|dts|truehd|mp4|mkv|gb|big5|gb_?mp4|big5_?mp4|chs|cht|jpsc|jptc|jpn|eng|sc|tc|简[体繁]?[内外]?[封挂]?|繁[体]?[内外]?[封挂]?|简繁[日]?[内外]?[封挂]?(?:字幕)?|中日?双语|字幕|外挂|内[封嵌]|生肉|熟肉|合集|完结|全\d{1,4}话?|第\d+[话話集]|\d+月新番|\d+年\d+月(?:新番)?|[a-z]{2,4}[_ ]?(?:mp4|mkv))$"#
+        if folded.range(of: pattern, options: .regularExpression) != nil { return true }
+        // A group that is only an episode range ("01-12", "01~12") is not a title.
+        return folded.range(of: #"^\d{1,4}\s*[-~–]\s*\d{1,4}$"#, options: .regularExpression) != nil
     }
 
     /// Written in Latin letters and nothing else a reader would call a
