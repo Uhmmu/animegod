@@ -1,6 +1,25 @@
 import AnimeGodCore
 import SwiftUI
 
+/// How the grid is ordered.
+enum LibrarySortOrder: String, CaseIterable, Identifiable {
+    case title
+    case added
+    case score
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .title: String(localized: "Name")
+        case .added: String(localized: "Recently Added")
+        case .score: String(localized: "Rating")
+        }
+    }
+
+    static let storageKey = "library.sortOrder"
+}
+
 struct LibraryView: View {
     @EnvironmentObject private var model: AppModel
     /// Observed here rather than through AppModel: download progress ticks
@@ -8,10 +27,72 @@ struct LibraryView: View {
     @ObservedObject var downloads: TorrentDownloadManager
     @ObservedObject var subscriptions: TorrentSubscriptionManager
     @State private var searchText = ""
+    @AppStorage(LibrarySortOrder.storageKey) private var sortOrder: LibrarySortOrder = .title
+
+    /// The name shown on the card, which is the name the grid is ordered by.
+    ///
+    /// The two used to disagree: the order came from `sortTitle`, which is the
+    /// folder's name — usually romaji — while the card showed the title the
+    /// metadata gave it, usually Chinese. The grid was in a perfectly good
+    /// order that was invisible on screen.
+    private func displayTitle(_ item: LibraryAnime) -> String {
+        model.metadataByAnimeID[item.anime.id]?.title ?? item.anime.title
+    }
+
+    /// What the providers think of it, averaged over the ones that answered.
+    /// Both report out of ten, so the two are directly comparable.
+    private func averageScore(_ item: LibraryAnime) -> Double? {
+        let scores = (model.metadataSourcesByAnimeID[item.anime.id] ?? []).compactMap(\.score)
+        guard !scores.isEmpty else { return nil }
+        return scores.reduce(0, +) / Double(scores.count)
+    }
 
     private var filtered: [LibraryAnime] {
-        guard !searchText.isEmpty else { return model.library }
-        return model.library.filter { $0.anime.title.localizedCaseInsensitiveContains(searchText) }
+        let matching = searchText.isEmpty ? model.library : model.library.filter { item in
+            // Searching by either name, since either one may be the one the
+            // user remembers.
+            item.anime.title.localizedCaseInsensitiveContains(searchText)
+                || displayTitle(item).localizedCaseInsensitiveContains(searchText)
+        }
+        switch sortOrder {
+        case .title:
+            return matching.sorted { isBefore(displayTitle($0), displayTitle($1)) }
+        case .added:
+            return matching.sorted { $0.anime.createdAt > $1.anime.createdAt }
+        case .score:
+            // Unrated titles go last rather than sorting as zero, which would
+            // bury everything the providers have not been asked about yet.
+            return matching.sorted { lhs, rhs in
+                switch (averageScore(lhs), averageScore(rhs)) {
+                case let (left?, right?):
+                    return left != right
+                        ? left > right
+                        : displayTitle(lhs).localizedStandardCompare(displayTitle(rhs)) == .orderedAscending
+                case (nil, _?): return false
+                case (_?, nil): return true
+                case (nil, nil):
+                    return isBefore(displayTitle(lhs), displayTitle(rhs))
+                }
+            }
+        }
+    }
+
+    /// Alphabetical, with Latin and numeric titles ahead of the rest.
+    ///
+    /// `localizedStandardCompare` in a Chinese locale orders Han by pinyin,
+    /// which is right — but it also puts every Latin title *after* every
+    /// Chinese one, so a library of thirty Chinese titles ends with the one
+    /// called "BanG Dream!" and reads like the sort gave up at the end.
+    private func isBefore(_ lhs: String, _ rhs: String) -> Bool {
+        let left = Self.isLatinLeading(lhs), right = Self.isLatinLeading(rhs)
+        guard left == right else { return left }
+        return lhs.localizedStandardCompare(rhs) == .orderedAscending
+    }
+
+    private static func isLatinLeading(_ title: String) -> Bool {
+        guard let first = title.unicodeScalars.first(where: { $0.properties.isAlphabetic || CharacterSet.decimalDigits.contains($0) })
+        else { return false }
+        return first.value < 0x2E80
     }
 
     /// Downloads that are not in the library yet, so a title being fetched is
@@ -127,6 +208,7 @@ struct LibraryView: View {
             AnimeCard(
                 item: item,
                 title: model.metadataByAnimeID[item.anime.id]?.title,
+                score: sortOrder == .score ? averageScore(item) : nil,
                 posterURLs: model.posterCandidates(for: item.anime.id),
                 downloadProgress: downloadProgress(for: item.anime.id),
                 subscriptionState: subscriptionState(for: item.anime.id)
@@ -161,6 +243,17 @@ struct LibraryView: View {
             }
         }
         .navigationTitle("All Anime")
+        .toolbar {
+            ToolbarItem {
+                Picker("Sort By", selection: $sortOrder) {
+                    ForEach(LibrarySortOrder.allCases) { order in
+                        Text(order.displayName).tag(order)
+                    }
+                }
+                .pickerStyle(.menu)
+                .help("Order the grid by name, by when it was added, or by the average of the ratings its sources gave it")
+            }
+        }
         .searchable(text: $searchText, placement: .toolbar, prompt: "Search library")
         .task(id: incomingSeriesTitles) {
             await model.resolveIncomingMatches(seriesTitles: incomingSeriesTitles)
@@ -174,6 +267,9 @@ struct LibraryView: View {
 private struct AnimeCard: View {
     let item: LibraryAnime
     let title: String?
+    /// Shown while the grid is ordered by rating, so the order is legible
+    /// rather than something to take on trust.
+    var score: Double?
     let posterURLs: [URL]
     /// Non-nil while an episode of this title is downloading.
     var downloadProgress: Double?
@@ -200,9 +296,15 @@ private struct AnimeCard: View {
             Text(title ?? item.anime.title)
                 .font(.headline)
                 .lineLimit(2)
-            Text("\(item.episodeCount) episodes")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+            HStack(spacing: 6) {
+                Text("\(item.episodeCount) episodes")
+                if let score {
+                    Label(String(format: "%.1f", score), systemImage: "star.fill")
+                        .foregroundStyle(.orange)
+                }
+            }
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
         }
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
