@@ -31,12 +31,12 @@ Mac. Nothing is uploaded, nothing is renamed, nothing is moved.
 > The app is ad-hoc signed, not notarized. On first launch macOS may need you
 > to right-click it and choose **Open**.
 
-**Current release: 0.3.2** — a season downloaded as a set now behaves as the
-one show it is: one folder, one card on the home screen with its real cover,
-matched to its anime before the first episode has even finished. Finished
-releases keep seeding instead of drifting back into the queue, and a download
-whose files you moved in the Finder is paused rather than fetched all over
-again.
+**Current release: 0.4.0** — subscribe to an unfinished season with one click
+and AnimeGod follows the same fansub, encode and folder as new episodes appear.
+Metadata now fills itself in after scans, AniList matching works across Chinese,
+Japanese and romaji titles, and the library can be ordered by name, recency or
+rating. The identity fixes in this release also keep a season together as one
+work even when release names use unusual brackets, aliases or Unicode spelling.
 
 ## At a glance
 
