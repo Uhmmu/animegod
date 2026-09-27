@@ -49,7 +49,7 @@ again.
 | 🈳 **Subtitles** | Finds and loads Chinese subtitles automatically when a release has none |
 | 🧲 **Releases** | Ten anime indexes searched at once, whole seasons assembled per fansub |
 | ⬇️ **Downloads** | Built-in BitTorrent engine, a season per folder, play while downloading, auto-unpack |
-| 🔔 **Subscriptions** | New episodes arrive by themselves |
+| 🔔 **Subscriptions** | One click on an airing season; every episode after it arrives by itself |
 | 💾 **Episode cache** | Copies from an external drive so the show survives unplugging it |
 | 📔 **Your record** | Status, scores, rankings, an automatic diary, a yearly report |
 
@@ -283,6 +283,10 @@ a release needs no other app.
   button opens it in AnimeGod's own player while the rest arrives.
 - **Archives are unpacked when a download finishes**, so a `.rar`/`.zip`/`.7z`
   release becomes episodes instead of files nothing can open.
+- **A speed limit that is where you need it**: BitTorrent uses every byte of a
+  connection it is given, so the ceiling sits in the Downloads header next to
+  the live speed — and in Settings, with a separate one for episodes a
+  subscription fetches on its own.
 
 <details>
 <summary>More detail</summary>
@@ -318,27 +322,43 @@ a release needs no other app.
 
 ## Subscriptions
 
-Follow a show and new episodes download by themselves. The quickest way to make
-a rule is the bell button in Find Releases, once the filters show exactly what
-you want.
+Search a season that is still airing, press **Subscribe**, and that is the whole
+setup. What is out downloads now; every episode after it arrives on its own —
+same fansub, same folder, same library entry.
 
-- **Following means from now on** — subscribing mid-season does not pull down
-  everything already out. Backfilling is a deliberate switch.
-- **One release per episode**, never one already in your library or downloaded
-  before, and a release nobody seeds loses to one with peers.
-- **Every action is listed** under Recent Activity. Automatic downloading is
-  only comfortable when it is easy to see and easy to switch off.
+| | |
+|---|---|
+| 🟢 **Still airing** | A set nobody has published the next episode of yet is tagged, and gains a Subscribe button beside Download Set |
+| 🧠 **Nothing to fill in** | The fansub, resolution, encode, folder and episode floor are read off the season you just downloaded |
+| 🗓️ **Next episode, estimated** | From the gaps between the episodes already published: *waiting for EP 11 · expected in 4 days* |
+| ❓ **Asks before mixing** | Episode 11 from a different fansub is offered, never taken — a season that changes team halfway is worse than one that waits |
+| 🐢 **Its own speed limit** | An unattended download is the one nobody is waiting for, so it has a ceiling of its own |
+
+The Subscriptions page is the shelf of what you follow: poster, what it is
+waiting for, what arrived, and anything that needs a decision. A followed title
+carries a small **SUB** mark in the corner of its cover — outlined while it
+waits, filling as a new episode downloads, solid blue once the episode is there.
 
 <details>
 <summary>More detail</summary>
 
-- A rule is a fansub, a resolution, a subtitle language, keywords to require or
-  avoid, and an episode floor.
-- Releases with no episode number are only taken when the rule names a fansub or
-  keyword, so a season pack is never grabbed by accident.
+- **Still airing** is measured, not guessed: the highest episode anybody
+  published, how often a new one appears, and how long it has been quiet — with
+  the season length from Bangumi / AniList when the title is matched.
+- **The next episode is searched for by number too** (`Yani Neko 11`), on top of
+  the title, because that is what narrows an index to the episode you want.
+- One release per episode, never one already in your library or downloaded
+  before, and a release nobody seeds loses to one with peers.
+- Episodes go into the season's existing folder — no second folder, no second
+  library entry — and the download is bound to the anime, so it appears on its
+  own page while it is still arriving.
+- Turning an offer down is permanent; it is not offered again at the next check.
+- A rule written by hand is still available from **Add by Hand**, and from the
+  bell in Find Releases: a fansub, a resolution, a subtitle language, keywords to
+  require or avoid, and an episode floor.
 - Collaborations count: a rule naming `LoliHouse` matches `[喵萌奶茶屋&LoliHouse]`,
   which is how fansubs actually release.
-- Enabled rules are checked every 30 minutes.
+- Checked every 12 hours by default — anything from hourly to weekly in Settings.
 
 </details>
 

@@ -141,6 +141,34 @@ include/exclude keywords. Polling uses RSS where available (Mikan per-bangumi
 RSS, dmhy, Nyaa), at most every 30 min, and never downloads the same info hash
 twice.
 
+**Revised (2026-09-27): a rule is not something anyone should have to write.**
+Filling in a fansub name and a resolution by hand is expert work, and the
+people who want the feature are not the people who want the form. The rule is
+now read off the season that was just downloaded — team, encode, folder,
+episode floor, filename shape — and the whole interaction is one button on a
+set that is still airing. The form stays, in the corner, for the shows the
+search cannot line up on its own.
+
+Three things this needs that the first version did not have:
+
+1. **Is this season still running?** Subscribing to a show nobody will publish
+   another episode of is a rule that never fires, so the Subscribe button only
+   appears when the answer is yes. `TorrentReleaseSchedule` reads it out of the
+   whole result set: the highest episode anybody published, the median gap
+   between episodes first appearing, how long it has been quiet, and the season
+   length from Bangumi / AniList when the title is matched. The same numbers
+   give the next-episode estimate the Subscriptions page shows.
+2. **Where does the episode go?** Into the folder the season is already in, or
+   a season becomes two library entries the first time a rule fires. The folder
+   is recorded on the rule and on every download row (`v12`), and the sandbox
+   scope for it is re-opened through `DownloadFolderStore` rather than writing
+   to a bare path.
+3. **What about the other fansub's episode 11?** Offered, not taken
+   (`v11`'s `torrentSubscriptionCandidate`). A season that changes team halfway
+   through is worse than a season that waits, and the decision is one click on
+   the Subscriptions page. Turning it down is permanent — it is recorded in the
+   match log, which is what stops the same question being asked twice a day.
+
 ## 7. Phases
 
 1. Core: hashes, bencode, merger, relevance, coordinator, 10 providers, tests.
@@ -177,6 +205,20 @@ twice.
    once — and seeders outrank relevance when picking unattended, because a
    dead release never finishes. Fansub matching is substring-based so a rule
    naming one group matches a collaboration.)*
+5b. Subscribing without writing a rule. *(Done 2026-09-27, per the revision in
+   §6: `TorrentReleaseSchedule` in Core with tests decides "still airing" and
+   estimates the next episode; `TorrentSubscription.following(set:…)` learns
+   the line, the folder and the episode floor from the downloaded set;
+   `TorrentSubscriptionMatcher.select` now returns what to take **and** what to
+   ask about; migrations `v11_subscription_following` and
+   `v12_download_folder_name`; the Subscribe button and "Unfinished" tag in
+   Episode Sets; the Subscriptions page rebuilt as the shelf of followed shows;
+   the **SUB** mark on library covers; per-session and per-task speed limits on
+   the engine. Verified against live indexes with `-smokeSubscription`: a
+   weekly show reads as `every=7.0d ongoing=true` with a next-episode date, a
+   season that ended in 2017 as `ongoing=false`, and the schedule is measured
+   over the run the **newest** episodes belong to — picking the numerically
+   last run instead would have measured a sequel's old numbering.)*
 6. Episode sets: assemble a fansub's season out of single-episode releases
    so a whole cour can be started without taking a batch.
    *(Done: `TorrentEpisodeSetBuilder` in Core with tests, the **Episode
