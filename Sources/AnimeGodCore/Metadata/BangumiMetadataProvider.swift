@@ -4,13 +4,27 @@ public enum MetadataProviderError: LocalizedError, Sendable {
     case invalidResponse
     case httpStatus(Int)
     case serviceMessage(String)
+    /// The service is fine and is asking to be asked again later. Kept apart
+    /// from the other failures because it must not be read as "this provider
+    /// is down": enriching a whole library is *expected* to reach the limit,
+    /// and giving up on the provider there left two thirds of the library
+    /// without it.
+    case rateLimited(retryAfter: TimeInterval)
 
     public var errorDescription: String? {
         switch self {
         case .invalidResponse: String(localized: "The metadata service returned an invalid response.", bundle: .module)
         case let .httpStatus(status): String(localized: "The metadata service returned HTTP \(status).", bundle: .module)
         case let .serviceMessage(message): message
+        case .rateLimited: String(localized: "The metadata service is rate-limiting requests; it will be asked again shortly.", bundle: .module)
         }
+    }
+
+    /// Whether the provider should still be asked about the rest of the
+    /// library after this.
+    public var isTemporary: Bool {
+        if case .rateLimited = self { return true }
+        return false
     }
 }
 

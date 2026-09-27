@@ -105,6 +105,18 @@ struct RootView: View {
             MatchReviewView()
                 .environmentObject(model)
         }
+        // The automatic pass asks for the sheet itself when it ends with
+        // questions: metadata that fills in on its own is the whole point, and
+        // a badge in the toolbar is not something anyone looks at.
+        .onChange(of: model.wantsMatchReview) { _, wants in
+            guard wants else { return }
+            model.wantsMatchReview = false
+            showingMatchReview = true
+        }
+        .sheet(item: $model.incomingMatchPrompt) { _ in
+            IncomingMatchSheet()
+                .environmentObject(model)
+        }
         .onChange(of: model.playerRequest?.id) { _, _ in
             guard model.playerRequest != nil else { return }
             openWindow(id: "player")
@@ -122,6 +134,50 @@ struct RootView: View {
                     selection = SidebarItem(rawValue: name)
                 }
             }
+        }
+        .task {
+            // Fills in every metadata source the library is missing, headless:
+            //
+            //     AnimeGod -smokeEnrichMetadata
+            //
+            // The same pass the toolbar button runs. It exists because the
+            // pass is slow by design — AniList allows 30 requests a minute and
+            // a library needs hundreds — so watching a window for five minutes
+            // is not how anyone should have to do it.
+            guard ProcessInfo.processInfo.arguments.contains("-smokeEnrichMetadata") else { return }
+            var waited = 0
+            while model.library.isEmpty && waited < 40 {
+                try? await Task.sleep(for: .milliseconds(500))
+                waited += 1
+            }
+            // The launch pass runs on its own now; wait it out rather than
+            // bouncing off its guard and reporting a run that never happened.
+            while model.isEnrichingMetadata {
+                try? await Task.sleep(for: .seconds(1))
+            }
+            let before = model.library.reduce(into: [MetadataProviderID: Int]()) { counts, item in
+                for source in model.metadataSourcesByAnimeID[item.anime.id] ?? [] {
+                    counts[source.provider, default: 0] += 1
+                }
+            }
+            FileHandle.standardError.write(Data("SMOKE enrich library=\(model.library.count) before=\(before)\n".utf8))
+            await model.enrichLibraryMetadata()
+            let after = model.library.reduce(into: [MetadataProviderID: Int]()) { counts, item in
+                for source in model.metadataSourcesByAnimeID[item.anime.id] ?? [] {
+                    counts[source.provider, default: 0] += 1
+                }
+            }
+            let unmatched = model.library.filter { item in
+                (model.metadataSourcesByAnimeID[item.anime.id] ?? []).allSatisfy { $0.provider != .anilist }
+            }.map(\.anime.title)
+            FileHandle.standardError.write(Data("SMOKE enrich after=\(after) pending=\(model.pendingMatches.count)\n".utf8))
+            for title in unmatched {
+                FileHandle.standardError.write(Data("SMOKE enrich no-anilist \(title)\n".utf8))
+            }
+            if let message = model.errorMessage {
+                FileHandle.standardError.write(Data("SMOKE enrich message: \(message)\n".utf8))
+            }
+            exit(0)
         }
         .task {
             // The library window owns openWindow, so smoke mode must initiate

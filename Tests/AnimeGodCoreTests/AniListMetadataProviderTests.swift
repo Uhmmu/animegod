@@ -80,3 +80,33 @@ private final class AniListErrorURLProtocol: URLProtocol, @unchecked Sendable {
         client?.urlProtocolDidFinishLoading(self)
     }
 }
+
+/// The stubbed tests above replay a canned response, so they keep passing
+/// while the real schema moves underneath them — which is exactly what
+/// happened: `studios { nodes { isMain } }` stopped being valid, every
+/// metadata fetch answered HTTP 400, and the app reported it as "AniList
+/// could not be reached" for months. These hit the real endpoint.
+///
+///     ANIMEGOD_LIVE_TESTS=1 swift test --filter AniListLiveSchemaTests
+@Suite(.serialized)
+struct AniListLiveSchemaTests {
+    @Test(.enabled(if: ProcessInfo.processInfo.environment["ANIMEGOD_LIVE_TESTS"] == "1"))
+    func everyQueryTheAppSendsIsStillAccepted() async throws {
+        let provider = AniListMetadataProvider()
+
+        let candidates = try await provider.search("Frieren", limit: 3)
+        let candidate = try #require(candidates.first)
+        // The romaji title has to survive onto the candidate: local titles
+        // come from folder names, which are as often romaji as English.
+        #expect(!candidate.aliases.isEmpty)
+        #expect(candidate.totalEpisodes ?? 0 > 0)
+
+        let metadata = try await provider.metadata(externalID: candidate.externalID, animeID: UUID())
+        #expect(!metadata.title.isEmpty)
+        #expect(metadata.score ?? 0 > 0)
+        #expect(metadata.totalEpisodes ?? 0 > 0)
+        #expect(metadata.sourceURL?.host == "anilist.co")
+
+        _ = try await provider.communityPosts(externalID: candidate.externalID)
+    }
+}

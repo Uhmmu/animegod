@@ -49,6 +49,14 @@ public struct AnimeMetadataCandidate: Identifiable, Codable, Hashable, Sendable 
     public let score: Double?
     public let rank: Int?
     public let ratingCount: Int?
+    /// Other names the provider lists for the work — AniList's romaji beside
+    /// its English, for instance.
+    ///
+    /// Local titles come from folder names, and a folder is as likely to be
+    /// named `Ai no Utagoe wo Kikasete` as `Sing a Bit of Harmony`. Comparing
+    /// only the provider's preferred title and its native one throws away the
+    /// romaji, which is the spelling that actually matches.
+    public let aliases: [String]
     /// Episodes in the season, as the provider's search result reports it.
     /// Carried on the candidate rather than fetched per subject: it is what
     /// tells a finished twelve-episode season from one twelve episodes in,
@@ -67,6 +75,7 @@ public struct AnimeMetadataCandidate: Identifiable, Codable, Hashable, Sendable 
         score: Double?,
         rank: Int?,
         ratingCount: Int?,
+        aliases: [String] = [],
         totalEpisodes: Int? = nil
     ) {
         self.provider = provider
@@ -80,6 +89,10 @@ public struct AnimeMetadataCandidate: Identifiable, Codable, Hashable, Sendable 
         self.rank = rank
         self.ratingCount = ratingCount
         self.totalEpisodes = totalEpisodes.flatMap { $0 > 0 ? $0 : nil }
+        var seen = Set<String>([title.lowercased(), originalTitle.lowercased()])
+        self.aliases = aliases
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty && seen.insert($0.lowercased()).inserted }
     }
 }
 

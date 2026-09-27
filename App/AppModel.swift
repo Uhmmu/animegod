@@ -16,6 +16,9 @@ final class AppModel: ObservableObject {
     @Published private(set) var watchHistory: [WatchEvent] = []
     @Published private(set) var diarySummary = DiarySummary(totalWatchTime: 0, sessionCount: 0, completedEpisodeCount: 0, animeCount: 0)
     @Published private(set) var pendingMatches: [PendingMetadataMatch] = []
+    /// Set when an automatic pass ended with matches it could not make on its
+    /// own. RootView shows the review sheet off this.
+    @Published var wantsMatchReview = false
     @Published private(set) var statisticsReport: StatisticsReport?
     @Published private(set) var isScanning = false
     @Published private(set) var isEnrichingMetadata = false
@@ -53,6 +56,11 @@ final class AppModel: ObservableObject {
         .anilist: AniListMetadataProvider()
     ]
     private let metadataMatcher = MetadataMatcher()
+    /// Failures in a row before a provider is given up on for the rest of an
+    /// enrichment pass.
+    private static let providerFailureLimit = 3
+    /// `-traceEnrichment` prints what each provider was asked and answered.
+    private static let tracesEnrichment = ProcessInfo.processInfo.arguments.contains("-traceEnrichment")
     private var cancellables: Set<AnyCancellable> = []
     /// Older caches predate Bangumi shoutbox support. Attempt one transparent
     /// upgrade per title and app run without repeatedly hitting empty subjects.
@@ -132,6 +140,20 @@ final class AppModel: ObservableObject {
         defer { isScanning = false }
         for root in roots { await scan(root, managesScanningState: false) }
         await reloadLibrary()
+        enrichInBackground()
+    }
+
+    /// Looks up whatever the library is missing, without making anyone wait
+    /// for it. Detached from the caller because a full pass takes minutes —
+    /// AniList allows 30 requests a minute — and nothing on screen depends on
+    /// it finishing.
+    private func enrichInBackground() {
+        guard !isEnrichingMetadata else { return }
+        Task { [weak self] in
+            // Let the scan's own work settle before adding network traffic.
+            try? await Task.sleep(for: .seconds(2))
+            await self?.enrichLibraryMetadata(isAutomatic: true)
+        }
     }
 
     func scan(_ root: LibraryRoot, managesScanningState: Bool = true) async {
@@ -153,6 +175,9 @@ final class AppModel: ObservableObject {
             roots = try await database.libraryRoots()
             await reloadLibrary()
             await refreshRootAvailability()
+            // A full sweep calls this once at the end instead, so scanning
+            // five roots does not queue five passes.
+            if managesScanningState { enrichInBackground() }
         } catch {
             errorMessage = String(localized: "Could not scan \(root.displayName): \(error.localizedDescription)")
         }
@@ -592,7 +617,13 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func enrichLibraryMetadata() async {
+    /// Fills in the metadata sources the library is missing.
+    ///
+    /// Runs on its own after a scan and at launch — nobody should have to know
+    /// that a second source exists, let alone press a button for it. An
+    /// automatic pass stays quiet about failures and, when it ends up with
+    /// questions it cannot answer, offers them rather than burying them.
+    func enrichLibraryMetadata(isAutomatic: Bool = false) async {
         guard !isEnrichingMetadata, let database else { return }
         let providers = MetadataProviderID.allCases.filter { metadataProviders[$0] != nil }
         let work = library.flatMap { anime in
@@ -612,15 +643,58 @@ final class AppModel: ObservableObject {
         var failedCount = 0
         var reviewQueue: [PendingMetadataMatch] = []
         var unavailableProviders = Set<MetadataProviderID>()
+        /// Names learned from a provider that already answered, used to ask
+        /// the next one. Held here rather than read back from
+        /// `metadataSourcesByAnimeID`, which is only reloaded once the whole
+        /// pass is over.
+        var learnedTitles: [UUID: [String]] = [:]
+        var consecutiveFailures: [MetadataProviderID: Int] = [:]
+        var lastFailure: [MetadataProviderID: any Error] = [:]
         for (index, task) in work.enumerated() {
             guard !Task.isCancelled else { break }
             let (item, providerID) = task
             guard !unavailableProviders.contains(providerID), let provider = metadataProviders[providerID] else { continue }
             metadataProgress = String(localized: "\(providerID.displayName) \(index + 1) of \(work.count)")
             do {
-                let candidates = try await provider.search(item.anime.title, limit: 8)
-                switch metadataMatcher.decide(localTitle: item.anime.title, candidates: candidates) {
-                case let .automatic(best):
+                var best: RankedMatch?
+                var fallback: [RankedMatch] = []
+                // Every name the work is known by, not just the one the folder
+                // uses. AniList indexes romaji and Japanese and holds no
+                // Chinese titles at all, so a library whose folders are named
+                // in Chinese got zero candidates from it — for every title,
+                // silently, which is why it never appeared beside Bangumi on
+                // an anime's page.
+                let tried = searchTitles(for: item.anime, learned: learnedTitles[item.id] ?? [])
+                if Self.tracesEnrichment {
+                    FileHandle.standardError.write(Data("TRACE \(providerID.rawValue) '\(item.anime.title)' queries=\(tried)\n".utf8))
+                }
+                for query in tried {
+                    let candidates = try await provider.search(query, limit: 8)
+                    if Self.tracesEnrichment {
+                        FileHandle.standardError.write(Data("TRACE   '\(query)' -> \(candidates.count) candidates, top=\(metadataMatcher.rank(localTitle: query, candidates: candidates).first.map { "\($0.candidate.title) \(String(format: "%.2f", $0.score))" } ?? "-")\n".utf8))
+                    }
+                    guard !candidates.isEmpty else { continue }
+                    // Scored against the name that was asked for: a perfect
+                    // AniList hit measured against the Chinese title scores
+                    // nothing, because they share no characters.
+                    switch metadataMatcher.decide(localTitle: query, candidates: candidates) {
+                    case let .automatic(match):
+                        best = match
+                    case let .review(ranked):
+                        if fallback.isEmpty { fallback = ranked }
+                    case .none:
+                        continue
+                    }
+                    // Only a confident match ends the search. Getting results
+                    // back does not mean they are the right work: asking
+                    // AniList for 「春宵苦短，少女前进吧！」 returns the film
+                    // under its English name and scores it zero, and stopping
+                    // there threw away the Japanese title that would have
+                    // matched it outright.
+                    if best != nil { break }
+                }
+
+                if let best {
                     // Best-effort default: link the strongest candidate now;
                     // the user fixes a wrong link from the anime page.
                     let metadata = try await provider.metadata(externalID: best.candidate.externalID, animeID: item.id)
@@ -631,16 +705,41 @@ final class AppModel: ObservableObject {
                         matchConfidence: best.score,
                         isManualMatch: false
                     )
+                    // What this provider calls the work is what the next one
+                    // is asked for.
+                    learnedTitles[item.id, default: []].append(contentsOf: [metadata.title, metadata.originalTitle])
                     matchedCount += 1
-                case let .review(ranked):
-                    // Dubious hits wait for one quick human pass.
-                    reviewQueue.append(PendingMetadataMatch(anime: item.anime, provider: providerID, candidates: ranked))
-                case .none:
-                    continue
+                    consecutiveFailures[providerID] = 0
+                } else if !dismissedMatches.contains("\(item.id.uuidString):\(providerID.rawValue)") {
+                    // Dubious hits — and works this provider has never heard
+                    // of — wait for one quick human pass. The second case used
+                    // to be dropped silently, which is how a title could sit
+                    // there for months with one source instead of two and
+                    // nothing anywhere saying so.
+                    reviewQueue.append(PendingMetadataMatch(
+                        anime: item.anime,
+                        provider: providerID,
+                        candidates: fallback
+                    ))
                 }
             } catch {
                 failedCount += 1
-                unavailableProviders.insert(providerID)
+                // One failure used to disable a provider for the whole run.
+                // That is right for a service that is down and wrong for
+                // everything else — a rate limit is the provider working
+                // normally, and one odd subject should not cost the rest of
+                // the library its second source. Three failures in a row is
+                // the signal that asking again is pointless.
+                if (error as? MetadataProviderError)?.isTemporary == true {
+                    consecutiveFailures[providerID] = 0
+                } else {
+                    let failures = (consecutiveFailures[providerID] ?? 0) + 1
+                    consecutiveFailures[providerID] = failures
+                    if failures >= Self.providerFailureLimit {
+                        unavailableProviders.insert(providerID)
+                    }
+                }
+                lastFailure[providerID] = error
             }
         }
         // Drop queue entries the user already resolved from an earlier run.
@@ -648,21 +747,95 @@ final class AppModel: ObservableObject {
             metadataSourcesByAnimeID[pending.anime.id]?.contains(where: { $0.provider == pending.provider }) != true
         }
         await reloadMetadata()
+        // An automatic pass is the only one that offers itself: pressing the
+        // button already puts the user in front of the result.
+        if isAutomatic, !pendingMatches.isEmpty { wantsMatchReview = true }
 
-        if failedCount > 0 {
+        // Only worth reporting when a provider was actually given up on: a
+        // handful of titles it has never heard of is not a failure of the run,
+        // and saying so after every pass taught the message to be ignored.
+        if isAutomatic {
+            // Nothing to say: a background pass that could not reach a source
+            // is not an event, and the same titles are tried again next time.
+        } else if !unavailableProviders.isEmpty {
             let names = unavailableProviders.map(\.displayName).sorted().joined(separator: ", ")
-            errorMessage = String(localized: "Matched \(matchedCount) source(s). \(names) could not be reached; cached metadata and the local library remain available.")
+            let reason = unavailableProviders.compactMap { lastFailure[$0]?.localizedDescription }.first
+            errorMessage = reason.map {
+                String(localized: "Matched \(matchedCount) source(s). \(names) stopped answering: \($0)")
+            } ?? String(localized: "Matched \(matchedCount) source(s). \(names) could not be reached; cached metadata and the local library remain available.")
+        } else if failedCount > 0, matchedCount == 0 {
+            errorMessage = String(localized: "Nothing new was matched. \(failedCount) lookup(s) failed; cached metadata and the local library remain available.")
         }
+    }
+
+    /// Every name to try when asking a provider about a work: the library's
+    /// own title first, then the names another provider already gave it.
+    ///
+    /// The providers do not overlap on titles — Bangumi files 「アイの歌声を
+    /// 聴かせて」 under its Chinese name, AniList under its romaji one — so
+    /// asking each of them for the folder's name only ever works for one of
+    /// them.
+    private func searchTitles(for anime: Anime, learned: [String]) -> [String] {
+        // Names a provider gave in an earlier run count too: by the time
+        // AniList is asked, Bangumi's answer is usually months old and
+        // already on disk, so its Japanese title never needs fetching again.
+        let stored = (metadataSourcesByAnimeID[anime.id] ?? []).flatMap { [$0.title, $0.originalTitle] }
+        let names = [anime.title] + learned + stored
+        var seen = Set<String>()
+        return (names + names.compactMap(Self.withoutFormatWords))
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty && seen.insert($0.lowercased()).inserted }
+    }
+
+    /// A title with the words that describe the *release* taken out, or nil
+    /// when there were none.
+    ///
+    /// AniList files a two-part film under `BanG Dream! It's MyGO!!!!! 春の陽
+    /// だまり、迷い猫`, while the library — and Bangumi — call it 「劇場版 …
+    /// 前編 春の陽だまり、迷い猫」. Searched whole it matches nothing; with
+    /// those two words gone it is an exact hit.
+    ///
+    /// Deliberately not 総集編 / 合集 / 特別編: a recap is a different work
+    /// from the series it recaps, and dropping the word would confidently
+    /// match the wrong one.
+    private static func withoutFormatWords(_ title: String) -> String? {
+        var stripped = title
+        for word in ["劇場版", "剧场版", "劇場", "前編", "後編", "前篇", "后篇", "上巻", "下巻"] {
+            stripped = stripped.replacingOccurrences(of: word, with: " ")
+        }
+        stripped = stripped
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        // A title that was *only* a format word says nothing about the work.
+        guard stripped != title, stripped.count >= 2 else { return nil }
+        return stripped
     }
 
     func confirmPendingMatch(_ pending: PendingMetadataMatch, candidate: AnimeMetadataCandidate) async {
         guard let index = pendingMatches.firstIndex(where: { $0.id == pending.id }) else { return }
         pendingMatches.remove(at: index)
+        dismissedMatches.remove(pending.id)
         _ = await match(pending.anime, to: candidate)
     }
 
     func skipPendingMatch(_ pending: PendingMetadataMatch) {
         pendingMatches.removeAll { $0.id == pending.id }
+        dismissedMatches.insert(pending.id)
+    }
+
+    /// Searches again for one pending match, with whatever the user typed.
+    /// This is the way in for a work the provider has never heard of under
+    /// any of the names the library knows it by.
+    func searchPendingMatch(_ pending: PendingMetadataMatch, query: String) async {
+        guard let index = pendingMatches.firstIndex(where: { $0.id == pending.id }) else { return }
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let provider = metadataProviders[pending.provider] else { return }
+        pendingMatches[index].query = trimmed
+        pendingMatches[index].isSearching = true
+        let candidates = (try? await provider.search(trimmed, limit: 12)) ?? []
+        guard let current = pendingMatches.firstIndex(where: { $0.id == pending.id }) else { return }
+        pendingMatches[current].candidates = metadataMatcher.rank(localTitle: trimmed, candidates: candidates)
+        pendingMatches[current].isSearching = false
     }
 
     func loadCommunity(for anime: Anime, provider providerID: MetadataProviderID? = nil, refresh: Bool = false) async {
@@ -844,17 +1017,18 @@ final class AppModel: ObservableObject {
                 // finished season permanently short of its own finale.
                 self?.metadataSourcesByAnimeID[animeID]?.compactMap(\.totalEpisodes).min()
             }
-            // A rule that has just downloaded something is a work the home
-            // screen should be showing, matched and covered.
             releaseSearch.episodeCountProvider = { [weak self] title in
                 await self?.episodeCount(forTitle: title)
             }
+            // A rule that has just downloaded something is a work the home
+            // screen should be showing, matched and covered.
             subscriptions.onAutomaticDownload = { [weak self] rule in
                 Task { await self?.automaticDownloadStarted(for: rule) }
             }
             await subscriptions.attach(database: database, downloads: downloads)
             await refreshRootAvailability()
             await reloadLibrary()
+            enrichInBackground()
         } catch {
             errorMessage = String(localized: "Could not open the local library: \(error.localizedDescription)")
         }
@@ -975,8 +1149,22 @@ struct PlayerRequest: Identifiable {
 struct PendingMetadataMatch: Identifiable {
     let anime: Anime
     let provider: MetadataProviderID
-    let candidates: [RankedMatch]
+    /// What the automatic pass came up with. Empty when the provider knew
+    /// nothing at all under any of the names the work goes by — which is
+    /// still worth asking about, because a person can spell it a way the
+    /// heuristics cannot.
+    var candidates: [RankedMatch]
+    /// The name the sheet last searched for, so the field survives a redraw.
+    var query: String
+    var isSearching = false
     var id: String { "\(anime.id.uuidString):\(provider.rawValue)" }
+
+    init(anime: Anime, provider: MetadataProviderID, candidates: [RankedMatch], query: String? = nil) {
+        self.anime = anime
+        self.provider = provider
+        self.candidates = candidates
+        self.query = query ?? anime.title
+    }
 }
 
 final class ScopedLibraryAccess: @unchecked Sendable {

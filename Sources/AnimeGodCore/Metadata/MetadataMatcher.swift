@@ -51,12 +51,17 @@ public struct MetadataMatcher: Sendable {
     public func score(localTitle: String, candidate: AnimeMetadataCandidate) -> Double {
         let local = normalize(localTitle)
         guard !local.isEmpty else { return 0 }
-        let options = [normalize(candidate.title), normalize(candidate.originalTitle)]
+        // Every name the provider lists, not just the two it prefers: a
+        // folder named after the romaji title matched nothing on AniList,
+        // whose preferred title is the English one and whose original title
+        // is the Japanese one.
+        let names = [candidate.title, candidate.originalTitle] + candidate.aliases
+        let options = names.map(normalize).filter { !$0.isEmpty }
         if options.contains(local) { return 1 }
         if options.contains(where: { $0.contains(local) || local.contains($0) }) { return 0.86 }
 
         let localTokens = tokenSet(localTitle)
-        let candidateTokens = tokenSet(candidate.title + " " + candidate.originalTitle)
+        let candidateTokens = tokenSet(names.joined(separator: " "))
         guard !localTokens.isEmpty, !candidateTokens.isEmpty else { return 0 }
         let intersection = localTokens.intersection(candidateTokens).count
         let union = localTokens.union(candidateTokens).count

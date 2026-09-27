@@ -85,3 +85,59 @@ struct MetadataMatcherTests {
         )
     }
 }
+
+/// A provider's other names for a work count as much as its preferred one.
+struct MetadataMatcherAliasTests {
+    private func candidate(title: String, originalTitle: String, aliases: [String]) -> AnimeMetadataCandidate {
+        AnimeMetadataCandidate(
+            provider: .anilist,
+            externalID: "1",
+            title: title,
+            originalTitle: originalTitle,
+            summary: "",
+            posterURL: nil,
+            airDate: nil,
+            score: nil,
+            rank: nil,
+            ratingCount: nil,
+            aliases: aliases
+        )
+    }
+
+    @Test func theRomajiTitleMatchesAFolderNamedAfterIt() {
+        // AniList prefers the English title and keeps the Japanese one as the
+        // original, so the romaji spelling — the one folders actually use —
+        // was never compared, and a library full of romaji folder names
+        // matched nothing at all.
+        let anilist = candidate(
+            title: "Sing a Bit of Harmony",
+            originalTitle: "アイの歌声を聴かせて",
+            aliases: ["Ai no Utagoe wo Kikasete", "Sing a Bit of Harmony", "アイの歌声を聴かせて"]
+        )
+        let matcher = MetadataMatcher()
+        #expect(matcher.score(localTitle: "Ai no Utagoe wo Kikasete", candidate: anilist) == 1)
+        #expect(matcher.score(localTitle: "Sing a Bit of Harmony", candidate: anilist) == 1)
+        #expect(matcher.score(localTitle: "アイの歌声を聴かせて", candidate: anilist) == 1)
+        if case .automatic = matcher.decide(localTitle: "Ai no Utagoe wo Kikasete", candidates: [anilist]) {} else {
+            Issue.record("the romaji title should link automatically")
+        }
+    }
+
+    @Test func aliasesDoNotMakeUnrelatedWorksMatch() {
+        let anilist = candidate(
+            title: "Sing a Bit of Harmony",
+            originalTitle: "アイの歌声を聴かせて",
+            aliases: ["Ai no Utagoe wo Kikasete"]
+        )
+        #expect(MetadataMatcher().score(localTitle: "Penguin Highway", candidate: anilist) < MetadataMatcher.reviewThreshold)
+    }
+
+    @Test func anAliasThatRepeatsThePreferredNameIsNotStored() {
+        let duplicated = candidate(
+            title: "Penguin Highway",
+            originalTitle: "ペンギン・ハイウェイ",
+            aliases: ["Penguin Highway", "ペンギン・ハイウェイ", "Penguin Highway"]
+        )
+        #expect(duplicated.aliases.isEmpty)
+    }
+}
