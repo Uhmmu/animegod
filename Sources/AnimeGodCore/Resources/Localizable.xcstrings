@@ -17,6 +17,22 @@
         }
       }
     },
+    "Another fansub" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "別の字幕組"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "其他字幕组"
+          }
+        }
+      }
+    },
     "Any release" : {
       "localizations" : {
         "ja" : {
@@ -227,6 +243,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "无字幕片头"
+          }
+        }
+      }
+    },
+    "Different encode" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "別のエンコード"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不同压制"
           }
         }
       }
@@ -579,6 +611,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "音乐视频"
+          }
+        }
+      }
+    },
+    "Named differently" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名前が異なる"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "命名不同"
           }
         }
       }
@@ -1047,6 +1095,22 @@
         }
       }
     },
+    "The metadata service is rate-limiting requests; it will be asked again shortly." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メタデータサービスがリクエストを制限しています。少し後に再度問い合わせます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "元数据服务正在限流；稍后会再次请求。"
+          }
+        }
+      }
+    },
     "The metadata service returned HTTP %lld." : {
       "localizations" : {
         "ja" : {
@@ -1369,6 +1433,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在看"
+          }
+        }
+      }
+    },
+    "after EP %lld" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第 %lld 話以降"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第 %lld 话之后"
+          }
+        }
+      }
+    },
+    "batches too" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一括版も含む"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "含合集"
+          }
+        }
+      }
+    },
+    "including older releases" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "過去のリリースも含む"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "含此前发布的资源"
           }
         }
       }

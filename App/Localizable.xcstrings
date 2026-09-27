@@ -135,6 +135,54 @@
         }
       }
     },
+    "%@ has nothing under this name. Try another spelling — its romaji or English title often works." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ にはこの名前の項目がありません。別の表記で試してください — ローマ字や英語題ならたいてい見つかります。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 上没有这个名字的条目。换个写法试试——罗马音或英文名通常能搜到。"
+          }
+        }
+      }
+    },
+    "%@ is downloading" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ をダウンロード中"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 正在下载"
+          }
+        }
+      }
+    },
+    "%@ left" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "残り %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "剩余 %@"
+          }
+        }
+      }
+    },
     "%@ matched automatically (%lld%%) — use Change Match if it's wrong" : {
       "localizations" : {
         "en" : {
@@ -342,6 +390,22 @@
         }
       }
     },
+    "%lld days" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 日"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 天"
+          }
+        }
+      }
+    },
     "%lld episodes" : {
       "localizations" : {
         "en" : {
@@ -372,6 +436,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld 集"
+          }
+        }
+      }
+    },
+    "%lld episodes are downloading" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 話をダウンロード中"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 集正在下载"
           }
         }
       }
@@ -496,7 +576,62 @@
         }
       }
     },
+    "%lld hours" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 時間"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 小时"
+          }
+        }
+      }
+    },
+    "%lld more under Downloads" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "他 %lld 件は「ダウンロード」に"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "另有 %lld 个在「下载」中"
+          }
+        }
+      }
+    },
+    "%lld of %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld of %2$lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld / %lld"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld / %lld"
+          }
+        }
+      }
+    },
     "%lld of %lld active" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -642,6 +777,22 @@
         }
       }
     },
+    "%lld releases need a look" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 件の資源に確認が必要"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 个资源需要确认"
+          }
+        }
+      }
+    },
     "%lld subtitles found — click to choose" : {
       "localizations" : {
         "en" : {
@@ -672,6 +823,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "找到 %lld 个字幕——点击选择"
+          }
+        }
+      }
+    },
+    "%lld waiting for new episodes · %lld followed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld waiting for new episodes · %2$lld followed"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 作品が新話待ち · %lld 作品を登録中"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 部等待更新 · 共订阅 %lld 部"
           }
         }
       }
@@ -790,6 +963,22 @@
         }
       }
     },
+    "A folder of its own" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "専用フォルダ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "单独的文件夹"
+          }
+        }
+      }
+    },
     "A free DeepL API key works with the free endpoint; keys ending in “:fx” are detected automatically. The key is stored in AnimeGod's own local settings." : {
       "localizations" : {
         "ja" : {
@@ -802,6 +991,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "免费的 DeepL API 密钥使用免费接口；以“:fx”结尾的密钥会被自动识别。密钥保存在 AnimeGod 自己的本地设置中。"
+          }
+        }
+      }
+    },
+    "A new episode has arrived" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しい話が届きました"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新剧集已下载完成"
+          }
+        }
+      }
+    },
+    "A new episode is downloading now" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しい話をダウンロード中"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在下载新剧集"
           }
         }
       }
@@ -823,6 +1044,7 @@
       }
     },
     "A subscription normally follows what appears from now on. Turning these on makes the first check fetch a season pack, or every episode already out — for a running show that can be dozens of downloads at once." : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -838,7 +1060,24 @@
         }
       }
     },
+    "A subscription normally follows what appears from now on. Turning these on makes the first check fetch a season pack, or every episode already out — for a running show that can be dozens of downloads at once. “Skip episodes up to” is the precise way to say where to start." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登録は通常、これ以降に公開されたものだけを追跡します。これらをオンにすると、最初のチェックで一括版や既に公開済みの全話を取得します — 放送中の作品では数十件のダウンロードが同時に始まります。開始位置を正確に指定するには「この話数までスキップ」を使ってください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "订阅默认只关注此后新发布的资源。打开这些选项后，第一次检查就会抓取整季合集或已经发布的所有剧集 —— 对连载中的番剧来说可能是几十个下载同时开始。想指定从哪一集开始，用「跳过到第几话」更准确。"
+          }
+        }
+      }
+    },
     "A subscription watches the anime indexes for new episodes of one title and downloads the ones matching your rule — a fansub, a resolution, a subtitle language. The quickest way to make one is from Find Releases, once the filters show exactly what you want." : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -866,6 +1105,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "整季一起开始时会自动排队：同时下载这么多个，其余的按顺序等待"
+          }
+        }
+      }
+    },
+    "Activity" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "履歴"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "动态"
           }
         }
       }
@@ -998,6 +1253,22 @@
         }
       }
     },
+    "Add by Hand" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手動で追加"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手动添加"
+          }
+        }
+      }
+    },
     "Add danmaku credentials in Settings, or switch the source to Bilibili" : {
       "localizations" : {
         "ja" : {
@@ -1078,6 +1349,22 @@
         }
       }
     },
+    "Already followed — new episodes of this line download on their own" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登録済み — このラインの新しい話は自動でダウンロードされます"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已订阅 —— 该版本的新剧集会自动下载"
+          }
+        }
+      }
+    },
     "Also download batches" : {
       "localizations" : {
         "ja" : {
@@ -1111,6 +1398,7 @@
       }
     },
     "Ambiguous matches found by “Find Metadata” appear here for your decision." : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -1122,6 +1410,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "“查找元数据”发现的不确定匹配会显示在这里，由你来决定。"
+          }
+        }
+      }
+    },
+    "An episode a subscription fetches starts without anyone waiting for it, so it is held to its own ceiling — separate from, and on top of, the general limit above." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登録が自動で取得する話は、誰も待っていない状態で始まります。そのため上の全体制限とは別に、独自の上限が適用されます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "订阅自动抓取的剧集，没有人在等它下载完，因此它有单独的速度上限 —— 与上面的通用限速分开，并在其之内生效。"
           }
         }
       }
@@ -1510,6 +1814,38 @@
         }
       }
     },
+    "Automatic Download Speed Limit" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動ダウンロードの速度制限"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动下载速度限制"
+          }
+        }
+      }
+    },
+    "Automatic Downloads" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動ダウンロード"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动下载"
+          }
+        }
+      }
+    },
     "Automatic search is off — use Search Subtitles…" : {
       "localizations" : {
         "ja" : {
@@ -1698,6 +2034,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bilibili 按标题和集数匹配，读取该集的官方弹幕池。"
+          }
+        }
+      }
+    },
+    "BitTorrent uses every byte of a connection it is given, so a ceiling is what keeps everything else on the network usable. Uploading is how a swarm stays alive — limit it rather than stopping it." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "BitTorrent は使える帯域をすべて使い切るため、上限を決めておくことでネットワーク上の他の作業が使える状態を保てます。アップロードは群れを生かす仕組みなので、止めるのではなく制限してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "BitTorrent 会用尽它能用的全部带宽，所以限速才能让网络上的其他事情还能正常进行。上传是让种子群保持存活的方式 —— 请限制它，而不是关掉它。"
           }
         }
       }
@@ -2006,6 +2358,22 @@
         }
       }
     },
+    "Cap how fast downloads run, so everything else on the network stays usable. Episodes a subscription fetches on its own have their own cap." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ダウンロード速度に上限を設けて、ネットワーク上の他の作業が使える状態を保ちます。登録が自動で取得する話には別の上限があります。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "限制下载速度，让网络上的其他事情还能正常使用。订阅自动抓取的剧集有单独的上限。"
+          }
+        }
+      }
+    },
     "Change Match" : {
       "localizations" : {
         "ja" : {
@@ -2102,7 +2470,24 @@
         }
       }
     },
+    "Check automatically" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動でチェック"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动检查更新"
+          }
+        }
+      }
+    },
     "Check automatically every 30 minutes" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -2114,6 +2499,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "每 30 分钟自动检查"
+          }
+        }
+      }
+    },
+    "Check every" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "チェック間隔"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "检查频率"
+          }
+        }
+      }
+    },
+    "Check for New Episodes" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しい話をチェック"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "检查新剧集"
           }
         }
       }
@@ -3644,6 +4061,22 @@
         }
       }
     },
+    "Download Limit" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ダウンロード制限"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下载限速"
+          }
+        }
+      }
+    },
     "Download Set" : {
       "localizations" : {
         "ja" : {
@@ -3656,6 +4089,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "下载整季"
+          }
+        }
+      }
+    },
+    "Download Speed Limit" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ダウンロード速度制限"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下载速度限制"
           }
         }
       }
@@ -3724,6 +4173,38 @@
         }
       }
     },
+    "Downloaded by this subscription" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この登録がダウンロードした話"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此订阅已下载"
+          }
+        }
+      }
+    },
+    "Downloading" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ダウンロード中"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在下载"
+          }
+        }
+      }
+    },
     "Downloading from %@…" : {
       "localizations" : {
         "ja" : {
@@ -3736,6 +4217,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在从 %@ 下载…"
+          }
+        }
+      }
+    },
+    "Downloading into “%@”" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」にダウンロード中"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在下载到「%@」"
+          }
+        }
+      }
+    },
+    "Downloading, %lld percent" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ダウンロード中、%lld%%"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在下载，%lld%%"
           }
         }
       }
@@ -3820,6 +4333,22 @@
         }
       }
     },
+    "Downloads what is out now and keeps checking for the rest: every new episode of this exact line arrives on its own, into the same folder, under the speed limit for automatic downloads" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "公開済みの分をダウンロードし、その後もチェックを続けます。このラインの新しい話は自動で、同じフォルダに、自動ダウンロードの速度制限のもとで届きます"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先下载已经发布的部分，之后继续检查：这一版本的每一集新剧集都会自动下载，放进同一个文件夹，并遵守自动下载的速度限制"
+          }
+        }
+      }
+    },
     "Dropped: capacity %lld · lane %lld" : {
       "localizations" : {
         "en" : {
@@ -3858,6 +4387,38 @@
         }
       }
     },
+    "EP %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第 %@ 話"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第 %@ 话"
+          }
+        }
+      }
+    },
+    "EP %@ is the newest anybody has published" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "どのグループも第 %@ 話までしか公開していません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前所有字幕组最新只发布到第 %@ 话"
+          }
+        }
+      }
+    },
     "Edit My Entry" : {
       "localizations" : {
         "ja" : {
@@ -3886,6 +4447,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "编辑订阅"
+          }
+        }
+      }
+    },
+    "Edit what this rule accepts" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このルールの条件を編集"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "编辑此规则的筛选条件"
           }
         }
       }
@@ -4178,6 +4755,22 @@
         }
       }
     },
+    "Episodes this rule downloads are put in this folder inside your download folder, beside the ones already there — a season stays one folder and one library entry. A rule made by subscribing to a set fills this in itself." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このルールがダウンロードした話は、ダウンロードフォルダ内のこのフォルダに、既にある話と並べて保存されます — 1 シーズンが 1 フォルダ、1 つのライブラリ項目のままになります。セットを登録して作られたルールは、ここを自動で埋めます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此规则下载的剧集会放到下载文件夹里的这个子文件夹中，和已有的剧集放在一起 —— 一季仍然是一个文件夹、一个媒体库条目。通过订阅剧集合辑创建的规则会自动填好这一项。"
+          }
+        }
+      }
+    },
     "Episodes you stop partway through will appear here." : {
       "localizations" : {
         "ja" : {
@@ -4190,6 +4783,76 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "看到一半的剧集会显示在这里。"
+          }
+        }
+      }
+    },
+    "Estimated from the %@ between the episodes published so far — %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Estimated from the %1$@ between the episodes published so far — %2$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "これまでに公開された話の間隔（%@）からの推定 — %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "根据已发布剧集之间的间隔（%@）推算 —— %@"
+          }
+        }
+      }
+    },
+    "Every %lld days" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 日ごと"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每 %lld 天"
+          }
+        }
+      }
+    },
+    "Every %lld hours" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 時間ごと"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每 %lld 小时"
+          }
+        }
+      }
+    },
+    "Every day" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "毎日"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每天"
           }
         }
       }
@@ -4210,7 +4873,72 @@
         }
       }
     },
+    "Every episode of this season has been published" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このシーズンは全話公開済み"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本季已全部发布完毕"
+          }
+        }
+      }
+    },
+    "Every episode of this season has been published." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このシーズンは全話公開済みです。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本季已全部发布完毕。"
+          }
+        }
+      }
+    },
+    "Every episode of this work has finished. Once its folder is scanned it becomes an ordinary library entry." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この作品の全話がダウンロード済みです。フォルダをスキャンすると、通常のライブラリ項目になります。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "该作品的所有剧集都已下载完成。扫描所在文件夹后，它就会成为媒体库中的普通条目。"
+          }
+        }
+      }
+    },
+    "Every hour" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 時間ごと"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每小时"
+          }
+        }
+      }
+    },
     "Every name is searched together, so a fansub that uses the Chinese title and one that uses the romaji are both found." : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -4222,6 +4950,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "所有名称会一起搜索，所以用中文标题和用罗马音标题发布的字幕组都能找到。"
+          }
+        }
+      }
+    },
+    "Every name is searched together, so a fansub that uses the Chinese title and one that uses the romaji are both found. The episode being waited for is searched by number as well." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべての名称をまとめて検索するので、中国語題を使う字幕組もローマ字題を使うグループも見つかります。待っている話は話数でも検索します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "所有名称会一起搜索，所以用中文名的字幕组和用罗马字的字幕组都能找到。正在等待的那一集还会按集数单独搜索一次。"
+          }
+        }
+      }
+    },
+    "Everything the subscriptions have done this session" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このセッションで登録が行ったすべての処理"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本次运行中订阅的全部动态"
           }
         }
       }
@@ -4600,6 +5360,22 @@
         }
       }
     },
+    "Find Releases…" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リリースを探す…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查找资源…"
+          }
+        }
+      }
+    },
     "Finding the closest episodes on %@…" : {
       "localizations" : {
         "ja" : {
@@ -4616,6 +5392,22 @@
         }
       }
     },
+    "Folder" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フォルダ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文件夹"
+          }
+        }
+      }
+    },
     "Follow this search: download new episodes matching the current filters automatically" : {
       "localizations" : {
         "ja" : {
@@ -4628,6 +5420,76 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "订阅这个搜索：自动下载符合当前筛选条件的新剧集"
+          }
+        }
+      }
+    },
+    "Followed — new episodes download on their own" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登録済み — 新しい話は自動でダウンロードされます"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已订阅 —— 新剧集会自动下载"
+          }
+        }
+      }
+    },
+    "Following" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登録中"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "订阅中"
+          }
+        }
+      }
+    },
+    "Following new episodes" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しい話を追跡中"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在关注新剧集"
+          }
+        }
+      }
+    },
+    "Following “%@” — checking every %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Following “%1$@” — checking every %2$@."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」を登録しました — %@ ごとにチェックします。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已订阅「%@」—— 每 %@ 检查一次。"
           }
         }
       }
@@ -4952,6 +5814,38 @@
         }
       }
     },
+    "How often the anime indexes are searched for the next episode of each followed show" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登録した作品の次の話をどのくらいの間隔で検索するか"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每隔多久搜索一次各订阅番剧的下一集"
+          }
+        }
+      }
+    },
+    "How often the indexes are searched for a new episode of each followed show" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登録作品の新しい話を検索する間隔"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每隔多久为已订阅的番剧搜索新剧集"
+          }
+        }
+      }
+    },
     "IDs: AniList %@ · TMDB %@ · AniDB %@" : {
       "localizations" : {
         "en" : {
@@ -5030,6 +5924,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Identity: %1$@ %2$@"
+          }
+        }
+      }
+    },
+    "Ignore" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無視"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "忽略"
           }
         }
       }
@@ -5678,6 +6588,28 @@
         }
       }
     },
+    "Matched %lld source(s). %@ stopped answering: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Matched %1$lld source(s). %2$@ stopped answering: %3$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 件のソースを照合しました。%@ が応答しなくなりました：%@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已匹配 %lld 个来源。%@ 不再响应：%@"
+          }
+        }
+      }
+    },
     "Matched Anime: %@" : {
       "localizations" : {
         "ja" : {
@@ -5710,7 +6642,40 @@
         }
       }
     },
+    "Matches AnimeGod could not make on its own appear here. It looks for metadata by itself after every scan, so this fills in without being asked." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AnimeGod が自力で決められなかった照合がここに表示されます。スキャンのたびに自動でメタデータを探すので、頼まなくても埋まっていきます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AnimeGod 自己拿不准的匹配会出现在这里。每次扫描后它都会自动查找元数据，所以这里不用你动手就会填上。"
+          }
+        }
+      }
+    },
+    "Matching episodes download on their own — one release per episode, never one already in your library or downloaded before, and always under the speed limit for automatic downloads in Settings. Anything that fits the show but not this rule is offered on this page instead." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "条件に合う話は自動でダウンロードされます — 1 話につき 1 件だけ、ライブラリにある話や以前ダウンロードした話は決して取らず、常に設定の自動ダウンロード速度制限のもとで行われます。作品には合うがこのルールに合わないものは、このページで確認を求めます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "符合条件的剧集会自动下载 —— 每集只取一个资源，绝不重复下载媒体库里已有或此前下载过的，并且始终遵守设置中的自动下载速度限制。符合这部番剧但不符合本规则的资源，会在本页面列出来等你确认。"
+          }
+        }
+      }
+    },
     "Matching episodes download on their own — one release per episode, never one already in your library or downloaded before. Everything it does is listed under Recent Activity." : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -6417,6 +7382,7 @@
       }
     },
     "No Episodes" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -6428,6 +7394,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "没有剧集"
+          }
+        }
+      }
+    },
+    "No Episodes Yet" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "まだ話がありません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无剧集"
           }
         }
       }
@@ -6444,6 +7426,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "没有资料库文件夹"
+          }
+        }
+      }
+    },
+    "No Limit" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無制限"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不限速"
           }
         }
       }
@@ -6577,6 +7575,7 @@
       }
     },
     "No Subscriptions" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -6816,6 +7815,22 @@
         }
       }
     },
+    "No files for this title are on disk. Find Releases can look for them." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この作品のファイルはディスク上にありません。「リリースを探す」で検索できます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本地没有这部番剧的文件。可以用「查找资源」搜索。"
+          }
+        }
+      }
+    },
     "No matching Chinese subtitles found — click to search" : {
       "localizations" : {
         "ja" : {
@@ -6881,6 +7896,7 @@
       }
     },
     "No subscriptions" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -7040,6 +8056,38 @@
         }
       }
     },
+    "Nothing Downloading" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ダウンロード中の項目はありません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有正在下载的剧集"
+          }
+        }
+      }
+    },
+    "Nothing Followed Yet" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "まだ何も登録していません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有订阅任何番剧"
+          }
+        }
+      }
+    },
     "Nothing Playing" : {
       "localizations" : {
         "ja" : {
@@ -7088,6 +8136,22 @@
         }
       }
     },
+    "Nothing followed yet" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登録はまだありません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无订阅"
+          }
+        }
+      }
+    },
     "Nothing in Progress" : {
       "localizations" : {
         "ja" : {
@@ -7100,6 +8164,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "没有看到一半的剧集"
+          }
+        }
+      }
+    },
+    "Nothing new was matched. %lld lookup(s) failed; cached metadata and the local library remain available." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新たに照合できたものはありません。%lld 件の検索に失敗しました。キャッシュ済みのメタデータとローカルライブラリはそのまま使えます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有匹配到新内容。%lld 次查询失败；已缓存的元数据和本地资料库仍可正常使用。"
           }
         }
       }
@@ -7472,6 +8552,22 @@
         }
       }
     },
+    "Order the grid by name, by when it was added, or by the average of the ratings its sources gave it" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名前順・追加順・各ソースの評価の平均順で並べ替えます"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按名称、加入时间，或各来源评分的平均值来排列"
+          }
+        }
+      }
+    },
     "Organization" : {
       "localizations" : {
         "ja" : {
@@ -7586,6 +8682,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "暂停（空格）"
+          }
+        }
+      }
+    },
+    "Pause or resume checking for new episodes" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しい話のチェックを一時停止／再開"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂停或恢复检查新剧集"
           }
         }
       }
@@ -7762,6 +8874,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "播放下一集"
+          }
+        }
+      }
+    },
+    "Play Now" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すぐに再生"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "立即播放"
           }
         }
       }
@@ -8082,6 +9210,22 @@
         }
       }
     },
+    "Rating" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "評価"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "评分"
+          }
+        }
+      }
+    },
     "Rating %@ out of 10" : {
       "localizations" : {
         "ja" : {
@@ -8163,6 +9307,7 @@
       }
     },
     "Recent Activity" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -8206,6 +9351,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "最近搜索"
+          }
+        }
+      }
+    },
+    "Recently Added" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近追加した順"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近添加"
           }
         }
       }
@@ -8569,6 +9730,7 @@
       }
     },
     "Remove this subscription?" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -8824,6 +9986,22 @@
         }
       }
     },
+    "SUB" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登録"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "订阅"
+          }
+        }
+      }
+    },
     "Save" : {
       "localizations" : {
         "ja" : {
@@ -9000,6 +10178,22 @@
         }
       }
     },
+    "Search %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ を検索"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜索 %@"
+          }
+        }
+      }
+    },
     "Search Subtitles…" : {
       "localizations" : {
         "ja" : {
@@ -9012,6 +10206,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "搜索字幕…"
+          }
+        }
+      }
+    },
+    "Search a season that is still airing under Find Releases, switch to Episode Sets, and press Subscribe. What is out downloads now; every episode after it arrives on its own, from the same fansub, into the same folder." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「リリースを探す」で放送中のシーズンを検索し、「エピソードセット」に切り替えて「登録する」を押してください。公開済みの分はすぐにダウンロードされ、それ以降の話は同じ字幕組から同じフォルダに自動で届きます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在「查找资源」里搜索一部连载中的番剧，切到「剧集合辑」，然后按「订阅」。已经发布的部分立即下载；之后的每一集都会自动到来 —— 同一个字幕组，同一个文件夹。"
           }
         }
       }
@@ -9249,6 +10459,7 @@
       }
     },
     "Searches: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -9324,6 +10535,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在搜索…"
+          }
+        }
+      }
+    },
+    "Season complete" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "シーズン完結"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本季完结"
           }
         }
       }
@@ -9686,6 +10913,22 @@
         }
       }
     },
+    "Skipping is remembered, so this title is not asked about again." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スキップは記憶されます。この作品について再び尋ねることはありません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "跳过会被记住，之后不会再问这部番。"
+          }
+        }
+      }
+    },
     "Sort" : {
       "localizations" : {
         "ja" : {
@@ -9698,6 +10941,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "排序"
+          }
+        }
+      }
+    },
+    "Sort By" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "並べ替え"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "排序方式"
           }
         }
       }
@@ -9868,6 +11127,22 @@
         }
       }
     },
+    "Still airing" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "放送中"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "连载中"
+          }
+        }
+      }
+    },
     "Stop" : {
       "localizations" : {
         "ja" : {
@@ -9880,6 +11155,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "停止"
+          }
+        }
+      }
+    },
+    "Stop Following" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登録を解除"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消订阅"
+          }
+        }
+      }
+    },
+    "Stop following" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登録を解除"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消订阅"
+          }
+        }
+      }
+    },
+    "Stop following this anime?" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この作品の登録を解除しますか？"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消订阅这部番剧？"
           }
         }
       }
@@ -9928,6 +11251,102 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "SubDL API 密钥"
+          }
+        }
+      }
+    },
+    "Subscribe" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登録する"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "订阅"
+          }
+        }
+      }
+    },
+    "Subscribe to a set to have its next episodes download on their own" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "セットを登録すると、その後の話が自動でダウンロードされます"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "订阅某个剧集合辑，之后的剧集就会自动下载"
+          }
+        }
+      }
+    },
+    "Subscribed" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登録済み"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已订阅"
+          }
+        }
+      }
+    },
+    "Subscribed, a new episode is ready" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登録済み、新しい話が届いています"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已订阅，有新剧集可以看了"
+          }
+        }
+      }
+    },
+    "Subscribed, new episode %lld percent downloaded" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登録済み、新しい話のダウンロード %lld%%"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已订阅，新剧集已下载 %lld%%"
+          }
+        }
+      }
+    },
+    "Subscription Activity" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登録の履歴"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "订阅动态"
           }
         }
       }
@@ -10204,6 +11623,22 @@
         }
       }
     },
+    "The episodes above are still downloading. They appear here once they have landed and their folder has been scanned." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上の話はまだダウンロード中です。完了してフォルダがスキャンされると、ここに表示されます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上面的剧集还在下载。下载完成并扫描所在文件夹后，它们会出现在这里。"
+          }
+        }
+      }
+    },
     "The files are removed from this Mac. Nothing on your external drive is touched." : {
       "localizations" : {
         "ja" : {
@@ -10296,6 +11731,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ 没有可下载的剧集了。"
+          }
+        }
+      }
+    },
+    "This work is still downloading and has not been matched yet, so there is no artwork, synopsis or rating for it. Matching it now links every episode of it — and the scan that follows finds it already matched." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この作品はまだダウンロード中で、照合もされていないため、アートワーク・あらすじ・評価がありません。ここで照合すると全話が紐づけられ、この後のスキャンでも照合済みとして扱われます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这部作品还在下载，也还没有匹配，所以没有封面、简介和评分。现在匹配会把它的每一集都关联起来 —— 之后的扫描也会发现它已经匹配好了。"
           }
         }
       }
@@ -10764,6 +12215,22 @@
         }
       }
     },
+    "Unfinished" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未完結"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未完结"
+          }
+        }
+      }
+    },
     "Unknown" : {
       "localizations" : {
         "ja" : {
@@ -10878,6 +12345,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已将“%1$@”解压到 %2$@。"
+          }
+        }
+      }
+    },
+    "Upload Limit" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アップロード制限"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上传限速"
+          }
+        }
+      }
+    },
+    "Upload Speed Limit" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アップロード速度制限"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上传速度限制"
           }
         }
       }
@@ -11042,6 +12541,60 @@
         }
       }
     },
+    "Waiting for EP %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第 %@ 話を待っています"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等待第 %@ 话"
+          }
+        }
+      }
+    },
+    "Waiting for EP %@ · expected %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Waiting for EP %1$@ · expected %2$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第 %@ 話を待機中 · %@ 頃"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等待第 %@ 话 · 预计 %@"
+          }
+        }
+      }
+    },
+    "Waiting for a new episode" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しい話を待っています"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等待新剧集"
+          }
+        }
+      }
+    },
     "Waiting for playback…" : {
       "localizations" : {
         "ja" : {
@@ -11122,6 +12675,38 @@
         }
       }
     },
+    "Where the episodes go" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存先"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "剧集保存位置"
+          }
+        }
+      }
+    },
+    "Which Anime Is This?…" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "どの作品ですか？…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这是哪部番剧？…"
+          }
+        }
+      }
+    },
     "Which anime indexes to search" : {
       "localizations" : {
         "ja" : {
@@ -11186,6 +12771,22 @@
         }
       }
     },
+    "Write a rule yourself: a title to search, a fansub, a resolution" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ルールを自分で作成：検索名、字幕組、解像度"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自己写一条规则：搜索名称、字幕组、分辨率"
+          }
+        }
+      }
+    },
     "Year" : {
       "localizations" : {
         "ja" : {
@@ -11235,6 +12836,7 @@
       }
     },
     "checked %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -11458,7 +13060,24 @@
         }
       }
     },
+    "gaps" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "間隔"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "间隔"
+          }
+        }
+      }
+    },
     "last match %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -11507,6 +13126,7 @@
       }
     },
     "not checked yet" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -11637,6 +13257,44 @@
         }
       }
     },
+    "· %lld of %lld still to come" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "· %1$lld of %2$lld still to come"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· 残り %lld 話（全 %lld 話）"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· 还剩 %lld 话未发布（共 %lld 话）"
+          }
+        }
+      }
+    },
+    "· %lld to confirm" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· %lld 件を確認待ち"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· %lld 个待确认"
+          }
+        }
+      }
+    },
     "· Translated" : {
       "localizations" : {
         "ja" : {
@@ -11653,6 +13311,22 @@
         }
       }
     },
+    "· checked %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· %@ にチェック"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· %@检查过"
+          }
+        }
+      }
+    },
     "· in order" : {
       "localizations" : {
         "ja" : {
@@ -11665,6 +13339,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "· 按顺序"
+          }
+        }
+      }
+    },
+    "· next around %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· 次は %@ 頃"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· 下一集约 %@"
+          }
+        }
+      }
+    },
+    "· not checked yet" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· 未チェック"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· 尚未检查"
+          }
+        }
+      }
+    },
+    "· started by your subscription" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· 登録により自動的に開始"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· 由订阅自动开始"
           }
         }
       }
@@ -11719,6 +13441,22 @@
     },
     "—" : {
       "shouldTranslate" : false
+    },
+    "— the right episode, but not from the fansub this season was started with" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "— 話数は合っていますが、このシーズンを始めた字幕組ではありません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "—— 集数没错，但不是本季最初用的字幕组"
+          }
+        }
+      }
     },
     "“%@”" : {
       "shouldTranslate" : false
@@ -11879,6 +13617,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "“%@”将停止下载。已写入的文件可以保留或删除。"
+          }
+        }
+      }
+    },
+    "“%@” → %@: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "“%1$@” → %2$@: %3$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」→ %@：%@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」→ %@：%@"
+          }
+        }
+      }
+    },
+    "“%@”: %lld releases need a look — another fansub or another encode." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "“%1$@”: %2$lld releases need a look — another fansub or another encode."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」：%lld 件の資源に確認が必要です — 別の字幕組または別のエンコードです。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」：有 %lld 个资源需要确认 —— 来自其他字幕组或其他压制。"
           }
         }
       }
