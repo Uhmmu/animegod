@@ -152,6 +152,8 @@ static NSString *AGHexFromHandle(lt::torrent_handle const &handle) {
     int _listenPort;
     int _dhtNodes;
     int _maximumActiveDownloads;
+    int _downloadRateLimit;
+    int _uploadRateLimit;
     int _dhtNodesMetricIndex;
     int _statsTick;
     int _alertCount;
@@ -174,6 +176,8 @@ static NSString *AGHexFromHandle(lt::torrent_handle const &handle) {
     _listenPort = listenPort;
     _dhtNodes = 0;
     _maximumActiveDownloads = 4;
+    _downloadRateLimit = 0;
+    _uploadRateLimit = 0;
     _directoriesToPrune = [NSMutableSet new];
     _alertQueue = dispatch_queue_create("com.uhmmu.AnimeGod.torrent.alerts", DISPATCH_QUEUE_SERIAL);
     [NSFileManager.defaultManager createDirectoryAtURL:stateDirectory
@@ -217,6 +221,8 @@ static NSString *AGHexFromHandle(lt::torrent_handle const &handle) {
     // libtorrent hands out download slots before seed slots, so a large seed
     // pool can never hold a download back — whereas capping seeds at the
     // download count paused a finished season one episode at a time.
+    pack.set_int(lt::settings_pack::download_rate_limit, _downloadRateLimit);
+    pack.set_int(lt::settings_pack::upload_rate_limit, _uploadRateLimit);
     pack.set_int(lt::settings_pack::active_downloads, _maximumActiveDownloads);
     pack.set_int(lt::settings_pack::active_seeds, AGActiveSeedLimit);
     pack.set_int(lt::settings_pack::active_limit, _maximumActiveDownloads + AGActiveSeedLimit);
@@ -617,6 +623,37 @@ static NSString *AGHexFromHandle(lt::torrent_handle const &handle) {
 
 - (int)maximumActiveDownloads {
     return _maximumActiveDownloads;
+}
+
+- (void)setDownloadRateLimit:(int)bytesPerSecond {
+    _downloadRateLimit = MAX(0, bytesPerSecond);
+    if (!_session) { return; }
+    lt::settings_pack pack;
+    pack.set_int(lt::settings_pack::download_rate_limit, _downloadRateLimit);
+    _session->apply_settings(pack);
+}
+
+- (int)downloadRateLimit {
+    return _downloadRateLimit;
+}
+
+- (void)setUploadRateLimit:(int)bytesPerSecond {
+    _uploadRateLimit = MAX(0, bytesPerSecond);
+    if (!_session) { return; }
+    lt::settings_pack pack;
+    pack.set_int(lt::settings_pack::upload_rate_limit, _uploadRateLimit);
+    _session->apply_settings(pack);
+}
+
+- (int)uploadRateLimit {
+    return _uploadRateLimit;
+}
+
+- (void)setRateLimit:(int)bytesPerSecond forInfoHash:(NSString *)infoHash {
+    lt::torrent_handle handle = [self handleForInfoHash:infoHash];
+    if (!handle.is_valid()) { return; }
+    // -1 is libtorrent's "no limit"; 0 would stop the task dead.
+    handle.set_download_limit(bytesPerSecond > 0 ? bytesPerSecond : -1);
 }
 
 - (void)addTrackers:(NSArray<NSString *> *)trackers forInfoHash:(NSString *)infoHash {

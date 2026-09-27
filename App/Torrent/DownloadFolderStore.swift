@@ -131,6 +131,29 @@ final class DownloadFolderStore: ObservableObject {
 
     // MARK: - Bookmarks
 
+    /// A folder an earlier download used, with its security scope open again.
+    ///
+    /// A path on its own is not enough inside the sandbox: writing to it needs
+    /// the scope that was granted for it, which is held by the remembered
+    /// folder (or by the library root that contains it). Nil means this app
+    /// cannot write there right now, and the caller should fall back to the
+    /// current download folder.
+    func accessibleURL(forPath path: String) -> URL? {
+        let candidates = [currentFolder] + libraryFolders + recentFolders
+        if let folder = candidates.first(where: { $0.path == path }) {
+            return accessibleURL(for: folder)
+        }
+        // A season saved inside a folder that is remembered — the download
+        // folder itself is remembered, its per-work subfolders are not.
+        guard let parent = candidates.first(where: { path.hasPrefix($0.path + "/") }) else { return nil }
+        guard accessibleURL(for: parent) != nil else { return nil }
+        let url = URL(fileURLWithPath: path)
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory), isDirectory.boolValue,
+              FileManager.default.isWritableFile(atPath: path) else { return nil }
+        return url
+    }
+
     private func accessibleURL(for folder: Folder) -> URL? {
         guard let url = resolveURL(for: folder) else { return nil }
         var isDirectory: ObjCBool = false

@@ -65,7 +65,7 @@ struct RankingsView: View {
             }
         }
         .navigationTitle("My Rankings")
-        .navigationDestination(for: Anime.self) { AnimeDetailView(anime: $0) }
+        .navigationDestination(for: Anime.self) { AnimeDetailView(anime: $0, downloads: model.downloads, subscriptions: model.subscriptions) }
     }
 }
 

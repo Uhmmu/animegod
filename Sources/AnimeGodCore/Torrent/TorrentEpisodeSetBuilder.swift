@@ -609,7 +609,10 @@ public enum TorrentEpisodeSetBuilder {
     /// A title stripped of everything that varies within one line: the
     /// episode number and every tag that carries a digit (resolution, codec,
     /// bit depth, CRC). What is left is the fansub's fixed naming.
-    static func titleSignature(_ title: String) -> String {
+    ///
+    /// A subscription stores this so the episode it downloads unattended
+    /// looks like the ones already on disk.
+    public static func titleSignature(_ title: String) -> String {
         TorrentRelevance.fold(title)
             .split(separator: " ")
             .filter { token in !token.contains(where: \.isNumber) }

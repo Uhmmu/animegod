@@ -112,6 +112,17 @@ typedef NS_ENUM(NSInteger, AGTorrentState) {
 /// and start as slots free up. Clamped to 1…24.
 @property (nonatomic) int maximumActiveDownloads;
 
+/// Session-wide ceilings in bytes per second; 0 is unlimited. They apply to
+/// every task that has no ceiling of its own, so a download in the
+/// background leaves the connection usable.
+@property (nonatomic) int downloadRateLimit;
+@property (nonatomic) int uploadRateLimit;
+
+/// A ceiling for one task in bytes per second, 0 to lift it. What a
+/// subscription's unattended downloads are held to: they start without
+/// anyone watching, so they must not take the whole line.
+- (void)setRateLimit:(int)bytesPerSecond forInfoHash:(NSString *)infoHash;
+
 /// Extra trackers for a task that arrived with few or none.
 - (void)addTrackers:(NSArray<NSString *> *)trackers forInfoHash:(NSString *)infoHash;
 

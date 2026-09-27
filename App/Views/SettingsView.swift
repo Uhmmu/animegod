@@ -6,6 +6,8 @@ struct SettingsView: View {
     @ObservedObject var danmaku: DanmakuPreferences
     @ObservedObject var torrentSources: TorrentSourcePreferences
     @ObservedObject var subtitles: SubtitlePreferences
+    @ObservedObject var downloads: TorrentDownloadManager
+    @ObservedObject var subscriptions: TorrentSubscriptionManager
     let database: LibraryDatabase?
     @State private var savedFeedback = false
     @State private var danmakuSavedFeedback = false
@@ -138,6 +140,9 @@ struct SettingsView: View {
 
             onlineSubtitlesSection
 
+            downloadsSection
+            subscriptionsSection
+
             Section("Release Sources") {
                 ForEach(TorrentSourceID.allCases) { source in
                     Toggle(isOn: Binding(
@@ -160,6 +165,58 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .navigationTitle("Settings")
         .frame(minWidth: 560)
+    }
+
+    // MARK: - Downloads
+
+    /// Speed limits live here *and* in the Downloads list's own menu: the
+    /// ceiling is the one setting somebody reaches for while a download is
+    /// running, and making them walk to Settings for it is the reason people
+    /// leave it unlimited and wonder why nothing else on the network works.
+    private var downloadsSection: some View {
+        Section("Downloads") {
+            Picker("Download Speed Limit", selection: $downloads.downloadRateLimitKB) {
+                ForEach(TorrentDownloadManager.rateLimitChoices, id: \.self) { limit in
+                    Text(TorrentDownloadManager.rateLimitText(limit)).tag(limit)
+                }
+            }
+            Picker("Upload Speed Limit", selection: $downloads.uploadRateLimitKB) {
+                ForEach(TorrentDownloadManager.rateLimitChoices, id: \.self) { limit in
+                    Text(TorrentDownloadManager.rateLimitText(limit)).tag(limit)
+                }
+            }
+            Text("BitTorrent uses every byte of a connection it is given, so a ceiling is what keeps everything else on the network usable. Uploading is how a swarm stays alive — limit it rather than stopping it.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Picker("Downloads at Once", selection: $downloads.maximumActiveDownloads) {
+                ForEach(TorrentDownloadManager.activeDownloadChoices, id: \.self) { count in
+                    Text(verbatim: "\(count)").tag(count)
+                }
+            }
+            .help("A whole season started at once is queued: this many run, the rest wait their turn")
+            Toggle("Unpack Archives When Finished", isOn: $downloads.extractsArchives)
+        }
+    }
+
+    // MARK: - Subscriptions
+
+    private var subscriptionsSection: some View {
+        Section("Subscriptions") {
+            Picker("Check for New Episodes", selection: $subscriptions.checkIntervalHours) {
+                ForEach(TorrentSubscriptionManager.intervalChoices, id: \.self) { hours in
+                    Text(SubscriptionsView.intervalLabel(hours)).tag(hours)
+                }
+            }
+            .help("How often the anime indexes are searched for the next episode of each followed show")
+            Picker("Automatic Download Speed Limit", selection: $downloads.automaticRateLimitKB) {
+                ForEach(TorrentDownloadManager.rateLimitChoices, id: \.self) { limit in
+                    Text(TorrentDownloadManager.rateLimitText(limit)).tag(limit)
+                }
+            }
+            Text("An episode a subscription fetches starts without anyone waiting for it, so it is held to its own ceiling — separate from, and on top of, the general limit above.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
     }
 
     // MARK: - Online subtitles

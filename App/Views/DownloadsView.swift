@@ -97,6 +97,40 @@ struct DownloadsView: View {
                   ? "Downloads are saved to \(folders.currentFolder.path) and scanned into the library when they finish"
                   : "Downloads are saved to \(folders.currentFolder.path)")
 
+            // The ceiling belongs here, next to the speed it applies to: this
+            // is where somebody is standing when they decide the download is
+            // taking the whole connection.
+            Menu {
+                Picker("Download Limit", selection: $downloads.downloadRateLimitKB) {
+                    ForEach(TorrentDownloadManager.rateLimitChoices, id: \.self) { limit in
+                        Text(TorrentDownloadManager.rateLimitText(limit)).tag(limit)
+                    }
+                }
+                .pickerStyle(.inline)
+                Picker("Upload Limit", selection: $downloads.uploadRateLimitKB) {
+                    ForEach(TorrentDownloadManager.rateLimitChoices, id: \.self) { limit in
+                        Text(TorrentDownloadManager.rateLimitText(limit)).tag(limit)
+                    }
+                }
+                .pickerStyle(.inline)
+                Divider()
+                Picker("Automatic Downloads", selection: $downloads.automaticRateLimitKB) {
+                    ForEach(TorrentDownloadManager.rateLimitChoices, id: \.self) { limit in
+                        Text(TorrentDownloadManager.rateLimitText(limit)).tag(limit)
+                    }
+                }
+                .pickerStyle(.inline)
+            } label: {
+                Label(
+                    downloads.downloadRateLimitKB > 0
+                        ? TorrentDownloadManager.rateLimitText(downloads.downloadRateLimitKB)
+                        : String(localized: "No Limit"),
+                    systemImage: "speedometer"
+                )
+            }
+            .fixedSize()
+            .help("Cap how fast downloads run, so everything else on the network stays usable. Episodes a subscription fetches on its own have their own cap.")
+
             if let info = downloads.sessionInfo, info.isRunning {
                 Label(
                     ByteCountFormatter.string(fromByteCount: Int64(info.downloadRate), countStyle: .binary) + "/s",

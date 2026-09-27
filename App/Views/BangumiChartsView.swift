@@ -82,7 +82,7 @@ struct BangumiChartsView: View {
         .task(id: key) {
             await loadFirstPage()
         }
-        .navigationDestination(for: Anime.self) { AnimeDetailView(anime: $0) }
+        .navigationDestination(for: Anime.self) { AnimeDetailView(anime: $0, downloads: model.downloads, subscriptions: model.subscriptions) }
     }
 
     private func chartList(_ state: ChartState) -> some View {

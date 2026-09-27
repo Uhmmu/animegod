@@ -47,8 +47,7 @@ struct RootView: View {
                     // matching the selection, so the section does nothing.
                     DownloadsSidebarLabel(downloads: model.downloads)
                         .tag(SidebarItem.downloads)
-                    Label("Subscriptions", systemImage: "bell")
-                        .badge(model.subscriptions.enabledCount)
+                    SubscriptionsSidebarLabel(subscriptions: model.subscriptions)
                         .tag(SidebarItem.subscriptions)
                 }
                 Section("App") {
@@ -61,7 +60,7 @@ struct RootView: View {
             // push onto; without this wrapper, library cards do nothing.
             NavigationStack(path: $navigationPath) {
                 switch selection {
-                case .library: LibraryView(downloads: model.downloads)
+                case .library: LibraryView(downloads: model.downloads, subscriptions: model.subscriptions)
                 case .continueWatching: ContinueWatchingView()
                 case .bangumiCharts: BangumiChartsView()
                 case .releases: ReleaseSearchView(search: model.releaseSearch, downloads: model.downloads, subscriptions: model.subscriptions)
@@ -72,8 +71,8 @@ struct RootView: View {
                 case .folders: LibraryRootsView()
                 case .episodeCache: EpisodeCacheView(cache: model.episodeCache)
                 case .downloads: DownloadsView(downloads: model.downloads)
-                case .subscriptions: SubscriptionsView(subscriptions: model.subscriptions)
-                case .settings: SettingsView(translation: model.translation, danmaku: model.danmakuPreferences, torrentSources: model.torrentSources, subtitles: model.subtitlePreferences, database: model.libraryDatabase)
+                case .subscriptions: SubscriptionsView(subscriptions: model.subscriptions, downloads: model.downloads)
+                case .settings: SettingsView(translation: model.translation, danmaku: model.danmakuPreferences, torrentSources: model.torrentSources, subtitles: model.subtitlePreferences, downloads: model.downloads, subscriptions: model.subscriptions, database: model.libraryDatabase)
                 case nil: ContentUnavailableView("Choose a section", systemImage: "sidebar.left")
                 }
             }
@@ -104,10 +103,6 @@ struct RootView: View {
         }
         .sheet(isPresented: $showingMatchReview) {
             MatchReviewView()
-                .environmentObject(model)
-        }
-        .sheet(item: $model.incomingMatchPrompt) { _ in
-            IncomingMatchSheet()
                 .environmentObject(model)
         }
         .onChange(of: model.playerRequest?.id) { _, _ in
@@ -177,6 +172,18 @@ struct RootView: View {
         } message: {
             Text(model.errorMessage ?? "")
         }
+    }
+}
+
+/// The Subscriptions row counts the rules still waiting for an episode, plus
+/// anything waiting to be confirmed — a number that only changes when a check
+/// runs, so it observes the manager rather than the whole app.
+private struct SubscriptionsSidebarLabel: View {
+    @ObservedObject var subscriptions: TorrentSubscriptionManager
+
+    var body: some View {
+        Label("Subscriptions", systemImage: "bell")
+            .badge(subscriptions.followingCount + subscriptions.candidates.count)
     }
 }
 

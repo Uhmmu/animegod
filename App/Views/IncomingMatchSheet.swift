@@ -23,6 +23,7 @@ struct IncomingMatchSheet: View {
         NavigationStack {
             VStack(spacing: 0) {
                 searchBar
+                context
                 Divider()
                 results
             }
@@ -54,6 +55,26 @@ struct IncomingMatchSheet: View {
                 .disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
         .padding(12)
+    }
+
+    /// What is actually downloading, so the question has something behind it:
+    /// the folder its episodes are being written into, which is also what the
+    /// library will call the work if this is skipped.
+    @ViewBuilder
+    private var context: some View {
+        if let prompt {
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.down.circle").foregroundStyle(.secondary)
+                Text("Downloading into “\(prompt.seriesTitle)”")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .help(prompt.seriesTitle)
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            .padding(.bottom, 8)
+        }
     }
 
     @ViewBuilder

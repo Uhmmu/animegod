@@ -290,7 +290,7 @@ struct ReleaseSearchView: View {
             }
             .frame(maxHeight: .infinity)
         } else if search.layout == .episodeSets {
-            ReleaseEpisodeSetsView(search: search, downloads: downloads, anime: anime)
+            ReleaseEpisodeSetsView(search: search, downloads: downloads, subscriptions: subscriptions, anime: anime)
         } else if results.isEmpty {
             if search.isSearching {
                 ProgressView("Searching…").frame(maxHeight: .infinity)
@@ -561,11 +561,17 @@ struct AnimeReleaseSearchSheet: View {
     @ObservedObject var downloads: TorrentDownloadManager
     @ObservedObject var subscriptions: TorrentSubscriptionManager
 
+    /// Falls back to looking the season length up by title, for an anime the
+    /// library has not matched to anything yet.
+    private let episodeCount: (String) async -> Int?
+
     init(
         anime: Anime,
         title: String,
         queries: [String],
         ownedEpisodes: Set<Double>,
+        expectedEpisodeCount: Int? = nil,
+        episodeCount: @escaping (String) async -> Int?,
         preferences: TorrentSourcePreferences,
         downloads: TorrentDownloadManager,
         subscriptions: TorrentSubscriptionManager
@@ -574,10 +580,12 @@ struct AnimeReleaseSearchSheet: View {
         self.title = title
         self.downloads = downloads
         self.subscriptions = subscriptions
+        self.episodeCount = episodeCount
         _search = StateObject(wrappedValue: TorrentSearchModel(
             preferences: preferences,
             queries: queries,
-            ownedEpisodes: ownedEpisodes
+            ownedEpisodes: ownedEpisodes,
+            expectedEpisodeCount: expectedEpisodeCount
         ))
     }
 
@@ -592,6 +600,7 @@ struct AnimeReleaseSearchSheet: View {
                 }
         }
         .task {
+            search.episodeCountProvider = episodeCount
             if search.snapshot == nil { search.search() }
         }
         .onDisappear { search.cancel() }

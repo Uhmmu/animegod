@@ -18,6 +18,18 @@ public struct TorrentDownloadRecord: Identifiable, Hashable, Sendable {
     public var animeID: UUID?
     public var animeTitle: String?
     public var episodeLabel: String?
+    /// The folder under `savePath` the files were put into, if the download
+    /// was given one. Every episode of a season shares it, which is what
+    /// makes a season one card on the home screen and one show in the
+    /// library — known from the moment the download starts, before any
+    /// metadata has arrived.
+    public var folderName: String?
+    /// Started by a subscription rather than by hand. Automatic downloads
+    /// are rate-limited separately and are what the "new episode" marker on
+    /// a library card counts.
+    public var isAutomatic: Bool
+    /// The rule that started it, when one did.
+    public var subscriptionID: UUID?
     public var totalBytes: Int64
     public var addedAt: Date
     public var completedAt: Date?
@@ -35,6 +47,9 @@ public struct TorrentDownloadRecord: Identifiable, Hashable, Sendable {
         animeID: UUID? = nil,
         animeTitle: String? = nil,
         episodeLabel: String? = nil,
+        folderName: String? = nil,
+        isAutomatic: Bool = false,
+        subscriptionID: UUID? = nil,
         totalBytes: Int64 = 0,
         addedAt: Date = .now,
         completedAt: Date? = nil,
@@ -47,6 +62,9 @@ public struct TorrentDownloadRecord: Identifiable, Hashable, Sendable {
         self.animeID = animeID
         self.animeTitle = animeTitle
         self.episodeLabel = episodeLabel
+        self.folderName = folderName
+        self.isAutomatic = isAutomatic
+        self.subscriptionID = subscriptionID
         self.totalBytes = totalBytes
         self.addedAt = addedAt
         self.completedAt = completedAt

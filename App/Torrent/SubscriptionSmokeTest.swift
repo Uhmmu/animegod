@@ -45,11 +45,24 @@ enum SubscriptionSmokeTest {
             }
             let results = snapshot?.results ?? []
             let accepted = results.filter { TorrentSubscriptionMatcher.accepts($0, rule: rule) }
-            let picks = TorrentSubscriptionMatcher.select(
+            let selection = TorrentSubscriptionMatcher.select(
                 from: results, rule: rule, alreadyMatched: [], ownedEpisodes: []
             )
+            let picks = selection.automatic
             let unnumbered = accepted.filter { $0.release.firstEpisode == nil }.count
-            print("SMOKE found=\(results.count) accepted=\(accepted.count) wouldDownload=\(picks.count)")
+            print("SMOKE found=\(results.count) accepted=\(accepted.count) wouldDownload=\(picks.count) wouldAsk=\(selection.needsConfirmation.count)")
+            // What the whole result set says about the show: whether anyone is
+            // still publishing it, and when the next episode is due.
+            let schedule = TorrentReleaseSchedule.analyse(results: results)
+            print("SMOKE schedule latest=\(schedule.latestEpisode.map { TorrentEpisodeGuess.text(for: $0) } ?? "-")"
+                  + " episodes=\(schedule.episodeCount)"
+                  + " every=\(schedule.averageInterval.map { String(format: "%.1fd", $0 / 86_400) } ?? "-")"
+                  + " markedFinished=\(schedule.isMarkedFinished)"
+                  + " ongoing=\(schedule.isOngoing)"
+                  + " next=\(schedule.estimatedNextEpisodeAt?.formatted(date: .abbreviated, time: .shortened) ?? "-")")
+            for offer in selection.needsConfirmation.prefix(10) {
+                print("SMOKE ask EP=\(offer.result.release.episodeLabel ?? "-") reason=\(offer.reason.rawValue) \(offer.result.title)")
+            }
             if unnumbered > 0 {
                 print("SMOKE note: \(unnumbered) accepted release(s) have no episode number; a rule without a fansub or keyword does not download those unattended")
             }

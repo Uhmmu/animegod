@@ -29,7 +29,8 @@ public struct AniListMetadataProvider: MetadataProvider {
                 airDate: media.startDate.text,
                 score: media.averageScore.map { Double($0) / 10 },
                 rank: media.rank,
-                ratingCount: media.popularity
+                ratingCount: media.popularity,
+                totalEpisodes: media.episodes
             )
         }
     }
@@ -65,6 +66,7 @@ public struct AniListMetadataProvider: MetadataProvider {
                 let names = nodes.nodes.map(\.name).filter { !$0.isEmpty }
                 return names.isEmpty ? nil : names
             },
+            totalEpisodes: media.episodes,
             externalReferences: references
         )
     }
@@ -134,7 +136,7 @@ public struct AniListMetadataProvider: MetadataProvider {
     query ($search: String!, $perPage: Int!) {
       Page(perPage: $perPage) { media(search: $search, type: ANIME, sort: [SEARCH_MATCH]) {
         id title { romaji english native } description(asHtml: false) coverImage { extraLarge }
-        startDate { year month day } averageScore popularity rankings { rank type allTime }
+        startDate { year month day } averageScore popularity episodes rankings { rank type allTime }
       } }
     }
     """
@@ -143,7 +145,7 @@ public struct AniListMetadataProvider: MetadataProvider {
     query ($id: Int!) {
       Media(id: $id, type: ANIME) {
         id idMal title { romaji english native } description(asHtml: false) coverImage { extraLarge }
-        startDate { year month day } format averageScore popularity siteUrl
+        startDate { year month day } format averageScore popularity siteUrl episodes
         studios(isMain: true) { nodes { name isMain } }
         rankings { rank type allTime }
       }
@@ -194,6 +196,10 @@ private struct AniListMedia: Decodable {
     let siteUrl: String?
     let studios: AniListStudios?
     let rankings: [AniListRanking]?
+    /// Nil while a season is airing and AniList does not know yet, which is
+    /// exactly the case a subscription cares about — so nil must stay nil
+    /// rather than becoming a guess.
+    let episodes: Int?
 
     var rank: Int? {
         rankings?.first(where: { $0.type == "RATED" && $0.allTime == true })?.rank

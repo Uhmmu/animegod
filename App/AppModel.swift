@@ -260,12 +260,18 @@ final class AppModel: ObservableObject {
     /// moment the anime row appears, so nothing is left to match by hand.
     struct IncomingMatch: Sendable {
         var title: String
+        /// The title the library files the work under — the folder's own name
+        /// read the way the scanner reads it. Kept because the anime row is
+        /// created from it before any file exists, and the scan that follows
+        /// has to land on the same row.
+        var libraryTitle: String
         var posterURL: URL?
         var candidate: AnimeMetadataCandidate
         var confidence: Double
     }
 
-    /// Keyed by the series title the downloads of one work share.
+    /// Keyed by the work key its downloads share — the folder they were saved
+    /// into, or the series title read off their names when there is no folder.
     @Published private(set) var incomingMatches: [String: IncomingMatch] = [:]
 
     /// Works that have been linked to an anime while they download, before
@@ -281,8 +287,8 @@ final class AppModel: ObservableObject {
     /// anything yet, waiting for the user to say which anime it is.
     struct IncomingMatchPrompt: Identifiable {
         let id = UUID()
-        /// What the release names call the work — the key the answer is
-        /// filed under, and what the library will call it when it lands.
+        /// The work key the answer is filed under — the folder the episodes
+        /// share, which is also what the library will call the work.
         var seriesTitle: String
         var query: String
         var candidates: [RankedMatch]
@@ -298,6 +304,21 @@ final class AppModel: ObservableObject {
     /// Looked up already, whether or not it produced a match: a work nobody
     /// has heard of must not be searched for once a second.
     private var incomingMatchAttempts: Set<String> = []
+    /// Reads a folder name the way the scanner does, so an anime row created
+    /// for a download that has not landed yet is the row the scan will use.
+    private let filenameParser = AnimeFilenameParser()
+
+    /// The title the library files a work under, given the folder its
+    /// episodes are in.
+    ///
+    /// This has to be exactly what the scanner will derive from that folder.
+    /// When it was not, the work got two rows: one created up front and
+    /// matched — the empty page whose episodes never appeared — and one
+    /// created by the scan, unmatched, holding the actual files.
+    func libraryTitle(forWorkKey key: String) -> String {
+        let cleaned = filenameParser.collectionTitle(from: key).trimmingCharacters(in: .whitespacesAndNewlines)
+        return cleaned.isEmpty ? key : cleaned
+    }
 
     /// Asks which anime a download that just started is of.
     ///
@@ -308,11 +329,18 @@ final class AppModel: ObservableObject {
     func offerIncomingMatch(seriesTitle: String) async {
         let key = seriesTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty, !promptedSeries.contains(key), incomingMatches[key] == nil else { return }
-        // Already in the library under that name: nothing to link up front.
-        guard !library.contains(where: { $0.anime.title == key }) else { return }
+        let title = libraryTitle(forWorkKey: key)
+        // Already in the library under that name: link the downloads to the
+        // row that exists rather than asking about a work already matched.
+        if let existing = library.first(where: { $0.anime.title == title }) {
+            promptedSeries.insert(key)
+            incomingAnime[existing.anime.id] = existing.anime
+            await downloads.link(seriesTitle: key, toAnimeID: existing.anime.id, title: existing.anime.title)
+            return
+        }
         promptedSeries.insert(key)
-        incomingMatchPrompt = IncomingMatchPrompt(seriesTitle: key, query: key, candidates: [], isSearching: true)
-        let ranked = await rankedCandidates(for: key)
+        incomingMatchPrompt = IncomingMatchPrompt(seriesTitle: key, query: title, candidates: [], isSearching: true)
+        let ranked = await rankedCandidates(for: title)
         guard incomingMatchPrompt?.seriesTitle == key else { return }
         incomingMatchPrompt?.candidates = ranked
         incomingMatchPrompt?.isSearching = false
@@ -351,6 +379,14 @@ final class AppModel: ObservableObject {
         )
     }
 
+    /// Asks again about a work whose match was skipped, or whose match was
+    /// wrong — the button on a downloading card that has no cover.
+    func offerIncomingMatchAgain(workKey: String) async {
+        promptedSeries.remove(workKey)
+        incomingMatchAttempts.remove(workKey)
+        await offerIncomingMatch(seriesTitle: workKey)
+    }
+
     /// Gives a work being downloaded its anime row, its metadata and its
     /// link to the downloads themselves.
     @discardableResult
@@ -361,8 +397,9 @@ final class AppModel: ObservableObject {
         isManual: Bool
     ) async -> Anime? {
         guard let database, let provider = metadataProviders[candidate.provider] else { return nil }
+        let title = libraryTitle(forWorkKey: seriesTitle)
         do {
-            let anime = try await database.findOrCreateAnime(title: seriesTitle)
+            let anime = try await database.findOrCreateAnime(title: title)
             let metadata = try await provider.metadata(externalID: candidate.externalID, animeID: anime.id)
             let posts = (try? await provider.communityPosts(externalID: candidate.externalID)) ?? []
             try await database.save(
@@ -373,12 +410,14 @@ final class AppModel: ObservableObject {
             )
             incomingAnime[anime.id] = anime
             incomingMatches[seriesTitle] = IncomingMatch(
-                title: candidate.title.isEmpty ? seriesTitle : candidate.title,
+                title: candidate.title.isEmpty ? title : candidate.title,
+                libraryTitle: title,
                 posterURL: candidate.posterURL,
                 candidate: candidate,
                 confidence: confidence
             )
             await downloads.link(seriesTitle: seriesTitle, toAnimeID: anime.id, title: anime.title)
+            await bindSubscriptions(toAnimeID: anime.id, workKey: seriesTitle, title: title)
             await reloadMetadata()
             await reloadLibrary()
             return anime
@@ -387,6 +426,57 @@ final class AppModel: ObservableObject {
             return nil
         }
     }
+
+    /// A rule created before the work was matched has no anime to point at.
+    /// Matching the work is when it gets one, so its page opens and its
+    /// episodes are counted.
+    private func bindSubscriptions(toAnimeID animeID: UUID, workKey: String, title: String) async {
+        for rule in subscriptions.subscriptions where rule.animeID == nil {
+            let follows = rule.folderName == workKey
+                || rule.title.caseInsensitiveCompare(title) == .orderedSame
+                || rule.title.caseInsensitiveCompare(workKey) == .orderedSame
+            guard follows else { continue }
+            var updated = rule
+            updated.animeID = animeID
+            updated.title = title
+            await subscriptions.save(updated)
+        }
+    }
+
+    /// How many episodes the season searched for has, from whichever provider
+    /// answers first.
+    ///
+    /// This is what tells a finished twelve-episode season from one twelve
+    /// episodes into a longer run, and a release search started from the
+    /// sidebar has no anime behind it to ask. Only a confident match counts:
+    /// a wrong subject's episode count is worse than not knowing, because it
+    /// would offer to follow a season that ended.
+    func episodeCount(forTitle title: String) async -> Int? {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        if let cached = episodeCountsByTitle[trimmed] { return cached }
+        let ordered = MetadataProviderID.allCases.compactMap { metadataProviders[$0] }
+        for provider in ordered {
+            guard let candidates = try? await provider.search(trimmed, limit: 8) else { continue }
+            guard case let .automatic(best) = metadataMatcher.decide(localTitle: trimmed, candidates: candidates),
+                  let count = best.candidate.totalEpisodes, count > 0 else { continue }
+            episodeCountsByTitle[trimmed] = count
+            return count
+        }
+        return nil
+    }
+
+    /// Looked up already, so retyping a search does not ask again.
+    private var episodeCountsByTitle: [String: Int] = [:]
+
+    /// `<animeID>:<provider>` pairs the user has said no to. Persisted,
+    /// because an automatic pass runs at every launch and a question already
+    /// answered with "not this one" must not come back every time.
+    private var dismissedMatches: Set<String> {
+        get { Set(UserDefaults.standard.stringArray(forKey: Self.dismissedMatchesKey) ?? []) }
+        set { UserDefaults.standard.set(Array(newValue), forKey: Self.dismissedMatchesKey) }
+    }
+    private static let dismissedMatchesKey = "metadata.dismissedMatches"
 
     /// Anime rows for downloads that were linked in an earlier run, so their
     /// cards still open and still show a cover after a relaunch.
@@ -412,13 +502,14 @@ final class AppModel: ObservableObject {
         incomingMatchAttempts.formUnion(pending)
         let ordered = MetadataProviderID.allCases.compactMap { metadataProviders[$0] }
         guard let provider = ordered.first else { return }
-        for title in pending {
+        for key in pending {
+            let title = libraryTitle(forWorkKey: key)
             guard let candidates = try? await provider.search(title, limit: 8) else { continue }
             guard case let .automatic(best) = metadataMatcher.decide(localTitle: title, candidates: candidates) else {
                 continue
             }
             await linkIncomingWork(
-                seriesTitle: title,
+                seriesTitle: key,
                 to: best.candidate,
                 confidence: best.score,
                 isManual: false
@@ -426,16 +517,24 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// A subscription has started an episode on its own. The work it belongs
+    /// to may never have been on this screen before, so its anime row is
+    /// loaded and its files are looked for once they land.
+    private func automaticDownloadStarted(for rule: TorrentSubscription) async {
+        guard let animeID = rule.animeID else { return }
+        await loadIncomingAnime(ids: [animeID])
+    }
+
     /// Links an anime a finished download just created to the source that was
     /// resolved while it was downloading.
     private func applyIncomingMatches() async {
         guard let database, !incomingMatches.isEmpty else { return }
         var settled: [String] = []
-        for (seriesTitle, match) in incomingMatches {
-            guard let entry = library.first(where: { $0.anime.title == seriesTitle }) else { continue }
+        for (key, match) in incomingMatches {
+            guard let entry = library.first(where: { $0.anime.title == match.libraryTitle }) else { continue }
             let alreadyLinked = metadataSourcesByAnimeID[entry.anime.id]?
                 .contains { $0.provider == match.candidate.provider } == true
-            if alreadyLinked { settled.append(seriesTitle); continue }
+            if alreadyLinked { settled.append(key); continue }
             guard let provider = metadataProviders[match.candidate.provider] else { continue }
             do {
                 let metadata = try await provider.metadata(
@@ -449,13 +548,13 @@ final class AppModel: ObservableObject {
                     matchConfidence: match.confidence,
                     isManualMatch: false
                 )
-                settled.append(seriesTitle)
+                settled.append(key)
             } catch {
                 continue
             }
         }
         guard !settled.isEmpty else { return }
-        for title in settled { incomingMatches[title] = nil }
+        for key in settled { incomingMatches[key] = nil }
         await reloadMetadata()
     }
 
@@ -731,13 +830,27 @@ final class AppModel: ObservableObject {
             downloads.onDownloadFinished = { [weak self] record in
                 Task { await self?.downloadFinished(savePath: record.savePath) }
             }
-            downloads.onWorkStarted = { [weak self] seriesTitle in
-                Task { await self?.offerIncomingMatch(seriesTitle: seriesTitle) }
+            downloads.onWorkStarted = { [weak self] workKey in
+                Task { await self?.offerIncomingMatch(seriesTitle: workKey) }
             }
             subscriptions.ownedEpisodesProvider = { [weak self] animeID in
                 guard let self, let database = self.database else { return [] }
                 let episodes = (try? await database.episodes(animeID: animeID)) ?? []
                 return Set(episodes.filter { $0.episode.kind == .regular }.compactMap(\.episode.number))
+            }
+            subscriptions.expectedEpisodeCountProvider = { [weak self] animeID in
+                // The smallest of what the providers say, because a provider
+                // that counts specials among the episodes would leave a
+                // finished season permanently short of its own finale.
+                self?.metadataSourcesByAnimeID[animeID]?.compactMap(\.totalEpisodes).min()
+            }
+            // A rule that has just downloaded something is a work the home
+            // screen should be showing, matched and covered.
+            releaseSearch.episodeCountProvider = { [weak self] title in
+                await self?.episodeCount(forTitle: title)
+            }
+            subscriptions.onAutomaticDownload = { [weak self] rule in
+                Task { await self?.automaticDownloadStarted(for: rule) }
             }
             await subscriptions.attach(database: database, downloads: downloads)
             await refreshRootAvailability()

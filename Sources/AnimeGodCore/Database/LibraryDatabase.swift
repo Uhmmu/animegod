@@ -1158,8 +1158,9 @@ public actor LibraryDatabase {
             try db.execute(sql: """
                 INSERT INTO torrentDownload
                     (infoHash, title, magnet, savePath, animeID, animeTitle, episodeLabel,
-                     totalBytes, addedAt, completedAt, isSequential)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     totalBytes, addedAt, completedAt, isSequential,
+                     folderName, isAutomatic, subscriptionID)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(infoHash) DO UPDATE SET
                     title = excluded.title,
                     magnet = excluded.magnet,
@@ -1169,7 +1170,10 @@ public actor LibraryDatabase {
                     episodeLabel = COALESCE(excluded.episodeLabel, torrentDownload.episodeLabel),
                     totalBytes = excluded.totalBytes,
                     completedAt = excluded.completedAt,
-                    isSequential = excluded.isSequential
+                    isSequential = excluded.isSequential,
+                    folderName = COALESCE(excluded.folderName, torrentDownload.folderName),
+                    isAutomatic = excluded.isAutomatic,
+                    subscriptionID = COALESCE(excluded.subscriptionID, torrentDownload.subscriptionID)
                 """, arguments: [
                     record.infoHash,
                     record.title,
@@ -1181,7 +1185,10 @@ public actor LibraryDatabase {
                     record.totalBytes,
                     record.addedAt,
                     record.completedAt,
-                    record.isSequential
+                    record.isSequential,
+                    record.folderName,
+                    record.isAutomatic,
+                    record.subscriptionID?.uuidString
                 ])
         }
     }
@@ -1222,6 +1229,9 @@ public actor LibraryDatabase {
             animeID: (row["animeID"] as String?).flatMap(UUID.init(uuidString:)),
             animeTitle: row["animeTitle"],
             episodeLabel: row["episodeLabel"],
+            folderName: row["folderName"],
+            isAutomatic: row["isAutomatic"] ?? false,
+            subscriptionID: (row["subscriptionID"] as String?).flatMap(UUID.init(uuidString:)),
             totalBytes: row["totalBytes"],
             addedAt: row["addedAt"],
             completedAt: row["completedAt"],
@@ -1244,8 +1254,10 @@ public actor LibraryDatabase {
                 INSERT INTO torrentSubscription
                     (id, animeID, title, queries, sources, releaseGroup, resolution, subtitleLanguages,
                      includeKeywords, excludeKeywords, minimumEpisode, includesBatches,
-                     includesExistingReleases, isEnabled, createdAt, lastCheckedAt, lastMatchedAt)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     includesExistingReleases, isEnabled, createdAt, lastCheckedAt, lastMatchedAt,
+                     videoCodec, videoSource, season, folderName, titleSignature,
+                     expectedEpisodeCount, averageIntervalSeconds, lastReleaseAt, latestEpisode)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     animeID = excluded.animeID,
                     title = excluded.title,
@@ -1261,7 +1273,16 @@ public actor LibraryDatabase {
                     includesExistingReleases = excluded.includesExistingReleases,
                     isEnabled = excluded.isEnabled,
                     lastCheckedAt = excluded.lastCheckedAt,
-                    lastMatchedAt = excluded.lastMatchedAt
+                    lastMatchedAt = excluded.lastMatchedAt,
+                    videoCodec = excluded.videoCodec,
+                    videoSource = excluded.videoSource,
+                    season = excluded.season,
+                    folderName = excluded.folderName,
+                    titleSignature = excluded.titleSignature,
+                    expectedEpisodeCount = excluded.expectedEpisodeCount,
+                    averageIntervalSeconds = excluded.averageIntervalSeconds,
+                    lastReleaseAt = excluded.lastReleaseAt,
+                    latestEpisode = excluded.latestEpisode
                 """, arguments: [
                     subscription.id.uuidString,
                     subscription.animeID?.uuidString,
@@ -1279,7 +1300,16 @@ public actor LibraryDatabase {
                     subscription.isEnabled,
                     subscription.createdAt,
                     subscription.lastCheckedAt,
-                    subscription.lastMatchedAt
+                    subscription.lastMatchedAt,
+                    subscription.videoCodec,
+                    subscription.videoSource,
+                    subscription.season,
+                    subscription.folderName,
+                    subscription.titleSignature,
+                    subscription.expectedEpisodeCount,
+                    subscription.averageIntervalSeconds,
+                    subscription.lastReleaseAt,
+                    subscription.latestEpisode
                 ])
         }
     }
@@ -1318,6 +1348,73 @@ public actor LibraryDatabase {
         }
     }
 
+    /// Releases a check found for the work but not for the line it follows.
+    /// They wait here until the user takes or dismisses them, so an episode
+    /// only another fansub published is offered once rather than every half
+    /// hour.
+    public func torrentSubscriptionCandidates() throws -> [TorrentSubscriptionCandidate] {
+        try database.read { db in
+            try Row.fetchAll(db, sql: "SELECT * FROM torrentSubscriptionCandidate ORDER BY foundAt DESC")
+                .map(Self.decodeSubscriptionCandidate)
+        }
+    }
+
+    public func saveTorrentSubscriptionCandidate(_ candidate: TorrentSubscriptionCandidate) throws {
+        try database.write { db in
+            try db.execute(sql: """
+                INSERT INTO torrentSubscriptionCandidate
+                    (subscriptionID, infoHash, title, magnet, trackers, episode, releaseGroup,
+                     resolution, size, seeders, publishedAt, foundAt, reason)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(subscriptionID, infoHash) DO UPDATE SET
+                    title = excluded.title,
+                    seeders = excluded.seeders,
+                    reason = excluded.reason
+                """, arguments: [
+                    candidate.subscriptionID.uuidString,
+                    candidate.infoHash,
+                    candidate.title,
+                    candidate.magnet,
+                    Self.joinList(candidate.trackers),
+                    candidate.episode,
+                    candidate.group,
+                    candidate.resolution,
+                    candidate.size,
+                    candidate.seeders,
+                    candidate.publishedAt,
+                    candidate.foundAt,
+                    candidate.reason.rawValue
+                ])
+        }
+    }
+
+    public func removeTorrentSubscriptionCandidate(subscriptionID: UUID, infoHash: String) throws {
+        try database.write { db in
+            try db.execute(
+                sql: "DELETE FROM torrentSubscriptionCandidate WHERE subscriptionID = ? AND infoHash = ?",
+                arguments: [subscriptionID.uuidString, infoHash.lowercased()]
+            )
+        }
+    }
+
+    private static func decodeSubscriptionCandidate(_ row: Row) -> TorrentSubscriptionCandidate {
+        TorrentSubscriptionCandidate(
+            subscriptionID: UUID(uuidString: row["subscriptionID"]) ?? UUID(),
+            infoHash: row["infoHash"],
+            title: row["title"],
+            magnet: row["magnet"],
+            trackers: splitList(row["trackers"]),
+            episode: row["episode"],
+            group: row["releaseGroup"],
+            resolution: row["resolution"],
+            size: row["size"],
+            seeders: row["seeders"],
+            publishedAt: row["publishedAt"],
+            foundAt: row["foundAt"],
+            reason: TorrentSubscriptionCandidate.Reason(rawValue: row["reason"] ?? "") ?? .otherGroup
+        )
+    }
+
     private static func joinList(_ values: [String]) -> String {
         values.map { $0.replacingOccurrences(of: "\n", with: " ") }.joined(separator: "\n")
     }
@@ -1336,12 +1433,21 @@ public actor LibraryDatabase {
             group: row["releaseGroup"],
             resolution: row["resolution"],
             subtitleLanguages: Set(splitList(row["subtitleLanguages"]).compactMap(TorrentSubtitleLanguage.init(rawValue:))),
+            videoCodec: row["videoCodec"],
+            videoSource: row["videoSource"],
+            season: row["season"],
             includeKeywords: splitList(row["includeKeywords"]),
             excludeKeywords: splitList(row["excludeKeywords"]),
             minimumEpisode: row["minimumEpisode"],
             includesBatches: row["includesBatches"],
             includesExistingReleases: row["includesExistingReleases"],
             isEnabled: row["isEnabled"],
+            folderName: row["folderName"],
+            titleSignature: row["titleSignature"],
+            expectedEpisodeCount: row["expectedEpisodeCount"],
+            averageIntervalSeconds: row["averageIntervalSeconds"],
+            lastReleaseAt: row["lastReleaseAt"],
+            latestEpisode: row["latestEpisode"],
             createdAt: row["createdAt"],
             lastCheckedAt: row["lastCheckedAt"],
             lastMatchedAt: row["lastMatchedAt"]
@@ -1867,6 +1973,58 @@ public actor LibraryDatabase {
                 table.uniqueKey(["videoKey", "provider", "providerSubtitleID"])
             }
             try db.create(index: "subtitleDownload_video", on: "subtitleDownload", columns: ["videoKey"])
+        }
+        migrator.registerMigration("v11_subscription_following") { db in
+            // What a subscription learned from the season it was made from:
+            // the rest of the release line's identity, the folder its
+            // episodes live in, the shape of their filenames, and the
+            // cadence the next episode is estimated from. A rule made by
+            // hand simply leaves them null.
+            try db.alter(table: "torrentSubscription") { table in
+                table.add(column: "videoCodec", .text)
+                table.add(column: "videoSource", .text)
+                table.add(column: "season", .integer)
+                table.add(column: "folderName", .text)
+                table.add(column: "titleSignature", .text)
+                table.add(column: "expectedEpisodeCount", .integer)
+                table.add(column: "averageIntervalSeconds", .double)
+                table.add(column: "lastReleaseAt", .datetime)
+                table.add(column: "latestEpisode", .double)
+            }
+            // Episodes of the right work published by the wrong team, kept
+            // until the user takes or dismisses them. A season that mixes
+            // fansubs mid-run is worse than one that waits, so these are
+            // never started unattended.
+            try db.create(table: "torrentSubscriptionCandidate") { table in
+                table.column("subscriptionID", .text).notNull()
+                    .references("torrentSubscription", onDelete: .cascade)
+                table.column("infoHash", .text).notNull()
+                table.column("title", .text).notNull()
+                table.column("magnet", .text).notNull()
+                table.column("trackers", .text).notNull().defaults(to: "")
+                table.column("episode", .double)
+                table.column("releaseGroup", .text)
+                table.column("resolution", .text)
+                table.column("size", .integer)
+                table.column("seeders", .integer)
+                table.column("publishedAt", .datetime)
+                table.column("foundAt", .datetime).notNull()
+                table.column("reason", .text).notNull()
+                table.primaryKey(["subscriptionID", "infoHash"])
+            }
+        }
+        migrator.registerMigration("v12_download_folder_name") { db in
+            // The folder a download's files were put into. Read back off the
+            // engine before, which meant the grouping that makes a season one
+            // card on the home screen was unavailable until metadata arrived —
+            // and gone entirely once the engine was not running.
+            try db.alter(table: "torrentDownload") { table in
+                table.add(column: "folderName", .text)
+                // Whether a subscription started this on its own, so an
+                // automatic download can be rate-limited and reported as one.
+                table.add(column: "isAutomatic", .boolean).notNull().defaults(to: false)
+                table.add(column: "subscriptionID", .text)
+            }
         }
         migrator.registerMigration("v13_precomposed_titles") { db in
             // Titles scanned from macOS folder names are stored decomposed —

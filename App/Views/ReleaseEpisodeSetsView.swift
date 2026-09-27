@@ -11,6 +11,7 @@ import SwiftUI
 struct ReleaseEpisodeSetsView: View {
     @ObservedObject var search: TorrentSearchModel
     @ObservedObject var downloads: TorrentDownloadManager
+    @ObservedObject var subscriptions: TorrentSubscriptionManager
     let anime: Anime?
     @State private var expanded: Set<String> = []
 
@@ -26,11 +27,15 @@ struct ReleaseEpisodeSetsView: View {
         } else {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 8) {
+                    if search.schedule.isOngoing {
+                        OngoingBanner(schedule: search.schedule)
+                    }
                     ForEach(sets) { season in
                         EpisodeSetCard(
                             episodeSet: season,
                             search: search,
                             downloads: downloads,
+                            subscriptions: subscriptions,
                             anime: anime,
                             isExpanded: Binding(
                                 get: { expanded.contains(season.id) },
@@ -47,14 +52,70 @@ struct ReleaseEpisodeSetsView: View {
     }
 }
 
+/// The season is still being published — said once, above the sets, because
+/// it is a fact about the show rather than about any one fansub's line.
+private struct OngoingBanner: View {
+    let schedule: TorrentReleaseSchedule
+
+    var body: some View {
+        HStack(spacing: 8) {
+            SetTag(text: String(localized: "Still airing"), tint: .green)
+            if let latest = schedule.latestEpisode {
+                Text("EP \(TorrentEpisodeGuess.text(for: latest)) is the newest anybody has published")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if let expected = schedule.expectedEpisodeCount, let remaining = schedule.remainingEpisodeCount, remaining > 0 {
+                Text("· \(remaining) of \(expected) still to come")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if let next = schedule.estimatedNextEpisodeAt {
+                Text("· next around \(next.formatted(.relative(presentation: .named)))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .help(next.formatted(date: .complete, time: .shortened))
+            }
+            Spacer()
+            Text("Subscribe to a set to have its next episodes download on their own")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
 private struct EpisodeSetCard: View {
     let episodeSet: TorrentEpisodeSet
     @ObservedObject var search: TorrentSearchModel
     @ObservedObject var downloads: TorrentDownloadManager
+    @ObservedObject var subscriptions: TorrentSubscriptionManager
     let anime: Anime?
     @Binding var isExpanded: Bool
 
     private var pending: Int { episodeSet.downloadableEntries.count }
+
+    /// A season still being published can be followed: what is out is
+    /// downloaded now, and the rest arrives on its own.
+    private var isOngoing: Bool { search.schedule.isOngoing }
+
+    /// Already followed, so the button says so instead of making a second rule.
+    private var isFollowing: Bool {
+        if let anime { return subscriptions.subscription(for: anime.id) != nil }
+        let name = workTitle
+        return subscriptions.subscriptions.contains { $0.title.caseInsensitiveCompare(name) == .orderedSame }
+    }
+
+    /// What the library will call this work: the folder the set is saved into,
+    /// which is what the scan derives the anime's title from too.
+    private var workTitle: String {
+        anime?.title
+            ?? episodeSet.suggestedFolderName()
+            ?? TorrentSearchCoordinator.splitQueries(search.queryText).first
+            ?? String(localized: "this search")
+    }
 
     /// A set assembled across teams has no fansub of its own to name.
     private var title: String {
@@ -99,6 +160,9 @@ private struct EpisodeSetCard: View {
                         .font(.headline)
                     if episodeSet.isMixed {
                         SetTag(text: String(localized: "Mixed"), tint: .orange)
+                    }
+                    if isOngoing {
+                        SetTag(text: String(localized: "Unfinished"), tint: .green)
                     }
                     ForEach(episodeSet.variant.attributeTags, id: \.self) { tag in
                         SetTag(text: tag, tint: .secondary)
@@ -160,6 +224,13 @@ private struct EpisodeSetCard: View {
 
     private var actions: some View {
         HStack(spacing: 6) {
+            if isOngoing {
+                Button(isFollowing ? "Following" : "Subscribe") { subscribe() }
+                    .disabled(isFollowing)
+                    .help(isFollowing
+                          ? String(localized: "Already followed — new episodes of this line download on their own")
+                          : String(localized: "Downloads what is out now and keeps checking for the rest: every new episode of this exact line arrives on its own, into the same folder, under the speed limit for automatic downloads"))
+            }
             Button(pending == episodeSet.expectedEpisodes.count
                    ? "Download Set"
                    : "Download \(pending) Episodes") {
@@ -191,6 +262,25 @@ private struct EpisodeSetCard: View {
             .fixedSize()
         }
         .controlSize(.small)
+    }
+
+    /// Subscribing does what pressing Download Set does — including asking
+    /// which anime this is, so the season is matched while it downloads — and
+    /// then keeps following the same line.
+    private func subscribe() {
+        let outcome = downloads.download(set: episodeSet, anime: anime)
+        let folder = outcome.folderName
+        let queries = TorrentSearchCoordinator.splitQueries(search.queryText)
+        Task {
+            await subscriptions.follow(
+                set: episodeSet,
+                schedule: search.schedule,
+                anime: anime,
+                title: folder ?? workTitle,
+                queries: queries.isEmpty ? [workTitle] : queries,
+                folderName: folder
+            )
+        }
     }
 
     private func episodeList(_ episodes: [Double]) -> String {
@@ -305,10 +395,10 @@ private struct SetTag: View {
 }
 
 enum TorrentEpisodeLabel {
-    /// "05", "12.5" — the same shape the release titles use.
+    /// "05", "12.5" — the same shape the release titles use. One definition,
+    /// in the core, because the downloads list and an anime's own page label
+    /// episodes the same way.
     static func text(for episode: Double) -> String {
-        episode.rounded() == episode
-            ? String(format: "%02d", Int(episode))
-            : String(episode)
+        TorrentEpisodeGuess.text(for: episode)
     }
 }

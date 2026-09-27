@@ -112,7 +112,7 @@ struct TorrentSubscriptionMatcherTests {
         let dead = result("[LoliHouse] Ave Mujica - 05 [WebRip 1080p][简繁内封]", hash: "1", team: "LoliHouse", seeders: 0)
         let alive = result("[LoliHouse] Ave Mujica - 05v2 [WebRip 1080p][简繁内封]", hash: "2", team: "LoliHouse", seeders: 4)
         let picked = TorrentSubscriptionMatcher.select(from: [dead, alive], rule: rule, alreadyMatched: [], ownedEpisodes: [])
-        #expect(picked.map(\.infoHash.hex) == [alive.infoHash.hex])
+        #expect(picked.automatic.map(\.infoHash.hex) == [alive.infoHash.hex])
     }
 
     @Test func batchesAreExcludedUnlessAskedFor() {
@@ -139,7 +139,7 @@ struct TorrentSubscriptionMatcherTests {
 
         // One per episode (the better-seeded v2 wins), episode 4 is in the
         // library, episode 7 was downloaded by a previous check.
-        #expect(picked.map(\.infoHash.hex) == [episode5Again.infoHash.hex, episode6.infoHash.hex])
+        #expect(picked.automatic.map(\.infoHash.hex) == [episode5Again.infoHash.hex, episode6.infoHash.hex])
     }
 
     @Test func releasesWithoutEpisodeNumbersNeedASpecificRule() {
@@ -148,10 +148,10 @@ struct TorrentSubscriptionMatcherTests {
             title: "Ave Mujica", queries: ["Ave Mujica"], resolution: "1080p",
             createdAt: Date(timeIntervalSince1970: 1_780_000_000)
         )
-        #expect(TorrentSubscriptionMatcher.select(from: [movie], rule: vague, alreadyMatched: [], ownedEpisodes: []).isEmpty)
+        #expect(TorrentSubscriptionMatcher.select(from: [movie], rule: vague, alreadyMatched: [], ownedEpisodes: []).automatic.isEmpty)
 
         vague.group = "LoliHouse"
-        #expect(TorrentSubscriptionMatcher.select(from: [movie], rule: vague, alreadyMatched: [], ownedEpisodes: []).count == 1)
+        #expect(TorrentSubscriptionMatcher.select(from: [movie], rule: vague, alreadyMatched: [], ownedEpisodes: []).automatic.count == 1)
     }
 }
 
@@ -165,10 +165,19 @@ struct TorrentSubscriptionStoreTests {
             group: "LoliHouse",
             resolution: "1080p",
             subtitleLanguages: [.simplifiedChinese, .japanese],
+            videoCodec: "HEVC",
+            videoSource: "WEB",
+            season: 2,
             includeKeywords: ["WebRip"],
             excludeKeywords: ["Reseed", "BDRip"],
             minimumEpisode: 3,
-            includesBatches: true
+            includesBatches: true,
+            folderName: "Ave Mujica S2",
+            titleSignature: "lolihouse ave mujica webrip",
+            expectedEpisodeCount: 13,
+            averageIntervalSeconds: 7 * 86_400,
+            lastReleaseAt: Date(timeIntervalSince1970: 1_786_000_000),
+            latestEpisode: 10
         )
         try await database.saveTorrentSubscription(subscription)
 
@@ -193,6 +202,77 @@ struct TorrentSubscriptionStoreTests {
         #expect(try await database.torrentSubscriptions().isEmpty)
     }
 
+    @Test func offersAreKeptUntilTakenOrTurnedDown() async throws {
+        let database = try LibraryDatabase(inMemory: true)
+        let subscription = TorrentSubscription(title: "Ave Mujica", queries: ["Ave Mujica"])
+        try await database.saveTorrentSubscription(subscription)
+
+        let candidate = TorrentSubscriptionCandidate(
+            subscriptionID: subscription.id,
+            infoHash: "6E54509DE959FBE569C135B4F46B35789D53AAA6",
+            title: "[Nekomoe kissaten] Ave Mujica - 11 [1080p][JPSC]",
+            magnet: "magnet:?xt=urn:btih:6e54509de959fbe569c135b4f46b35789d53aaa6",
+            trackers: ["udp://tracker.opentrackr.org:1337/announce"],
+            episode: 11,
+            group: "Nekomoe kissaten",
+            resolution: "1080p",
+            size: 512_000_000,
+            seeders: 30,
+            publishedAt: Date(timeIntervalSince1970: 1_786_000_000),
+            foundAt: Date(timeIntervalSince1970: 1_786_100_000),
+            reason: .otherGroup
+        )
+        try await database.saveTorrentSubscriptionCandidate(candidate)
+        // Offering it twice keeps one row, so a check every twelve hours does
+        // not pile up copies of the same question.
+        try await database.saveTorrentSubscriptionCandidate(candidate)
+
+        var stored = try #require(try await database.torrentSubscriptionCandidates().first)
+        #expect(try await database.torrentSubscriptionCandidates().count == 1)
+        #expect(abs(stored.foundAt.timeIntervalSince(candidate.foundAt)) < 0.01)
+        stored.foundAt = candidate.foundAt
+        stored.publishedAt = candidate.publishedAt
+        #expect(stored == candidate)
+
+        try await database.removeTorrentSubscriptionCandidate(
+            subscriptionID: subscription.id, infoHash: candidate.infoHash
+        )
+        #expect(try await database.torrentSubscriptionCandidates().isEmpty)
+
+        // Removing the rule takes its offers with it.
+        try await database.saveTorrentSubscriptionCandidate(candidate)
+        try await database.removeTorrentSubscription(id: subscription.id)
+        #expect(try await database.torrentSubscriptionCandidates().isEmpty)
+    }
+
+    @Test func aDownloadRemembersItsFolderAndWhoStartedIt() async throws {
+        let database = try LibraryDatabase(inMemory: true)
+        let record = TorrentDownloadRecord(
+            infoHash: "6E54509DE959FBE569C135B4F46B35789D53AAA6",
+            title: "[LoliHouse] Ave Mujica - 11",
+            magnet: "magnet:?xt=urn:btih:6e54509de959fbe569c135b4f46b35789d53aaa6",
+            savePath: "/Volumes/T7/video",
+            episodeLabel: "11",
+            folderName: "Ave Mujica",
+            isAutomatic: true,
+            subscriptionID: UUID(),
+            totalBytes: 512_000_000
+        )
+        try await database.saveTorrentDownload(record)
+        let stored = try #require(try await database.torrentDownloads().first)
+        #expect(stored.folderName == "Ave Mujica")
+        #expect(stored.isAutomatic)
+        #expect(stored.subscriptionID == record.subscriptionID)
+
+        // The engine's later updates must not wipe what the folder is.
+        try await database.updateTorrentDownload(
+            infoHash: record.infoHash, title: "renamed", totalBytes: 600, completedAt: .now, isSequential: nil
+        )
+        let updated = try #require(try await database.torrentDownloads().first)
+        #expect(updated.folderName == "Ave Mujica")
+        #expect(updated.isAutomatic)
+    }
+
     @Test func matchesAreRecordedOnceAndSurviveDownloadRemoval() async throws {
         let database = try LibraryDatabase(inMemory: true)
         let subscription = TorrentSubscription(title: "Ave Mujica", queries: ["Ave Mujica"])
@@ -215,5 +295,169 @@ struct TorrentSubscriptionStoreTests {
         // Removing the rule takes its log with it.
         try await database.removeTorrentSubscription(id: subscription.id)
         #expect(try await database.torrentSubscriptionMatches(subscriptionID: subscription.id).isEmpty)
+    }
+}
+
+/// Episodes the right show but the wrong release line: offered, never taken.
+struct TorrentSubscriptionConfirmationTests {
+    private var rule: TorrentSubscription {
+        TorrentSubscription(
+            title: "Ave Mujica",
+            queries: ["Ave Mujica"],
+            group: "LoliHouse",
+            resolution: "1080p",
+            subtitleLanguages: [.simplifiedChinese],
+            minimumEpisode: 10,
+            includesExistingReleases: true,
+            titleSignature: TorrentEpisodeSetBuilder.titleSignature(
+                "[LoliHouse] Ave Mujica - 10 [WebRip 1080p HEVC-10bit AAC][简繁内封字幕]"
+            ),
+            createdAt: Date(timeIntervalSince1970: 1_780_000_000)
+        )
+    }
+
+    @Test func anotherFansubIsOfferedRatherThanDownloaded() {
+        let own = result("[LoliHouse] Ave Mujica - 11 [WebRip 1080p HEVC-10bit AAC][简繁内封字幕]", hash: "1", team: "LoliHouse")
+        let other = result("[Nekomoe kissaten] Ave Mujica - 12 [1080p][简繁内封]", hash: "2", team: "Nekomoe kissaten")
+        let selection = TorrentSubscriptionMatcher.select(
+            from: [own, other], rule: rule, alreadyMatched: [], ownedEpisodes: []
+        )
+        #expect(selection.automatic.map(\.infoHash.hex) == [own.infoHash.hex])
+        #expect(selection.needsConfirmation.map(\.result.infoHash.hex) == [other.infoHash.hex])
+        #expect(selection.needsConfirmation.map(\.reason) == [.otherGroup])
+    }
+
+    @Test func theLineOwnEpisodeWinsOverAnotherFansubOfTheSameNumber() {
+        let own = result("[LoliHouse] Ave Mujica - 11 [WebRip 1080p HEVC-10bit AAC][简繁内封字幕]", hash: "1", team: "LoliHouse")
+        let other = result("[Nekomoe kissaten] Ave Mujica - 11 [1080p][简繁内封]", hash: "2", team: "Nekomoe kissaten")
+        let selection = TorrentSubscriptionMatcher.select(
+            from: [other, own], rule: rule, alreadyMatched: [], ownedEpisodes: []
+        )
+        #expect(selection.automatic.count == 1)
+        // Nothing to ask about: the episode already arrived on the line.
+        #expect(selection.needsConfirmation.isEmpty)
+    }
+
+    @Test func aRenamedReleaseFromTheSameTeamIsWorthALookNotADownload() {
+        let renamed = result("[LoliHouse] Ave Mujica Season Finale - 11 [WebRip 1080p][简繁内封]", hash: "3", team: "LoliHouse")
+        let selection = TorrentSubscriptionMatcher.select(
+            from: [renamed], rule: rule, alreadyMatched: [], ownedEpisodes: []
+        )
+        #expect(selection.automatic.isEmpty)
+        #expect(selection.needsConfirmation.map(\.reason) == [.otherNaming])
+    }
+
+    @Test func anOfferAlreadyMadeIsNotMadeAgain() {
+        let other = result("[Nekomoe kissaten] Ave Mujica - 11 [1080p][简繁内封]", hash: "2", team: "Nekomoe kissaten")
+        let selection = TorrentSubscriptionMatcher.select(
+            from: [other], rule: rule, alreadyMatched: [], ownedEpisodes: [],
+            alreadyOffered: [other.infoHash.hex]
+        )
+        #expect(selection.isEmpty)
+    }
+
+    @Test func theEpisodeFloorStillAppliesToOffers() {
+        // Episode 9 is behind what is on disk; nobody should be asked about it.
+        let old = result("[Nekomoe kissaten] Ave Mujica - 09 [1080p][简繁内封]", hash: "4", team: "Nekomoe kissaten")
+        #expect(TorrentSubscriptionMatcher.select(
+            from: [old], rule: rule, alreadyMatched: [], ownedEpisodes: []
+        ).isEmpty)
+    }
+}
+
+/// The one-click rule built from a season that is still running.
+struct TorrentSubscriptionFromSetTests {
+    private func set(episodes: Range<Int>, group: String = "LoliHouse") -> TorrentEpisodeSet {
+        let entries = episodes.map { episode in
+            TorrentEpisodeSet.Entry(
+                episode: Double(episode),
+                result: result(
+                    "[\(group)] Ave Mujica - \(String(format: "%02d", episode)) [WebRip 1080p HEVC-10bit AAC][简繁内封字幕]",
+                    hash: String(format: "%x", episode),
+                    team: group,
+                    publishedAt: Date(timeIntervalSince1970: 1_780_000_000 + Double(episode) * 7 * 86_400)
+                ),
+                isSubstitute: false,
+                isOwned: false,
+                isExtra: false
+            )
+        }
+        return TorrentEpisodeSet(
+            variant: TorrentReleaseVariant(
+                // The tags as the parser reports them: a set's variant is
+                // always built from parsed releases, never spelled by hand.
+                group: group, season: nil, resolution: "1080p", videoCodec: "HEVC",
+                videoSource: "WEB", subtitleLanguages: [.simplifiedChinese, .traditionalChinese]
+            ),
+            entries: entries,
+            expectedEpisodes: entries.map(\.episode),
+            missingEpisodes: [],
+            ownedEpisodes: []
+        )
+    }
+
+    @Test func learnsTheLineTheFolderAndTheFloorFromWhatWasDownloaded() {
+        let assembled = set(episodes: 1..<11)
+        let schedule = TorrentReleaseSchedule.analyse(
+            results: assembled.entries.map(\.result),
+            expectedEpisodeCount: 13,
+            now: Date(timeIntervalSince1970: 1_780_000_000 + 11 * 7 * 86_400)
+        )
+        let rule = TorrentSubscription.following(
+            set: assembled,
+            schedule: schedule,
+            animeID: nil,
+            title: "Ave Mujica",
+            queries: ["Ave Mujica"],
+            folderName: "Ave Mujica"
+        )
+        #expect(rule.group == "LoliHouse")
+        #expect(rule.resolution == "1080p")
+        #expect(rule.videoCodec == "HEVC")
+        #expect(rule.subtitleLanguages == [.simplifiedChinese, .traditionalChinese])
+        #expect(rule.minimumEpisode == 10)
+        #expect(rule.folderName == "Ave Mujica")
+        #expect(rule.expectedEpisodeCount == 13)
+        #expect(rule.latestEpisode == 10)
+        #expect(rule.nextEpisode == 11)
+        // A rule made from a set must take the episode that is already out:
+        // the floor is what keeps it from taking the ten on disk again.
+        #expect(rule.includesExistingReleases)
+        let signature = try? #require(rule.titleSignature)
+        #expect(signature?.contains("ave mujica") == true)
+
+        // Episode 11 from the same line is downloaded; episode 10 is not.
+        let eleven = result("[LoliHouse] Ave Mujica - 11 [WebRip 1080p HEVC-10bit AAC][简繁内封字幕]", hash: "e", team: "LoliHouse")
+        let ten = assembled.entries[9].result
+        #expect(TorrentSubscriptionMatcher.accepts(eleven, rule: rule))
+        #expect(!TorrentSubscriptionMatcher.accepts(ten, rule: rule))
+    }
+
+    @Test func theNextEpisodeIsSearchedForByNumberToo() {
+        var rule = TorrentSubscription(title: "Ave Mujica", queries: ["Ave Mujica", "颂乐人偶"], minimumEpisode: 10)
+        #expect(rule.searchQueries() == ["Ave Mujica", "颂乐人偶", "Ave Mujica 11"])
+        rule.latestEpisode = 12
+        #expect(rule.searchQueries().last == "Ave Mujica 13")
+    }
+
+    @Test func aFinishedSeasonStopsBeingFollowed() {
+        var rule = TorrentSubscription(title: "Ave Mujica", queries: ["Ave Mujica"])
+        rule.expectedEpisodeCount = 13
+        rule.latestEpisode = 12
+        #expect(!rule.isSeasonComplete)
+        rule.latestEpisode = 13
+        #expect(rule.isSeasonComplete)
+    }
+
+    @Test func theNextEpisodeIsEstimatedFromTheCadence() {
+        var rule = TorrentSubscription(title: "Ave Mujica", queries: ["Ave Mujica"])
+        rule.averageIntervalSeconds = 7 * 86_400
+        rule.lastReleaseAt = Date(timeIntervalSince1970: 1_780_000_000)
+        let soon = rule.estimatedNextEpisodeAt(now: Date(timeIntervalSince1970: 1_780_000_000 + 86_400))
+        #expect(soon == Date(timeIntervalSince1970: 1_780_000_000 + 7 * 86_400))
+        // Three weeks of silence: the estimate moves forward rather than
+        // pointing at a date that has gone by.
+        let late = rule.estimatedNextEpisodeAt(now: Date(timeIntervalSince1970: 1_780_000_000 + 20 * 86_400))
+        #expect(late == Date(timeIntervalSince1970: 1_780_000_000 + 21 * 86_400))
     }
 }

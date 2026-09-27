@@ -49,6 +49,11 @@ public struct AnimeMetadataCandidate: Identifiable, Codable, Hashable, Sendable 
     public let score: Double?
     public let rank: Int?
     public let ratingCount: Int?
+    /// Episodes in the season, as the provider's search result reports it.
+    /// Carried on the candidate rather than fetched per subject: it is what
+    /// tells a finished twelve-episode season from one twelve episodes in,
+    /// and a release search needs that answer before anything is matched.
+    public let totalEpisodes: Int?
     public var id: String { "\(provider.rawValue):\(externalID)" }
 
     public init(
@@ -61,7 +66,8 @@ public struct AnimeMetadataCandidate: Identifiable, Codable, Hashable, Sendable 
         airDate: String?,
         score: Double?,
         rank: Int?,
-        ratingCount: Int?
+        ratingCount: Int?,
+        totalEpisodes: Int? = nil
     ) {
         self.provider = provider
         self.externalID = externalID
@@ -73,6 +79,7 @@ public struct AnimeMetadataCandidate: Identifiable, Codable, Hashable, Sendable 
         self.score = score
         self.rank = rank
         self.ratingCount = ratingCount
+        self.totalEpisodes = totalEpisodes.flatMap { $0 > 0 ? $0 : nil }
     }
 }
 
@@ -95,6 +102,10 @@ public struct AnimeMetadata: Identifiable, Codable, Hashable, Sendable {
     /// provider, used to classify the local entry without guessing.
     public var kind: AnimeKind?
     public var studios: [String]?
+    /// How many episodes the season has, as the provider reports it. What
+    /// tells a season that is ten episodes in apart from one that ended at
+    /// ten — the question a subscription turns on.
+    public var totalEpisodes: Int?
     public var externalReferences: [ExternalAnimeReference]?
     public var fetchedAt: Date
     public var id: String { "\(animeID.uuidString):\(provider.rawValue)" }
@@ -116,6 +127,7 @@ public struct AnimeMetadata: Identifiable, Codable, Hashable, Sendable {
         sourceURL: URL? = nil,
         kind: AnimeKind? = nil,
         studios: [String]? = nil,
+        totalEpisodes: Int? = nil,
         externalReferences: [ExternalAnimeReference] = [],
         fetchedAt: Date = .now
     ) {
@@ -135,6 +147,7 @@ public struct AnimeMetadata: Identifiable, Codable, Hashable, Sendable {
         self.sourceURL = sourceURL
         self.kind = kind
         self.studios = studios
+        self.totalEpisodes = totalEpisodes.flatMap { $0 > 0 ? $0 : nil }
         self.externalReferences = externalReferences
         self.fetchedAt = fetchedAt
     }

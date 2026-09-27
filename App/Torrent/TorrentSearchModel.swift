@@ -71,11 +71,21 @@ final class TorrentSearchModel: ObservableObject {
 
     @Published var queryText: String
     @Published private(set) var snapshot: TorrentSearchSnapshot? {
-        didSet { episodeSetsCache = nil }
+        didSet {
+            episodeSetsCache = nil
+            scheduleCache = nil
+        }
     }
     @Published private(set) var isSearching = false
     @Published var filter: TorrentResultFilter {
-        didSet { if filter != oldValue { episodeSetsCache = nil } }
+        didSet {
+            guard filter != oldValue else { return }
+            episodeSetsCache = nil
+            // The schedule reads the library's episodes out of the filter, so
+            // it goes stale with it even though the filters themselves must
+            // not change the answer to "has anybody published episode 11".
+            if filter.ownedEpisodes != oldValue.ownedEpisodes { scheduleCache = nil }
+        }
     }
     @Published var sortOrder: TorrentResultMerger.SortOrder = .relevance
     @Published var layout: Layout = .releases
@@ -92,20 +102,71 @@ final class TorrentSearchModel: ObservableObject {
     private var searchTask: Task<Void, Never>?
     private var generation = 0
     private var episodeSetsCache: [TorrentEpisodeSet]?
+    private var scheduleCache: TorrentReleaseSchedule?
+    /// What the caller handed over, kept so a fresh search falls back to it
+    /// rather than to whatever the last title resolved to.
+    private let suppliedEpisodeCount: Int?
+    private var lastResolvedQueries: [String] = []
 
     init(
         preferences: TorrentSourcePreferences,
         queries: [String] = [],
         ownedEpisodes: Set<Double> = [],
+        expectedEpisodeCount: Int? = nil,
         coordinator: TorrentSearchCoordinator = TorrentSearchCoordinator()
     ) {
         self.preferences = preferences
         self.coordinator = coordinator
         queryText = queries.joined(separator: ", ")
         filter = TorrentResultFilter(ownedEpisodes: ownedEpisodes)
+        suppliedEpisodeCount = expectedEpisodeCount
+        self.expectedEpisodeCount = expectedEpisodeCount
+    }
+
+    /// Looks the season length up once per query, after the results are in.
+    /// Quiet on failure: this only sharpens the "still airing" answer, and a
+    /// provider being down must not hold a search up.
+    private func resolveEpisodeCount(for queries: [String]) async {
+        guard expectedEpisodeCount == nil, let provider = episodeCountProvider else { return }
+        let asked = generation
+        for query in queries.prefix(2) {
+            guard let count = await provider(query) else { continue }
+            guard generation == asked else { return }
+            expectedEpisodeCount = count
+            return
+        }
     }
 
     var hasOwnedEpisodes: Bool { !filter.ownedEpisodes.isEmpty }
+
+    /// How long the season is. Set from the anime's own metadata when the
+    /// search was opened from one, and otherwise looked up from the title
+    /// once a search finishes — the sidebar search has no anime behind it,
+    /// and without this a twelve-episode season that ended last Thursday
+    /// reads as unfinished until the silence is long enough to notice.
+    @Published private(set) var expectedEpisodeCount: Int? {
+        didSet { if expectedEpisodeCount != oldValue { scheduleCache = nil } }
+    }
+
+    /// Answers "how many episodes does this season have" for a bare title.
+    /// Supplied by AppModel, which owns the metadata providers.
+    var episodeCountProvider: ((String) async -> Int?)?
+
+    /// What the whole result set says about the show's release rhythm: how far
+    /// it has got, how often an episode appears, and whether it is still
+    /// running. Read from every result rather than the filtered ones — "has
+    /// anybody published episode 11" is not a question the current filters
+    /// should be able to change the answer to.
+    var schedule: TorrentReleaseSchedule {
+        if let scheduleCache { return scheduleCache }
+        let built = TorrentReleaseSchedule.analyse(
+            results: snapshot?.results ?? [],
+            expectedEpisodeCount: expectedEpisodeCount,
+            ownedEpisodes: filter.ownedEpisodes
+        )
+        scheduleCache = built
+        return built
+    }
 
     var displayedResults: [TorrentSearchResult] {
         TorrentResultMerger.sort(filter.apply(snapshot?.results ?? []), by: sortOrder)
@@ -141,6 +202,12 @@ final class TorrentSearchModel: ObservableObject {
     func search() {
         let queries = TorrentSearchCoordinator.splitQueries(queryText)
         guard !queries.isEmpty else { return }
+        // A new title needs its own answer; the previous one's would be worse
+        // than none.
+        if !queries.elementsEqual(lastResolvedQueries) {
+            expectedEpisodeCount = suppliedEpisodeCount
+            lastResolvedQueries = queries
+        }
         let sources = TorrentSourceID.allCases.filter(preferences.enabledSources.contains)
         guard !sources.isEmpty else {
             statusMessage = String(localized: "Turn on at least one release source in Settings.")
@@ -179,6 +246,7 @@ final class TorrentSearchModel: ObservableObject {
             }
             guard let self, self.generation == current else { return }
             self.isSearching = false
+            await self.resolveEpisodeCount(for: TorrentSearchCoordinator.splitQueries(self.queryText))
         }
     }
 

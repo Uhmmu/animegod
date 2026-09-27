@@ -3,6 +3,11 @@ import SwiftUI
 
 struct AnimeDetailView: View {
     @EnvironmentObject private var model: AppModel
+    /// Observed directly: AppModel deliberately does not republish download
+    /// progress (it ticks once a second and would re-render every view in the
+    /// app), so a page that shows arriving episodes has to watch it itself.
+    @ObservedObject private var downloads: TorrentDownloadManager
+    @ObservedObject private var subscriptions: TorrentSubscriptionManager
     let anime: Anime
     @State private var episodes: [EpisodeMedia] = []
     @State private var showingMatch = false
@@ -11,6 +16,12 @@ struct AnimeDetailView: View {
     @State private var communityKind: CommunityPostKind = .shoutbox
     @State private var communityProvider: MetadataProviderID = .bangumi
     @State private var expandedCategories: Set<EpisodeCategory> = [.main]
+
+    init(anime: Anime, downloads: TorrentDownloadManager, subscriptions: TorrentSubscriptionManager) {
+        self.anime = anime
+        self.downloads = downloads
+        self.subscriptions = subscriptions
+    }
 
     private var metadata: AnimeMetadata? { model.metadataByAnimeID[anime.id] }
     private var metadataSources: [AnimeMetadata] { model.metadataSourcesByAnimeID[anime.id] ?? [] }
@@ -46,10 +57,22 @@ struct AnimeDetailView: View {
         communityProvider == .bangumi ? [.shoutbox, .review, .discussion] : [.review]
     }
 
+    /// Episodes of this title the engine is still fetching — a season started
+    /// as a set, or the next episode a subscription picked up. They belong on
+    /// this page: a work whose files have not landed yet used to open to "No
+    /// Episodes", with the download it was waiting for visible only under
+    /// Downloads.
+    private var downloadingItems: [TorrentDownloadItem] {
+        downloads.items(forAnimeID: anime.id).filter { !$0.isComplete }
+    }
+
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 28) {
                 hero
+                if !downloadingItems.isEmpty {
+                    DownloadingEpisodeSection(items: downloadingItems, downloads: downloads)
+                }
                 episodeSection
                 if metadata != nil { communitySection }
             }
@@ -80,6 +103,8 @@ struct AnimeDetailView: View {
                 title: metadata?.title ?? anime.title,
                 queries: releaseQueries,
                 ownedEpisodes: Set(episodes.filter { $0.episode.kind == .regular }.compactMap(\.episode.number)),
+                expectedEpisodeCount: metadataSources.compactMap(\.totalEpisodes).min(),
+                episodeCount: { await model.episodeCount(forTitle: $0) },
                 preferences: model.torrentSources,
                 downloads: model.downloads,
                 subscriptions: model.subscriptions
@@ -97,6 +122,9 @@ struct AnimeDetailView: View {
             if !communityProviders.contains(communityProvider), let first = communityProviders.first {
                 communityProvider = first
             }
+            // Opening the page is what the "a new episode arrived" mark on the
+            // card was for, so it has done its job.
+            downloads.markAutomaticDownloadsSeen(animeID: anime.id)
         }
     }
 
@@ -155,6 +183,8 @@ struct AnimeDetailView: View {
                     }
                 }
 
+                subscriptionLine
+
                 let profile = model.profile(for: anime.id)
                 HStack(spacing: 12) {
                     Label(profile.status.displayName, systemImage: "person.text.rectangle")
@@ -168,6 +198,44 @@ struct AnimeDetailView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             }
+        }
+    }
+
+    /// What following this title means right now: when the next episode is
+    /// due, anything waiting to be confirmed, and a way to stop.
+    @ViewBuilder
+    private var subscriptionLine: some View {
+        if let rule = subscriptions.subscription(for: anime.id) {
+            let waiting = subscriptions.candidates(for: rule.id)
+            HStack(spacing: 10) {
+                SubscriptionBadge(state: .following, height: 16)
+                    .opacity(rule.isEnabled ? 1 : 0.5)
+                if rule.isSeasonComplete {
+                    Text("Every episode of this season has been published.")
+                } else if let next = rule.nextEpisode {
+                    if let due = rule.estimatedNextEpisodeAt() {
+                        Text("Waiting for EP \(TorrentEpisodeLabel.text(for: next)) · expected \(due.formatted(.relative(presentation: .named)))")
+                            .help(due.formatted(date: .complete, time: .shortened))
+                    } else {
+                        Text("Waiting for EP \(TorrentEpisodeLabel.text(for: next))")
+                    }
+                } else {
+                    Text("Following new episodes")
+                }
+                if !waiting.isEmpty {
+                    Text("· \(waiting.count) to confirm")
+                        .foregroundStyle(.orange)
+                }
+                Button("Check Now") { Task { await subscriptions.check(rule, isManual: true) } }
+                    .buttonStyle(.link)
+                    .disabled(subscriptions.isChecking)
+                Button(rule.isEnabled ? "Pause" : "Resume") {
+                    Task { await subscriptions.setEnabled(!rule.isEnabled, for: rule) }
+                }
+                .buttonStyle(.link)
+            }
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
         }
     }
 
@@ -289,7 +357,18 @@ struct AnimeDetailView: View {
             }
 
             if episodes.isEmpty {
-                ContentUnavailableView("No Episodes", systemImage: "film").frame(maxWidth: .infinity)
+                ContentUnavailableView {
+                    Label("No Episodes Yet", systemImage: "film")
+                } description: {
+                    Text(downloadingItems.isEmpty
+                         ? "No files for this title are on disk. Find Releases can look for them."
+                         : "The episodes above are still downloading. They appear here once they have landed and their folder has been scanned.")
+                } actions: {
+                    if downloadingItems.isEmpty {
+                        Button("Find Releases…") { showingReleases = true }
+                    }
+                }
+                .frame(maxWidth: .infinity)
             } else {
                 VStack(alignment: .leading, spacing: 20) {
                     ForEach(episodeSections, id: \.category) { section in

@@ -64,7 +64,13 @@ public struct BangumiMetadataProvider: MetadataProvider {
             ratingCount: subject.rating?.total,
             sourceURL: URL(string: "https://bgm.tv/subject/\(subject.id)"),
             kind: Self.kind(fromPlatform: subject.platform),
-            studios: Self.studios(fromInfobox: subject.infobox)
+            studios: Self.studios(fromInfobox: subject.infobox),
+            // `eps` is the season's numbered episodes; `total_episodes`
+            // counts every entry in the wiki, specials and creditless
+            // openings included — 芙莉莲 is eps 28, total 36. Taking the
+            // larger of the two would leave a finished season eight episodes
+            // short for ever, which is the whole question this answers.
+            totalEpisodes: subject.eps ?? subject.totalEpisodes
         )
     }
 
@@ -168,10 +174,13 @@ private struct Subject: Decodable {
     let images: Images?
     let rating: Rating?
     let rank: Int?
+    let eps: Int?
+    let totalEpisodes: Int?
 
     enum CodingKeys: String, CodingKey {
-        case id, name, summary, date, platform, infobox, images, rating, rank
+        case id, name, summary, date, platform, infobox, images, rating, rank, eps
         case nameCN = "name_cn"
+        case totalEpisodes = "total_episodes"
     }
 
     var preferredTitle: String { nameCN.flatMap { $0.isEmpty ? nil : $0 } ?? name }
@@ -186,7 +195,8 @@ private struct Subject: Decodable {
             airDate: date,
             score: rating?.score,
             rank: rank,
-            ratingCount: rating?.total
+            ratingCount: rating?.total,
+            totalEpisodes: eps ?? totalEpisodes
         )
     }
 
