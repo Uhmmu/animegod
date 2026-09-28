@@ -128,4 +128,42 @@ struct WatchStatePersistenceTests {
         )
         #expect(reloaded.progress?.isWatched == true)
     }
+
+    @Test func reportsWhatTheWatchStatusShelvesSortOn() async throws {
+        let (database, episodes) = try await library()
+        var entry = try #require(await database.library().first)
+        #expect(entry.watchedCount == 0)
+        #expect(!entry.isFinished)
+        #expect(!entry.isInProgress)
+        #expect(entry.lastPlayedAt == nil)
+
+        try await database.save(progress: .init(
+            episodeID: episodes[0].id, position: 1_400, duration: 1_440, isWatched: true
+        ))
+        entry = try #require(await database.library().first)
+        #expect(entry.watchedCount == 1)
+        #expect(!entry.isFinished)
+        #expect(entry.isInProgress)
+        #expect(entry.lastWatchedAt != nil)
+
+        try await database.save(progress: .init(
+            episodeID: episodes[1].id, position: 1_440, duration: 1_440, isWatched: true
+        ))
+        entry = try #require(await database.library().first)
+        #expect(entry.watchedCount == 2)
+        #expect(entry.isFinished)
+        #expect(!entry.isInProgress)
+    }
+
+    @Test func startingAnEpisodeCountsAsInProgressWithoutFinishingIt() async throws {
+        let (database, episodes) = try await library()
+        try await database.save(progress: .init(
+            episodeID: episodes[0].id, position: 120, duration: 1_440
+        ))
+        let entry = try #require(await database.library().first)
+        #expect(entry.watchedCount == 0)
+        #expect(entry.isInProgress)
+        #expect(entry.lastWatchedAt == nil)
+        #expect(entry.lastPlayedAt != nil)
+    }
 }

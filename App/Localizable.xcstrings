@@ -675,6 +675,28 @@
         }
       }
     },
+    "%lld of %lld watched" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld of %2$lld watched"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld/%2$lld 話視聴済み"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已看 %1$lld/%2$lld"
+          }
+        }
+      }
+    },
     "%lld ratings" : {
       "localizations" : {
         "en" : {
@@ -5392,6 +5414,22 @@
         }
       }
     },
+    "Finished" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "見終わった"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已看完"
+          }
+        }
+      }
+    },
     "Folder" : {
       "localizations" : {
         "ja" : {
@@ -8056,6 +8094,22 @@
         }
       }
     },
+    "Not Started" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未視聴"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未看"
+          }
+        }
+      }
+    },
     "Not connected — entries stay indexed; playback needs the drive or a cached copy." : {
       "localizations" : {
         "ja" : {
@@ -8616,7 +8670,24 @@
         }
       }
     },
+    "Order the grid by name, by when it was added, by the average of the ratings its sources gave it, or split it into finished, still watching and not started" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名前順・追加順・各ソースの評価の平均で並べ替えるか、見終わった／視聴中／未視聴の3つに分けて表示します"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按名称、添加时间或各来源评分的平均值排列，也可以分成已看完、正在观看和未看三栏"
+          }
+        }
+      }
+    },
     "Order the grid by name, by when it was added, or by the average of the ratings its sources gave it" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -11223,6 +11294,22 @@
         }
       }
     },
+    "Still Watching" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "視聴中"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在观看"
+          }
+        }
+      }
+    },
     "Still airing" : {
       "localizations" : {
         "ja" : {
@@ -12719,6 +12806,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "等待缓存"
+          }
+        }
+      }
+    },
+    "Watch Status" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "視聴状況"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "观看状态"
           }
         }
       }

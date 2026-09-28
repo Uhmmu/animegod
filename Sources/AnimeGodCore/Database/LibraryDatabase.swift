@@ -278,23 +278,37 @@ public actor LibraryDatabase {
                 SELECT anime.*,
                        COUNT(DISTINCT episode.id) AS totalCount,
                        COUNT(DISTINCT CASE WHEN episode.kind = ? THEN episode.id END) AS episodeCount,
-                       COUNT(DISTINCT CASE WHEN episode.kind = ? AND COALESCE(playbackProgress.isWatched, 0) = 0 THEN episode.id END) AS unwatchedCount
+                       COUNT(DISTINCT CASE WHEN episode.kind = ? AND COALESCE(playbackProgress.isWatched, 0) = 0 THEN episode.id END) AS unwatchedCount,
+                       COUNT(DISTINCT CASE WHEN episode.kind = ? AND playbackProgress.isWatched = 1 THEN episode.id END) AS watchedRegular,
+                       COUNT(DISTINCT CASE WHEN playbackProgress.isWatched = 1 THEN episode.id END) AS watchedTotal,
+                       MAX(CASE WHEN playbackProgress.isWatched = 1 THEN playbackProgress.updatedAt END) AS lastWatchedAt,
+                       MAX(playbackProgress.updatedAt) AS lastPlayedAt
                 FROM anime
                 JOIN episode ON episode.animeID = anime.id
                 JOIN mediaFile ON mediaFile.episodeID = episode.id
                 LEFT JOIN playbackProgress ON playbackProgress.episodeID = episode.id
                 GROUP BY anime.id
                 ORDER BY anime.sortTitle COLLATE NOCASE
-                """, arguments: [EpisodeKind.regular.rawValue, EpisodeKind.regular.rawValue])
+                """, arguments: [
+                    EpisodeKind.regular.rawValue,
+                    EpisodeKind.regular.rawValue,
+                    EpisodeKind.regular.rawValue
+                ])
             return rows.map { row in
                 let regularCount: Int = row["episodeCount"]
                 let totalCount: Int = row["totalCount"]
+                // SPs and creditless clips stay inside the anime but do not
+                // inflate its headline episode count. `watchedCount` is
+                // counted the same way, or a work of nothing but specials
+                // would read as finished the moment it was scanned.
+                let countsRegulars = regularCount > 0
                 return LibraryAnime(
                     anime: Self.decodeAnime(row),
-                    // SPs and creditless clips stay inside the anime but do
-                    // not inflate its headline episode count.
-                    episodeCount: regularCount > 0 ? regularCount : totalCount,
-                    unwatchedCount: row["unwatchedCount"]
+                    episodeCount: countsRegulars ? regularCount : totalCount,
+                    unwatchedCount: row["unwatchedCount"],
+                    watchedCount: countsRegulars ? row["watchedRegular"] : row["watchedTotal"],
+                    lastWatchedAt: row["lastWatchedAt"],
+                    lastPlayedAt: row["lastPlayedAt"]
                 )
             }
         }

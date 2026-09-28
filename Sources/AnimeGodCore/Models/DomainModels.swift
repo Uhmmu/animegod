@@ -242,12 +242,36 @@ public struct LibraryAnime: Identifiable, Hashable, Sendable {
     public let anime: Anime
     public let episodeCount: Int
     public let unwatchedCount: Int
+    /// Episodes counted the way `episodeCount` counts them that have been
+    /// seen, so the two are directly comparable. `unwatchedCount` deliberately
+    /// is not its complement: that one has always counted main episodes only.
+    public let watchedCount: Int
+    /// When the newest episode of this work was marked watched — the order the
+    /// "Finished" shelf reads in.
+    public let lastWatchedAt: Date?
+    /// When anything of this work was last played at all, finished or not.
+    public let lastPlayedAt: Date?
     public var id: UUID { anime.id }
 
-    public init(anime: Anime, episodeCount: Int, unwatchedCount: Int) {
+    /// Every episode seen. A work with nothing scanned yet is not "finished".
+    public var isFinished: Bool { episodeCount > 0 && watchedCount >= episodeCount }
+    /// Started and not done.
+    public var isInProgress: Bool { !isFinished && lastPlayedAt != nil }
+
+    public init(
+        anime: Anime,
+        episodeCount: Int,
+        unwatchedCount: Int,
+        watchedCount: Int = 0,
+        lastWatchedAt: Date? = nil,
+        lastPlayedAt: Date? = nil
+    ) {
         self.anime = anime
         self.episodeCount = episodeCount
         self.unwatchedCount = unwatchedCount
+        self.watchedCount = watchedCount
+        self.lastWatchedAt = lastWatchedAt
+        self.lastPlayedAt = lastPlayedAt
     }
 }
 

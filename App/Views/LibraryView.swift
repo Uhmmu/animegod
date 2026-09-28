@@ -6,6 +6,9 @@ enum LibrarySortOrder: String, CaseIterable, Identifiable {
     case title
     case added
     case score
+    /// Not an order so much as three shelves — finished, in progress, not
+    /// started — each with an order of its own. See `watchShelves`.
+    case watchStatus
 
     var id: String { rawValue }
 
@@ -14,6 +17,7 @@ enum LibrarySortOrder: String, CaseIterable, Identifiable {
         case .title: String(localized: "Name")
         case .added: String(localized: "Recently Added")
         case .score: String(localized: "Rating")
+        case .watchStatus: String(localized: "Watch Status")
         }
     }
 
@@ -74,7 +78,57 @@ struct LibraryView: View {
                     return isBefore(displayTitle(lhs), displayTitle(rhs))
                 }
             }
+        case .watchStatus:
+            // Each shelf orders itself; a flat order here would be thrown away.
+            return matching
         }
+    }
+
+    /// One shelf of the watch-status order.
+    private struct WatchShelf: Identifiable {
+        let id: String
+        let title: String
+        let items: [LibraryAnime]
+    }
+
+    /// Finished on top, then what is being watched, then what has not been
+    /// started. The first two read newest-first: what you just finished and
+    /// what you are in the middle of are what you came to the screen for, and
+    /// alphabetical order buries both.
+    private var watchShelves: [WatchShelf] {
+        var finished: [LibraryAnime] = []
+        var watching: [LibraryAnime] = []
+        var unwatched: [LibraryAnime] = []
+        for item in filtered {
+            if item.isFinished {
+                finished.append(item)
+            } else if item.isInProgress {
+                watching.append(item)
+            } else {
+                unwatched.append(item)
+            }
+        }
+        finished.sort { ($0.lastWatchedAt ?? .distantPast) > ($1.lastWatchedAt ?? .distantPast) }
+        watching.sort { ($0.lastPlayedAt ?? .distantPast) > ($1.lastPlayedAt ?? .distantPast) }
+        unwatched.sort { isBefore(displayTitle($0), displayTitle($1)) }
+        return [
+            WatchShelf(id: "finished", title: String(localized: "Finished"), items: finished),
+            WatchShelf(id: "watching", title: String(localized: "Still Watching"), items: watching),
+            WatchShelf(id: "unwatched", title: String(localized: "Not Started"), items: unwatched)
+        ]
+        .filter { !$0.items.isEmpty }
+    }
+
+    private func shelfHeader(_ shelf: WatchShelf) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(shelf.title).font(.title3.bold())
+            Text("\(shelf.items.count)")
+                .font(.callout.monospacedDigit())
+                .foregroundStyle(.secondary)
+            Spacer()
+        }
+        .padding(.top, 10)
+        .padding(.bottom, 2)
     }
 
     /// Alphabetical, with Latin and numeric titles ahead of the rest.
@@ -209,6 +263,7 @@ struct LibraryView: View {
                 item: item,
                 title: model.metadataByAnimeID[item.anime.id]?.title,
                 score: sortOrder == .score ? averageScore(item) : nil,
+                showsWatchedCount: sortOrder == .watchStatus,
                 posterURLs: model.posterCandidates(for: item.anime.id),
                 downloadProgress: downloadProgress(for: item.anime.id),
                 subscriptionState: subscriptionState(for: item.anime.id)
@@ -231,8 +286,20 @@ struct LibraryView: View {
             } else {
                 ScrollView {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 170), spacing: 18)], spacing: 24) {
+                        // Downloads sit above the shelves rather than inside
+                        // one: a work still arriving has no watch state yet.
                         ForEach(incoming) { work in incomingCard(work) }
-                        ForEach(filtered) { item in libraryCard(item) }
+                        if sortOrder == .watchStatus {
+                            ForEach(watchShelves) { shelf in
+                                Section {
+                                    ForEach(shelf.items) { item in libraryCard(item) }
+                                } header: {
+                                    shelfHeader(shelf)
+                                }
+                            }
+                        } else {
+                            ForEach(filtered) { item in libraryCard(item) }
+                        }
                     }
                     .padding(24)
                 }
@@ -251,7 +318,7 @@ struct LibraryView: View {
                     }
                 }
                 .pickerStyle(.menu)
-                .help("Order the grid by name, by when it was added, or by the average of the ratings its sources gave it")
+                .help("Order the grid by name, by when it was added, by the average of the ratings its sources gave it, or split it into finished, still watching and not started")
             }
         }
         .searchable(text: $searchText, placement: .toolbar, prompt: "Search library")
@@ -270,6 +337,9 @@ private struct AnimeCard: View {
     /// Shown while the grid is ordered by rating, so the order is legible
     /// rather than something to take on trust.
     var score: Double?
+    /// Same idea for the watch-status shelves: how far through the work is is
+    /// what put it on the shelf it is on.
+    var showsWatchedCount = false
     let posterURLs: [URL]
     /// Non-nil while an episode of this title is downloading.
     var downloadProgress: Double?
@@ -297,7 +367,11 @@ private struct AnimeCard: View {
                 .font(.headline)
                 .lineLimit(2)
             HStack(spacing: 6) {
-                Text("\(item.episodeCount) episodes")
+                if showsWatchedCount {
+                    Text("\(item.watchedCount) of \(item.episodeCount) watched")
+                } else {
+                    Text("\(item.episodeCount) episodes")
+                }
                 if let score {
                     Label(String(format: "%.1f", score), systemImage: "star.fill")
                         .foregroundStyle(.orange)
