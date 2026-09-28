@@ -883,16 +883,63 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func saveProgress(episodeID: UUID, position: Double, duration: Double) async {        guard duration > 0, let database else { return }
-        // Mark watched only near the real end, never merely because playback started.
-        let isWatched = duration >= 2 * 60 && position / duration >= 0.90
+    /// Whether this work is watched as a film or as a series, which is all
+    /// that decides how close to the end counts as seen.
+    ///
+    /// A provider that reported a type is believed over the file count: a
+    /// season one episode into its run has exactly one main episode on disk,
+    /// and giving it a film's ten-minute tail would mark the premiere watched
+    /// most of the way through.
+    func watchedKind(forAnimeID animeID: UUID) -> WatchedWorkKind {
+        let entry = library.first { $0.id == animeID }
+        let reported = (metadataSourcesByAnimeID[animeID] ?? [])
+            .compactMap(\.kind)
+            .first { $0 != .unknown }
+            ?? entry?.anime.kind
+        return WatchedWorkKind.classify(reportedKind: reported, mainEpisodeCount: entry?.episodeCount)
+    }
+
+    /// Records where playback got to.
+    ///
+    /// Pass `isWatched` when the player already knows — it watches the tail go
+    /// by and the viewer may have said something about it — and leave it nil
+    /// to let the tail rule decide. Either way the flag only rises, unless
+    /// `overridesWatched` says the viewer asked for it to come down.
+    func saveProgress(
+        for episode: EpisodeMedia,
+        position: Double,
+        duration: Double,
+        isWatched: Bool? = nil,
+        overridesWatched: Bool = false
+    ) async {
+        guard duration > 0, let database else { return }
+        let watched = isWatched ?? WatchedWorkKind.isWatched(
+            position: position,
+            duration: duration,
+            kind: watchedKind(forAnimeID: episode.episode.animeID)
+        )
         do {
-            try await database.save(progress: .init(
-                episodeID: episodeID,
-                position: position,
-                duration: duration,
-                isWatched: isWatched
-            ))
+            try await database.save(
+                progress: .init(
+                    episodeID: episode.id,
+                    position: position,
+                    duration: duration,
+                    isWatched: watched
+                ),
+                overridesWatched: overridesWatched
+            )
+            await reloadLibrary()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    /// The player's own mark and the episode list's context menu: seen or not
+    /// seen because the viewer says so, whatever the position is.
+    func setWatched(_ isWatched: Bool, for episode: EpisodeMedia) async {
+        guard let database else { return }
+        do {
+            try await database.setWatched(episodeID: episode.id, isWatched: isWatched)
             await reloadLibrary()
         } catch {
             errorMessage = error.localizedDescription
@@ -949,20 +996,22 @@ final class AppModel: ObservableObject {
         _ = await saveProfile(first)
     }
 
-    func finishPlaybackSession(
-        episode: EpisodeMedia,
-        startedAt: Date,
-        watchedDuration: Double,
-        position: Double,
-        duration: Double
-    ) async {
+    func finishPlaybackSession(_ session: PlaybackSessionResult) async {
+        let episode = session.episode
+        let duration = session.duration
         guard duration > 0, let database else { return }
-        let completion = min(max(position / duration, 0), 1)
-        let completed = duration >= 2 * 60 && completion >= 0.90
+        let completion = min(max(session.position / duration, 0), 1)
         // Closing playback at ≥90% retires the transparent auto cache for
-        // this episode; manual copies always stay until removed by hand.
+        // this episode; manual copies always stay until removed by hand. That
+        // threshold is disk housekeeping and deliberately not the watch rule.
         episodeCache.handlePlaybackFinished(episode: episode, completion: completion)
-        await saveProgress(episodeID: episode.id, position: position, duration: duration)
+        await saveProgress(
+            for: episode,
+            position: session.position,
+            duration: duration,
+            isWatched: session.isWatched,
+            overridesWatched: session.overridesWatched
+        )
         let animeTitle = metadataByAnimeID[episode.episode.animeID]?.title
             ?? library.first(where: { $0.id == episode.episode.animeID })?.anime.title
             ?? String(localized: "Unknown Anime")
@@ -972,10 +1021,10 @@ final class AppModel: ObservableObject {
                 episodeID: episode.id,
                 animeTitle: animeTitle,
                 episodeLabel: Self.episodeLabel(episode.episode),
-                startedAt: startedAt,
-                watchedDuration: watchedDuration,
+                startedAt: session.startedAt,
+                watchedDuration: session.watchedDuration,
                 completion: completion,
-                completedEpisode: completed
+                completedEpisode: session.isWatched
             ))
             await reloadPersonalLibrary()
         } catch {
@@ -1143,6 +1192,22 @@ struct PlayerRequest: Identifiable {
     var directPlayback: DirectPlayback?
 
     var episode: EpisodeMedia { episodes[startIndex] }
+}
+
+/// What the player hands back when an episode stops playing — because the
+/// window closed, or because another episode took its place.
+struct PlaybackSessionResult {
+    let episode: EpisodeMedia
+    let startedAt: Date
+    let watchedDuration: Double
+    let position: Double
+    let duration: Double
+    /// Whether it counts as seen. The player decides this itself: it watches
+    /// the tail go past, and it is where the viewer's own mark lands.
+    let isWatched: Bool
+    /// The viewer marked it unwatched by hand, so this write is allowed to
+    /// lower the flag.
+    let overridesWatched: Bool
 }
 
 /// A plausible-but-ambiguous metadata match waiting for the user's decision.

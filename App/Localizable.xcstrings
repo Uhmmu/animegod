@@ -6470,6 +6470,70 @@
         }
       }
     },
+    "Mark as Unwatched" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未視聴にする"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "标记为未看完"
+          }
+        }
+      }
+    },
+    "Mark as Watched" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "視聴済みにする"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "标记为已看完"
+          }
+        }
+      }
+    },
+    "Marked as Unwatched" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未視聴にしました"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已标记为未看完"
+          }
+        }
+      }
+    },
+    "Marked as Watched" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "視聴済みにしました"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已标记为已看完"
+          }
+        }
+      }
+    },
     "Match" : {
       "localizations" : {
         "ja" : {
@@ -8830,6 +8894,22 @@
         }
       }
     },
+    "Play %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@を再生"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "播放%@"
+          }
+        }
+      }
+    },
     "Play (Space)" : {
       "localizations" : {
         "ja" : {
@@ -8842,6 +8922,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "播放（空格）"
+          }
+        }
+      }
+    },
+    "Play Again" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "もう一度再生"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新播放"
           }
         }
       }

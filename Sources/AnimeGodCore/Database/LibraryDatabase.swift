@@ -368,7 +368,18 @@ public actor LibraryDatabase {
         return order.compactMap { merged[$0] }
     }
 
-    public func save(progress: PlaybackProgress) throws {
+    /// Records where playback got to.
+    ///
+    /// `isWatched` only ever rises here: an episode already seen must stay
+    /// seen when it is opened again and the scrubber is dragged about, which
+    /// is exactly what the plain overwrite this used to do got wrong — the
+    /// autosave runs every ten seconds, so one visit to a finished episode
+    /// un-finished it.
+    ///
+    /// `overridesWatched` is how the viewer says otherwise: it is set only by
+    /// "Mark as Unwatched" and its counterpart, and it is the one write that
+    /// may lower the flag.
+    public func save(progress: PlaybackProgress, overridesWatched: Bool = false) throws {
         try database.write { db in
             try db.execute(sql: """
                 INSERT INTO playbackProgress (episodeID, position, duration, updatedAt, isWatched)
@@ -377,8 +388,33 @@ public actor LibraryDatabase {
                     position = excluded.position,
                     duration = excluded.duration,
                     updatedAt = excluded.updatedAt,
+                    isWatched = CASE WHEN ? THEN excluded.isWatched
+                                     ELSE MAX(playbackProgress.isWatched, excluded.isWatched) END
+                """, arguments: [
+                    progress.episodeID.uuidString,
+                    progress.position,
+                    progress.duration,
+                    progress.updatedAt,
+                    progress.isWatched,
+                    overridesWatched
+                ])
+        }
+    }
+
+    /// Says outright whether an episode has been seen, whatever its position
+    /// is — the player's own mark and the episode list's context menu.
+    ///
+    /// The position is left exactly as it was: marking the finale unwatched
+    /// because you only wanted the ED must not also throw away where you are.
+    public func setWatched(episodeID: UUID, isWatched: Bool) throws {
+        try database.write { db in
+            try db.execute(sql: """
+                INSERT INTO playbackProgress (episodeID, position, duration, updatedAt, isWatched)
+                VALUES (?, 0, 0, ?, ?)
+                ON CONFLICT(episodeID) DO UPDATE SET
+                    updatedAt = excluded.updatedAt,
                     isWatched = excluded.isWatched
-                """, arguments: [progress.episodeID.uuidString, progress.position, progress.duration, progress.updatedAt, progress.isWatched])
+                """, arguments: [episodeID.uuidString, Date.now, isWatched])
         }
     }
 

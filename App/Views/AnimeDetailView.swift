@@ -172,10 +172,10 @@ struct AnimeDetailView: View {
                     .frame(maxWidth: 580, alignment: .leading)
                 }
 
-                if let first = episodes.first {
+                if let target = continueTarget {
                     HStack(spacing: 12) {
-                        Button { Task { await model.play(first) } } label: {
-                            Label(first.progress == nil ? "Play First Episode" : "Resume Watching", systemImage: "play.fill")
+                        Button { Task { await model.play(target.episode) } } label: {
+                            Label(continueLabel(target), systemImage: "play.fill")
                         }
                         .buttonStyle(.borderedProminent)
                         .controlSize(.large)
@@ -199,6 +199,40 @@ struct AnimeDetailView: View {
                 .foregroundStyle(.secondary)
             }
         }
+    }
+
+    /// The main episodes, in the order the list shows them. Specials and
+    /// creditless clips sit inside the work but are not what "continue" means;
+    /// a work made of nothing else falls back to whatever it has.
+    private var mainEpisodes: [EpisodeMedia] {
+        let main = episodes.filter { $0.episode.kind.category == .main }
+        return main.isEmpty ? episodes : main
+    }
+
+    /// Where the big button goes.
+    ///
+    /// This used to be `episodes.first` unconditionally, which is why it
+    /// always played episode one however much of the season had been watched —
+    /// only its *title* changed. It is the first episode not yet seen; the
+    /// breakpoint inside it comes from the episode's own saved position, which
+    /// the player already restores.
+    private var continueTarget: (episode: EpisodeMedia, isResume: Bool)? {
+        let ordered = mainEpisodes
+        guard let first = ordered.first else { return nil }
+        guard let next = ordered.first(where: { $0.progress?.isWatched != true }) else {
+            // Everything seen: offer it from the top rather than nothing.
+            return (first, false)
+        }
+        return (next, (next.progress?.position ?? 0) > 0)
+    }
+
+    private func continueLabel(_ target: (episode: EpisodeMedia, isResume: Bool)) -> String {
+        if mainEpisodes.allSatisfy({ $0.progress?.isWatched == true }) {
+            return String(localized: "Play Again")
+        }
+        if target.isResume { return String(localized: "Resume Watching") }
+        if target.episode.id == mainEpisodes.first?.id { return String(localized: "Play First Episode") }
+        return String(localized: "Play \(episodeLabel(target.episode.episode))")
     }
 
     /// What following this title means right now: when the next episode is
@@ -437,6 +471,18 @@ struct AnimeDetailView: View {
                     // Sibling (not nested) so both controls stay clickable.
                     EpisodeCacheControl(item: item)
                         .padding(.trailing, 10)
+                }
+                // Watched is sticky by design, so there has to be a way to fix
+                // it from outside the player — otherwise an episode marked by
+                // accident stays marked and the shelves it sorts into lie.
+                .contextMenu {
+                    let watched = item.progress?.isWatched == true
+                    Button(watched ? "Mark as Unwatched" : "Mark as Watched") {
+                        Task {
+                            await model.setWatched(!watched, for: item)
+                            episodes = await model.episodes(for: anime)
+                        }
+                    }
                 }
                 Divider().padding(.leading, 50)
             }

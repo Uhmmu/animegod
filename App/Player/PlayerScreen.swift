@@ -76,6 +76,17 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
     /// cache); the controller must not receive a file to load then.
     private(set) var playbackAvailable = true
     @Published private(set) var currentEpisode: EpisodeMedia
+    /// Whether the episode on screen counts as seen. Tracked here rather than
+    /// read off `currentEpisode.progress`, which is a snapshot taken when the
+    /// window opened and never hears about the tail going past.
+    @Published private(set) var isWatched: Bool
+    /// How close to the end counts as watched for this work. The screen sets
+    /// it from the library's classification; a series' tail until then.
+    var watchedTail: Double = WatchedWorkKind.series.completionTail
+    /// The viewer said "not watched" by hand. The tail rule must then stay out
+    /// of it for the rest of the session: the autosave runs every ten seconds,
+    /// and someone who only wanted the ED is sitting inside the tail.
+    private(set) var keepsUnwatched = false
     @Published private(set) var colorProfile: VideoColorProfile?
     @Published private(set) var hdrOutputActive = false
     @Published private(set) var forcedSDR = false
@@ -123,6 +134,7 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
         directPlayback = request.directPlayback
         let episode = request.episode
         currentEpisode = episode
+        isWatched = episode.progress?.isWatched ?? false
         let startPosition = Self.startPosition(for: episode)
         position = startPosition
         livePosition = startPosition
@@ -235,17 +247,15 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
     /// another episode inside the same player window. When the finished episode
     /// produced a meaningful session, its data is returned so the screen can
     /// persist it; the new file is already loading by then.
-    func switchEpisode(to index: Int) -> (oldEpisode: EpisodeMedia, startedAt: Date, watchedDuration: Double, position: Double, duration: Double)? {
+    func switchEpisode(to index: Int) -> PlaybackSessionResult? {
         guard episodes.indices.contains(index), index != currentIndex else { return nil }
         guard let resolved = resolvePlayback(file: episodes[index].mediaFile) else { return nil }
-        let oldEpisode = currentEpisode
         let finished = takeSession()
         access?.stop()
         access = resolved.access
         load(url: resolved.url, episode: episodes[index], index: index)
         startAutoCacheIfNeeded(for: episodes[index].mediaFile, playedFromCache: resolved.playedFromCache)
-        guard let finished else { return nil }
-        return (oldEpisode, finished.startedAt, finished.watchedDuration, finished.position, finished.duration)
+        return finished
     }
 
     private func load(url: URL, episode: EpisodeMedia, index: Int) {
@@ -255,6 +265,8 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
         mediaURL = url
         currentEpisode = episode
         currentIndex = index
+        isWatched = episode.progress?.isWatched ?? false
+        keepsUnwatched = false
         setPosition(Self.startPosition(for: episode))
         duration = episode.progress?.duration ?? 0
         watchedDuration = 0
@@ -485,6 +497,17 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
             }
             lastPosition = position
             livePosition = position
+            // Crossing the tail is what makes an episode "seen", and it has to
+            // register here rather than at the end of the session: someone who
+            // stops during the ED has finished it just as much as someone who
+            // sits through the file. It can only ever go true, and only once.
+            // `duration` here is this callback's own parameter, which is nil
+            // on a position-only sample; the property holds the last one mpv
+            // reported.
+            if !isWatched, !keepsUnwatched,
+               WatchedWorkKind.isWatched(position: position, duration: duration ?? self.duration, tail: watchedTail) {
+                isWatched = true
+            }
             // mpv reports `time-pos` on every rendered frame. The danmaku
             // clock above wants all of them, SwiftUI wants none of them:
             // republishing at frame rate re-evaluates the whole player view
@@ -530,19 +553,39 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
 
     /// Returns the finished session for the episode that just stopped, clearing
     /// per-episode bookkeeping so the next episode starts from a clean slate.
-    func takeSession() -> (startedAt: Date, watchedDuration: Double, position: Double, duration: Double)? {
-        let result = (startedAt, watchedDuration, livePosition, duration)
+    func takeSession() -> PlaybackSessionResult? {
+        let result = session()
         watchedDuration = 0
         lastPosition = nil
         didEndSession = true
         return result
     }
 
-    func endSession() -> (startedAt: Date, watchedDuration: Double, position: Double, duration: Double)? {
+    func endSession() -> PlaybackSessionResult? {
         screenAwake.setPlaying(false)
         guard !didEndSession else { return nil }
         didEndSession = true
-        return (startedAt, watchedDuration, livePosition, duration)
+        return session()
+    }
+
+    private func session() -> PlaybackSessionResult {
+        PlaybackSessionResult(
+            episode: currentEpisode,
+            startedAt: startedAt,
+            watchedDuration: watchedDuration,
+            position: livePosition,
+            duration: duration,
+            isWatched: isWatched,
+            overridesWatched: keepsUnwatched
+        )
+    }
+
+    /// The viewer's own answer, from the header button. It beats the tail rule
+    /// both ways, and saying "not watched" keeps the rule out for the rest of
+    /// this session.
+    func setWatched(_ value: Bool) {
+        isWatched = value
+        keepsUnwatched = !value
     }
 
     func playerDidUpdateTracks(audio: [MediaTrack], subtitles: [MediaTrack], audioID: Int64?, subtitleID: Int64?) {
@@ -914,6 +957,12 @@ struct PlayerScreen: View {
         )
     }
 
+    /// How close to the end counts as watched for the work being played: five
+    /// minutes into a series' credits, ten into a film's.
+    private var watchedTail: Double {
+        model.watchedKind(forAnimeID: state.currentEpisode.episode.animeID).completionTail
+    }
+
     private var episodeLabel: String {
         let episode = state.currentEpisode.episode
         return switch episode.kind {
@@ -1084,6 +1133,7 @@ struct PlayerScreen: View {
         }
         .onAppear {
             state.onFileFinished = { Task { await advanceAfterFinish() } }
+            state.watchedTail = watchedTail
             state.startObservingDisplay()
             state.updateDanmakuSearchContext(titleCandidates: danmakuTitleCandidates)
             state.danmaku.attach(preferences: model.danmakuPreferences)
@@ -1114,15 +1164,7 @@ struct PlayerScreen: View {
             guard let session = state.endSession() else { return }
             // A file outside the library has no episode to write history for.
             guard !state.isDirectPlayback else { return }
-            Task {
-                await model.finishPlaybackSession(
-                    episode: state.currentEpisode,
-                    startedAt: session.startedAt,
-                    watchedDuration: session.watchedDuration,
-                    position: session.position,
-                    duration: session.duration
-                )
-            }
+            Task { await model.finishPlaybackSession(session) }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { notification in
             guard notification.object as? NSWindow === state.controller?.view.window else { return }
@@ -1147,6 +1189,7 @@ struct PlayerScreen: View {
             }
         }
         .onChange(of: state.currentEpisode.id) { _, _ in
+            state.watchedTail = watchedTail
             state.updateDanmakuSearchContext(titleCandidates: danmakuTitleCandidates)
             state.subtitles.updateWorkContext(subtitleWorkContext)
         }
@@ -1159,7 +1202,13 @@ struct PlayerScreen: View {
                 guard !Task.isCancelled else { break }
                 // A direct file has no episode row to attach progress to.
                 guard !state.isDirectPlayback else { continue }
-                await model.saveProgress(episodeID: state.currentEpisode.id, position: state.position, duration: state.duration)
+                await model.saveProgress(
+                    for: state.currentEpisode,
+                    position: state.position,
+                    duration: state.duration,
+                    isWatched: state.isWatched,
+                    overridesWatched: state.keepsUnwatched
+                )
             }
         }
         .task {
@@ -1201,6 +1250,18 @@ struct PlayerScreen: View {
                 }
             }
             Spacer()
+            // Sometimes the file is on only for the ED. The tail rule cannot
+            // tell that apart from watching it, so this is how you say so —
+            // and saying it also stops the rule marking it again a moment
+            // later. A file outside the library has nothing to mark.
+            if !state.isDirectPlayback {
+                Button { toggleWatched() } label: {
+                    Image(systemName: state.isWatched ? "checkmark.circle.fill" : "checkmark.circle")
+                        .contentTransition(.symbolEffect(.replace))
+                }
+                .help(state.isWatched ? "Mark as Unwatched" : "Mark as Watched")
+                .accessibilityLabel(state.isWatched ? "Mark as Unwatched" : "Mark as Watched")
+            }
         }
         .buttonStyle(PlayerIconButtonStyle())
         .menuStyle(PlayerMenuStyle())
@@ -1303,6 +1364,17 @@ struct PlayerScreen: View {
         .padding(.top, 36)
         .padding(.bottom, 10)
         .background(PlayerChrome.scrim(from: .bottom).allowsHitTesting(false))
+    }
+
+    private func toggleWatched() {
+        let value = !state.isWatched
+        state.setWatched(value)
+        Task { await model.setWatched(value, for: state.currentEpisode) }
+        osd.show(
+            value ? "checkmark.circle.fill" : "circle",
+            value ? String(localized: "Marked as Watched") : String(localized: "Marked as Unwatched")
+        )
+        revealControls()
     }
 
     /// Play/pause from the keyboard or the bar, with the center flash.
@@ -1820,13 +1892,7 @@ struct PlayerScreen: View {
         isSwitching = true
         defer { isSwitching = false }
         if let finished = state.switchEpisode(to: index) {
-            await model.finishPlaybackSession(
-                episode: finished.oldEpisode,
-                startedAt: finished.startedAt,
-                watchedDuration: finished.watchedDuration,
-                position: finished.position,
-                duration: finished.duration
-            )
+            await model.finishPlaybackSession(finished)
         }
         revealControls()
     }
