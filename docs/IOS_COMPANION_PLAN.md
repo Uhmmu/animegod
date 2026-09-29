@@ -5,7 +5,6 @@ danmaku render on the phone, downloaded episodes play with no network at all,
 the More tab is built, and every known address is raced so Tailscale works
 across networks. Deliberately not built: TLS (no Apple API for self-signed
 certs; see Phase 6) and transcode (no measurement says it is needed).
-Still open: downloaded subtitles.
 Written 2026-09-29.
 
 The phone app is called AnimeGod too. It is not a second library and not a
@@ -601,6 +600,13 @@ position.
 
 ### Phase 5 — parity — **danmaku and offline done 2026-09-29**
 
+- **Subtitles.** Embedded tracks always played; what was missing is the
+  sidecars the Mac fetched from assrt, SubDL, OpenSubtitles and Jimaku. The
+  phone inherits the matching, scoring, ZIP and GBK/Big5 handling rather than
+  repeating any of it — what arrives is text and a path. Both kinds share one
+  menu, the Mac's active one loads by itself, and offline downloads take their
+  subtitles with them. Fonts an archive shipped with stay on the Mac, so ASS
+  typesetting falls back to system fonts rather than failing.
 - **Danmaku.** The Mac resolves the pool and the phone asks for it, so the
   phone holds no credentials, implements no WBI signing and cannot bind to a
   different episode than the Mac. `DanmakuTextRasterizer` moved into the core
@@ -610,6 +616,13 @@ position.
   origin — and the origin is the one that matters: UIKit's layer is already
   top-left, so the macOS `bounds.height - y - lineHeight` conversion is
   **deleted**, not ported.
+- **Portrait exposed a second sizing fault.** The danmaku overlay was
+  full-screen, so in portrait the font scaled off the *screen* height rather
+  than the picture's — 44pt over a 226pt-tall letterboxed video — and comments
+  scrolled across the black bars. The overlay is sized to the video rectangle
+  now, which is also where danmaku belong. Landscape hid it because there the
+  two are the same, which is the second time in this port that a dimension was
+  read off the wrong thing.
 - **Font size does not transfer either.** The Mac's `height × 0.026` gives
   ~29pt in a 1100pt window and 13pt on a 402pt-tall landscape phone, which
   reads as mush and was reported as "low resolution". Measured under
