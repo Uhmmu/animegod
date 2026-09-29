@@ -18,6 +18,10 @@ struct MobilePlayerScreen: View {
     @State private var conflict: LinkHandoffConflict?
     @State private var sendsBackToMac = false
     @State private var danmakuCanvas: MobileDanmakuCanvas?
+    /// When the screen was last tapped, so a hold that follows one can ask
+    /// for a higher rate than a hold on its own.
+    @State private var lastTapAt: Date = .distantPast
+    @State private var speedBeforeBoost: Double?
     @StateObject private var danmakuSettings = MobileDanmakuSettingsStore()
     @StateObject private var orientation = MobileOrientation()
     @State private var showsDanmakuPanel = false
@@ -114,7 +118,17 @@ struct MobilePlayerScreen: View {
         .persistentSystemOverlays(showsControls ? .automatic : .hidden)
         .preferredColorScheme(.dark)
         .contentShape(.rect)
-        .onTapGesture { toggleControls() }
+        .onTapGesture {
+            lastTapAt = .now
+            toggleControls()
+        }
+        // Press and hold to run fast, the way every video app on a phone now
+        // works. A tap immediately before the hold asks for more: the second
+        // gesture is deliberately harder to reach by accident than the first.
+        .onLongPressGesture(minimumDuration: 0.35) { } onPressingChanged: { isPressing in
+            isPressing ? beginBoost() : endBoost()
+        }
+        .overlay(alignment: .top) { boostBadge }
         .task {
             // Nothing else tells iOS a film is on: mpv renders into our own
             // layer, so the idle timer has to be held off by hand.
@@ -232,6 +246,44 @@ struct MobilePlayerScreen: View {
     }
 
     private var work: LinkWork { state.work }
+
+    /// The rate badge, so the hold is visibly doing something.
+    @ViewBuilder
+    private var boostBadge: some View {
+        if let rate = state.boostedSpeed {
+            Label(String(format: "%g×", rate), systemImage: "forward.fill")
+                .font(.footnote.weight(.semibold).monospacedDigit())
+                .foregroundStyle(.white)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 7)
+                .background(.ultraThinMaterial, in: .capsule)
+                .padding(.top, 20)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+        }
+    }
+
+    /// Hold for double speed; tap first, then hold, for triple.
+    ///
+    /// The tap window is short on purpose. It is long enough to be a
+    /// deliberate tap-then-hold and short enough that pausing with a tap and
+    /// then settling a thumb on the screen does not silently triple the rate.
+    private func beginBoost() {
+        guard state.boostedSpeed == nil, !state.paused else { return }
+        let rate = Date.now.timeIntervalSince(lastTapAt) < 0.6 ? 3.0 : 2.0
+        speedBeforeBoost = state.speed
+        state.boostedSpeed = rate
+        controller?.setSpeed(rate)
+        // One knock, so the hold is felt rather than only seen — the picture
+        // is what the eyes are on.
+        UIImpactFeedbackGenerator(style: rate > 2 ? .heavy : .medium).impactOccurred()
+    }
+
+    private func endBoost() {
+        guard let previous = speedBeforeBoost, state.boostedSpeed != nil else { return }
+        state.boostedSpeed = nil
+        speedBeforeBoost = nil
+        controller?.setSpeed(previous)
+    }
 
     private var controls: some View {
         VStack(spacing: 10) {

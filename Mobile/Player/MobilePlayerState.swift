@@ -20,6 +20,8 @@ final class MobilePlayerState: ObservableObject {
     @Published var subtitleDelay: Double = 0
     /// Subtitle size, as a multiple of the file's own.
     @Published var subtitleScale: Double = 1
+    /// The rate a press-and-hold is currently forcing, if any.
+    @Published var boostedSpeed: Double?
     @Published var isScrubbing = false
     @Published private(set) var isWatched = false
 
