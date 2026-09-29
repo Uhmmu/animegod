@@ -8,6 +8,7 @@ IINA × a library manager × Bangumi/AniList × your own anime diary — in one 
 
 [![Latest release](https://img.shields.io/github/v/release/Uhmmu/animegod?label=download&color=brightgreen)](https://github.com/Uhmmu/animegod/releases/latest)
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-000?logo=apple&logoColor=white)
+![iOS 17+](https://img.shields.io/badge/iOS-17%2B-000?logo=apple&logoColor=white)
 ![Universal](https://img.shields.io/badge/universal-Apple%20silicon%20%2B%20Intel-blue)
 ![Swift 6](https://img.shields.io/badge/Swift-6-F05138?logo=swift&logoColor=white)
 
@@ -31,12 +32,13 @@ Mac. Nothing is uploaded, nothing is renamed, nothing is moved.
 > The app is ad-hoc signed, not notarized. On first launch macOS may need you
 > to right-click it and choose **Open**.
 
-**Current release: 0.4.0** — subscribe to an unfinished season with one click
-and AnimeGod follows the same fansub, encode and folder as new episodes appear.
-Metadata now fills itself in after scans, AniList matching works across Chinese,
-Japanese and romaji titles, and the library can be ordered by name, recency or
-rating. The identity fixes in this release also keep a season together as one
-work even when release names use unusual brackets, aliases or Unicode spelling.
+**Current release: 0.5.0** — AnimeGod is now two apps. **An iPhone companion**
+mirrors the whole library over your own network and hands an episode back and
+forth with the Mac: tap continue on the phone and the Mac pauses at the exact
+second, records the session and closes its window. Danmaku, subtitles and
+offline downloads come with it. Watch state is also fixed — "Resume Watching"
+opens the episode you are actually on, and a finished episode can no longer
+un-finish itself.
 
 ## At a glance
 
@@ -50,6 +52,7 @@ work even when release names use unusual brackets, aliases or Unicode spelling.
 | 🧲 **Releases** | Ten anime indexes searched at once, whole seasons assembled per fansub |
 | ⬇️ **Downloads** | Built-in BitTorrent engine, a season per folder, play while downloading, auto-unpack |
 | 🔔 **Subscriptions** | One click on an airing season; every episode after it arrives by itself |
+| 📱 **iPhone** | A companion app that mirrors the library and hands episodes back and forth with the Mac |
 | 💾 **Episode cache** | Copies from an external drive so the show survives unplugging it |
 | 📔 **Your record** | Status, scores, rankings, an automatic diary, a yearly report |
 
@@ -59,6 +62,7 @@ work even when release names use unusual brackets, aliases or Unicode spelling.
 [Danmaku](#danmaku-弹幕) · [Online subtitles](#online-subtitles-在线字幕) ·
 [Find releases](#find-releases) · [Downloads](#downloads) ·
 [Subscriptions](#subscriptions) · [Episode cache](#episode-cache) ·
+[iPhone](#iphone) ·
 [Bangumi charts](#bangumi-charts) · [Your own record](#your-own-record) ·
 [Appearance & language](#appearance--language) ·
 [Development](#development) · [Data & privacy](#data--privacy)
@@ -387,6 +391,60 @@ For anime that lives on an external drive.
 - Copies live in `Application Support/AnimeGod/Episode Cache`, reconciled with
   the database at launch and after every rescan; orphans and crashed partials
   are cleaned up.
+
+</details>
+
+## iPhone
+
+**The same library, seen from somewhere else.** AnimeGod on iPhone is not a
+second copy of anything: the Mac keeps the files, the database, the metadata
+and the danmaku matches, and the phone is a window onto them over your own
+network.
+
+- **Every shelf the Mac has** — works, episodes, posters, scores, diary,
+  statistics, rankings, charts, downloads and subscriptions.
+- **Continue watching picks up at the second**, not at the last autosave.
+- **Hand an episode over and the Mac gets out of the way**: it pauses, writes
+  the session into your diary, and closes its window. One tap sends it back.
+- **Danmaku and subtitles arrive already resolved** — the Mac did the matching,
+  so the phone repeats none of it.
+- **Download an episode and the Mac can go to sleep.** Offline playback needs
+  no network at all.
+
+<details>
+<summary>More detail</summary>
+
+**Pairing.** On the Mac, **Settings → iPhone** → turn on serving → **Pair a
+Phone…** for a six-digit code. The phone finds the Mac by name and asks for
+the code. After that the Mac remembers, so a paired phone keeps working across
+launches.
+
+**Getting there.** Every route produces the same thing — an address that
+reaches your Mac — and they are all raced at once, first answer wins.
+
+| | |
+|---|---|
+| 📶 **Bonjour / same Wi-Fi** | Found by name; nothing to type |
+| 🔒 **Tailscale** | Anywhere in the world, over WireGuard |
+| ⌨️ **Typed address** | For networks that block discovery — student halls especially |
+
+Each kind of address is remembered separately, so pairing at home and then
+leaving does not erase the one that works from outside.
+
+**Security.** A bearer token on every request, and the token never appears in a
+URL or a log. The Mac serves only when you switch it on. Nothing is exposed to
+the internet: away from home, Tailscale carries it inside WireGuard.
+
+**Watching.** libmpv here too, so nothing is transcoded. Press and hold for
+double speed, tap-then-hold for triple. Rotation lock can stay on — when the
+phone is held one way and pinned another, a button offers to turn it. The
+**Style** panel sets how much of the picture danmaku may cover, their size,
+opacity, spacing, speed and density, and the subtitle delay and size beside
+them.
+
+**Building it.** The iPhone app is not on the App Store. Put your own
+`DEVELOPMENT_TEAM` into `project.yml` and build the `AnimeGodMobile` scheme; a
+personal team provisions a build for seven days.
 
 </details>
 
