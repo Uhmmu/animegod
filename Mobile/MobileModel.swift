@@ -146,6 +146,21 @@ final class MobileModel: ObservableObject {
         return data
     }
 
+    // MARK: - Playback
+
+    /// Where the phone streams an episode from, and the header that gets it in.
+    ///
+    /// The token goes in a header rather than the URL: a URL lands in logs and
+    /// history, and `-smokeLink` proves libmpv honours `http-header-fields`.
+    func playbackTarget(for episode: LinkEpisode) -> (url: URL, authorization: String)? {
+        guard let host = LinkCredentials.host,
+              let token = LinkCredentials.token,
+              let url = URL(string: "http://\(host)")?
+                  .appending(path: LinkProtocol.Route.mediaPrefix + episode.mediaFileID.uuidString)
+        else { return nil }
+        return (url, LinkProtocol.bearerPrefix + token)
+    }
+
     // MARK: - Writes
 
     func saveProgress(episodeID: UUID, position: Double, duration: Double) async {

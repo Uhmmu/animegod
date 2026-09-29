@@ -6,6 +6,7 @@ struct AnimeDetailScreen: View {
     let work: LinkWork
 
     @State private var detail: LinkAnimeDetail?
+    @State private var playing: LinkEpisode?
 
     private var episodes: [LinkEpisode] { detail?.episodes ?? [] }
 
@@ -27,6 +28,10 @@ struct AnimeDetailScreen: View {
         .task {
             detail = model.cachedDetail(for: work.id)
             detail = await model.detail(for: work.id)
+        }
+        .fullScreenCover(item: $playing) { episode in
+            MobilePlayerScreen(episode: episode, work: work, model: model)
+                .environmentObject(model)
         }
     }
 
@@ -94,6 +99,7 @@ struct AnimeDetailScreen: View {
     private func continueButton(_ target: (episode: LinkEpisode, isResume: Bool)) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Button {
+                playing = target.episode
             } label: {
                 Label(continueLabel(target), systemImage: "play.fill")
                     .frame(maxWidth: .infinity)
@@ -116,7 +122,7 @@ struct AnimeDetailScreen: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(category.displayName).font(.subheadline.weight(.semibold))
                     ForEach(items) { item in
-                        EpisodeRow(item: item)
+                        EpisodeRow(item: item) { playing = item }
                         if item.id != items.last?.id { Divider() }
                     }
                 }
@@ -128,6 +134,7 @@ struct AnimeDetailScreen: View {
 struct EpisodeRow: View {
     @EnvironmentObject private var model: MobileModel
     let item: LinkEpisode
+    var play: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
@@ -153,6 +160,7 @@ struct EpisodeRow: View {
         }
         .padding(.vertical, 2)
         .contentShape(.rect)
+        .onTapGesture(perform: play)
         .contextMenu {
             Button(item.isWatched ? "Mark as Unwatched" : "Mark as Watched") {
                 Task { await model.setWatched(!item.isWatched, episodeID: item.id) }

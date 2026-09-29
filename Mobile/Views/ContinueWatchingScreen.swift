@@ -4,6 +4,7 @@ import SwiftUI
 struct ContinueWatchingScreen: View {
     @EnvironmentObject private var model: MobileModel
     @State private var showingPairing = false
+    @State private var playing: LinkEpisode?
 
     var body: some View {
         NavigationStack {
@@ -18,7 +19,7 @@ struct ContinueWatchingScreen: View {
                     )
                 } else {
                     List(model.continueWatching) { item in
-                        ContinueRow(item: item)
+                        ContinueRow(item: item) { playing = item }
                     }
                     .listStyle(.plain)
                 }
@@ -26,6 +27,12 @@ struct ContinueWatchingScreen: View {
             .navigationTitle("Continue")
             .refreshable { await model.refresh() }
             .sheet(isPresented: $showingPairing) { PairingScreen() }
+            .fullScreenCover(item: $playing) { episode in
+                if let work = model.work(id: episode.animeID) {
+                    MobilePlayerScreen(episode: episode, work: work, model: model)
+                        .environmentObject(model)
+                }
+            }
         }
     }
 }
@@ -33,6 +40,7 @@ struct ContinueWatchingScreen: View {
 struct ContinueRow: View {
     @EnvironmentObject private var model: MobileModel
     let item: LinkEpisode
+    var play: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
@@ -52,8 +60,7 @@ struct ContinueRow: View {
 
             Spacer(minLength: 0)
 
-            Button {
-            } label: {
+            Button(action: play) {
                 Image(systemName: "play.fill")
                     .font(.footnote.weight(.bold))
                     .frame(width: 34, height: 34)

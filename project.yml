@@ -59,11 +59,8 @@ targets:
 
   # The iPhone companion. Design: docs/IOS_COMPANION_PLAN.md.
   #
-  # Deliberately does NOT depend on MPVKit yet: playback is Phase 3, and
-  # pulling the iOS xcframework slices in would cost a large download for a
-  # target that currently has no player. AnimeGodCore carries the models,
-  # LibraryDatabase and every query, which is the whole point of it having no
-  # AppKit imports.
+  # MPVKit (LGPL — never MPVKit-GPL) carries libmpv for iOS too, so the phone
+  # plays with the same engine as the Mac and nothing is transcoded.
   #
   # Signing is left empty so the simulator builds with no team. A real device
   # needs a development team filled in here.
@@ -74,6 +71,8 @@ targets:
       - path: Mobile
     dependencies:
       - package: AnimeGodCore
+      - package: MPVKit
+        product: MPVKit
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.uhmmu.AnimeGod
