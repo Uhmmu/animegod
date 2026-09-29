@@ -80,14 +80,17 @@ targets:
         MARKETING_VERSION: 0.1.0
         CURRENT_PROJECT_VERSION: 1
         SWIFT_STRICT_CONCURRENCY: complete
-        # Ad-hoc signed rather than unsigned. An unsigned app has no
-        # application-identifier entitlement, so every Keychain call fails
+        # Signed with the development team, so the app runs on a real device
+        # and the Keychain works. Unsigned, there is no
+        # application-identifier entitlement and every Keychain call fails
         # with errSecMissingEntitlement (-34018) — which is how the paired
-        # token silently vanished on the first run. A real device still needs
-        # a development team here.
-        CODE_SIGN_IDENTITY: "-"
-        CODE_SIGNING_REQUIRED: YES
-        CODE_SIGNING_ALLOWED: YES
+        # token silently vanished on the very first simulator run.
+        #
+        # This is a personal team, so a build is provisioned for seven days:
+        # after that the app refuses to launch until it is reinstalled.
+        DEVELOPMENT_TEAM: P25QK6239P
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: Apple Development
     info:
       path: Mobile/Info.plist
       properties:
