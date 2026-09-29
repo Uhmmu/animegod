@@ -1,7 +1,8 @@
 # AnimeGod for iPhone — Plan
 
-Status: **Phases 0–4 done** — the handoff works in both directions.
-Phase 5 (danmaku, subtitles, offline) is next.
+Status: **Phases 0–5 mostly done** — the handoff works both ways, danmaku
+render on the phone, and downloaded episodes play with no network at all.
+Still open in Phase 5: downloaded subtitles and the More tab's own screens.
 Written 2026-09-29.
 
 The phone app is called AnimeGod too. It is not a second library and not a
@@ -585,7 +586,32 @@ position.
   in both directions, and `WatchEvent` rows are still written for sessions
   that ended in a handoff.
 
-### Phase 5 — parity
+### Phase 5 — parity — **danmaku and offline done 2026-09-29**
+
+- **Danmaku.** The Mac resolves the pool and the phone asks for it, so the
+  phone holds no credentials, implements no WBI signing and cannot bind to a
+  different episode than the Mac. `DanmakuTextRasterizer` moved into the core
+  beside `DanmakuEngine` (pure CoreText + CoreGraphics once the `NSColor`
+  calls became `CGColor` and the attribute names came from CoreText). What is
+  written twice is the view lifecycle, the display link and the coordinate
+  origin — and the origin is the one that matters: UIKit's layer is already
+  top-left, so the macOS `bounds.height - y - lineHeight` conversion is
+  **deleted**, not ported.
+- **Font size does not transfer either.** The Mac's `height × 0.026` gives
+  ~29pt in a 1100pt window and 13pt on a 402pt-tall landscape phone, which
+  reads as mush and was reported as "low resolution". Measured under
+  `AG_DANMAKU_LOG=1`, the bitmap was a correct 3× and simply too small; the
+  phone uses `× 0.05` with a 16pt floor. **Guessing at a resolution bug first
+  cost a round trip** — the fix that mattered came from printing the metrics,
+  not from reasoning about Core Animation.
+- **Offline.** Background `URLSession` downloads into the container, excluded
+  from iCloud backup, pruned at launch when a file has gone. Verified with the
+  Mac's server killed: a 330 MB episode played from the container, with its
+  cached danmaku, while `/health` refused to answer. A downloaded episode
+  still attempts the claim — a reachable Mac must still stop — but falls back
+  to the cached row rather than blocking playback.
+
+### Phase 5 — parity (original)
 - Danmaku over `/danmaku` + the iOS `DanmakuCanvas` port.
 - Subtitles, the More tab, offline download-to-phone.
 
