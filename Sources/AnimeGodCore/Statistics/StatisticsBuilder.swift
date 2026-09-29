@@ -1,7 +1,7 @@
 import Foundation
 
 /// One anime's contribution to a year's statistics.
-public struct AnimeWatchTotal: Identifiable, Hashable, Sendable {
+public struct AnimeWatchTotal: Identifiable, Hashable, Sendable, Codable {
     public let animeID: UUID
     public let title: String
     public let watchTime: Double
@@ -18,7 +18,7 @@ public struct AnimeWatchTotal: Identifiable, Hashable, Sendable {
     }
 }
 
-public struct StudioWatchTotal: Identifiable, Hashable, Sendable {
+public struct StudioWatchTotal: Identifiable, Hashable, Sendable, Codable {
     public let studio: String
     public let watchTime: Double
     public var id: String { studio }
@@ -29,7 +29,7 @@ public struct StudioWatchTotal: Identifiable, Hashable, Sendable {
     }
 }
 
-public struct RatedAnimeEntry: Identifiable, Hashable, Sendable {
+public struct RatedAnimeEntry: Identifiable, Hashable, Sendable, Codable {
     public let animeID: UUID
     public let title: String
     public let score: Double
@@ -44,7 +44,7 @@ public struct RatedAnimeEntry: Identifiable, Hashable, Sendable {
 
 /// Answers the diary questions of spec §17 — what did I watch, when, how
 /// much, and from which studios — purely from watch history and caches.
-public struct StatisticsReport: Sendable {
+public struct StatisticsReport: Sendable, Codable {
     public let year: Int
     public let totalWatchTime: Double
     public let sessionCount: Int

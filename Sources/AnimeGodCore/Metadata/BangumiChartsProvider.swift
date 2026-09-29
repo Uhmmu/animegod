@@ -55,7 +55,7 @@ public struct BangumiChartFilter: Hashable, Identifiable, Sendable {
     }
 }
 
-public struct BangumiChartEntry: Hashable, Identifiable, Sendable {
+public struct BangumiChartEntry: Hashable, Identifiable, Sendable, Codable {
     public let subjectID: String
     /// The subject's site-wide rank; entries arrive sorted by it.
     public let rank: Int

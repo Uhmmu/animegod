@@ -311,6 +311,127 @@ public struct LinkDanmakuPool: Codable, Sendable {
     }
 }
 
+// MARK: - The More tab
+
+/// The diary: what was watched, and the totals under it.
+public struct LinkDiary: Codable, Sendable {
+    public let events: [WatchEvent]
+    public let summary: DiarySummary
+
+    public init(events: [WatchEvent], summary: DiarySummary) {
+        self.events = events
+        self.summary = summary
+    }
+}
+
+/// A work in the viewer's own ordering, with what the card needs to draw it.
+public struct LinkRankedWork: Codable, Sendable, Identifiable {
+    public let animeID: UUID
+    public let displayTitle: String
+    public let ranking: Int?
+    public let score: Double?
+    public let status: WatchStatus
+    public let isFavorite: Bool
+    public let review: String
+
+    public var id: UUID { animeID }
+
+    public init(
+        animeID: UUID, displayTitle: String, ranking: Int?, score: Double?,
+        status: WatchStatus, isFavorite: Bool, review: String
+    ) {
+        self.animeID = animeID
+        self.displayTitle = displayTitle
+        self.ranking = ranking
+        self.score = score
+        self.status = status
+        self.isFavorite = isFavorite
+        self.review = review
+    }
+}
+
+public struct LinkCharts: Codable, Sendable {
+    public let channel: String
+    public let page: Int
+    public let totalPages: Int
+    public let entries: [BangumiChartEntry]
+
+    public init(channel: String, page: Int, totalPages: Int, entries: [BangumiChartEntry]) {
+        self.channel = channel
+        self.page = page
+        self.totalPages = totalPages
+        self.entries = entries
+    }
+}
+
+/// A running download, flattened.
+///
+/// The phone is a remote control here, not a second engine: it gets what a row
+/// needs to draw and the three things it may ask for, not the torrent record.
+public struct LinkDownload: Codable, Sendable, Identifiable {
+    public let infoHash: String
+    public let title: String
+    public let animeTitle: String?
+    public let progress: Double
+    public let totalBytes: Int64
+    public let downloadRate: Int64
+    public let uploadRate: Int64
+    public let peers: Int
+    public let state: String
+    public let isPaused: Bool
+    public let isComplete: Bool
+    public let isAutomatic: Bool
+
+    public var id: String { infoHash }
+
+    public init(
+        infoHash: String, title: String, animeTitle: String?, progress: Double,
+        totalBytes: Int64, downloadRate: Int64, uploadRate: Int64, peers: Int,
+        state: String, isPaused: Bool, isComplete: Bool, isAutomatic: Bool
+    ) {
+        self.infoHash = infoHash
+        self.title = title
+        self.animeTitle = animeTitle
+        self.progress = progress
+        self.totalBytes = totalBytes
+        self.downloadRate = downloadRate
+        self.uploadRate = uploadRate
+        self.peers = peers
+        self.state = state
+        self.isPaused = isPaused
+        self.isComplete = isComplete
+        self.isAutomatic = isAutomatic
+    }
+}
+
+/// A standing rule, flattened the same way.
+public struct LinkSubscription: Codable, Sendable, Identifiable {
+    public let id: UUID
+    public let animeID: UUID?
+    public let title: String
+    public let summary: String
+    public let isEnabled: Bool
+    public let isSeasonComplete: Bool
+    public let nextEpisode: Double?
+    public let estimatedNextAt: Date?
+    public let waitingCount: Int
+
+    public init(
+        id: UUID, animeID: UUID?, title: String, summary: String, isEnabled: Bool,
+        isSeasonComplete: Bool, nextEpisode: Double?, estimatedNextAt: Date?, waitingCount: Int
+    ) {
+        self.id = id
+        self.animeID = animeID
+        self.title = title
+        self.summary = summary
+        self.isEnabled = isEnabled
+        self.isSeasonComplete = isSeasonComplete
+        self.nextEpisode = nextEpisode
+        self.estimatedNextAt = estimatedNextAt
+        self.waitingCount = waitingCount
+    }
+}
+
 public enum LinkCoding {
     public static let encoder: JSONEncoder = {
         let e = JSONEncoder()

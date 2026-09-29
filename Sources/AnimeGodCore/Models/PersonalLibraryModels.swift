@@ -102,7 +102,7 @@ public struct WatchEvent: Codable, Identifiable, Hashable, Sendable {
     }
 }
 
-public struct DiarySummary: Hashable, Sendable {
+public struct DiarySummary: Hashable, Sendable, Codable {
     public let totalWatchTime: Double
     public let sessionCount: Int
     public let completedEpisodeCount: Int

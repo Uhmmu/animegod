@@ -211,8 +211,40 @@ final class LinkServer: ObservableObject {
             return .response(.json(await LinkPayloads.library(model: model)))
         case LinkProtocol.Route.continueWatching:
             return .response(.json(await LinkPayloads.continueWatching(model: model)))
+        case LinkProtocol.Route.diary:
+            return .response(.json(await LinkMorePayloads.diary(model: model)))
+        case LinkProtocol.Route.rankings:
+            return .response(.json(await LinkMorePayloads.rankings(model: model)))
+        case LinkProtocol.Route.downloads where request.method == "GET":
+            return .response(.json(await LinkMorePayloads.downloads(model: model)))
+        case LinkProtocol.Route.subscriptions where request.method == "GET":
+            return .response(.json(await LinkMorePayloads.subscriptions(model: model)))
+        case LinkProtocol.Route.statistics:
+            let year = request.query["year"].flatMap(Int.init)
+            guard let report = await LinkMorePayloads.statistics(model: model, year: year) else {
+                return .response(.error(.unavailable, "Statistics are not ready.", status: 503))
+            }
+            return .response(.json(report))
+        case LinkProtocol.Route.charts:
+            return .response(await handleCharts(request, model: model))
         default:
             break
+        }
+
+        // Remote control: pause, resume, enable. Deliberately the only writes
+        // the phone may make to the engine — it has no torrent engine of its
+        // own and no business holding a rule.
+        if let hash = request.identifier(after: LinkProtocol.Route.downloads + "/"), request.method == "POST" {
+            return .response(await handleDownloadAction(infoHash: hash, path: request.path, model: model))
+        }
+        if let id = request.identifier(after: LinkProtocol.Route.subscriptions + "/"),
+           let uuid = UUID(uuidString: id), request.method == "POST" {
+            let enabled = (try? LinkCoding.decoder.decode([String: Bool].self, from: request.body))?["isEnabled"] ?? true
+            guard let rule = model.subscriptions.subscriptions.first(where: { $0.id == uuid }) else {
+                return .response(.error(.notFound, "No such subscription.", status: 404))
+            }
+            await model.subscriptions.setEnabled(enabled, for: rule)
+            return .response(LinkHTTPResponse(status: 204))
         }
 
         if let id = request.identifier(after: LinkProtocol.Route.animePrefix), let uuid = UUID(uuidString: id) {
@@ -282,6 +314,40 @@ final class LinkServer: ObservableObject {
         Self.saveDevices(pairedDevices)
         cancelPairing()
         return .json(LinkPairResponse(token: device.token, macName: Host.current().localizedName ?? "Mac"))
+    }
+
+    // MARK: - The More tab
+
+    private func handleCharts(_ request: LinkHTTPRequest, model: AppModel) async -> LinkHTTPResponse {
+        let channel = BangumiChartChannel(rawValue: request.query["channel"] ?? "anime") ?? .anime
+        let page = request.query["page"].flatMap(Int.init) ?? 1
+        do {
+            let result = try await BangumiChartsProvider().chart(channel: channel, page: page)
+            return .json(LinkCharts(
+                channel: channel.rawValue,
+                page: result.page,
+                totalPages: result.totalPages,
+                entries: result.entries
+            ))
+        } catch {
+            // Charts are the one screen that depends on a third party being
+            // up; the phone is told so rather than shown an empty list.
+            return .error(.unavailable, error.localizedDescription, status: 503)
+        }
+    }
+
+    private func handleDownloadAction(infoHash: String, path: String, model: AppModel) async -> LinkHTTPResponse {
+        guard let item = model.downloads.items.first(where: { $0.record.infoHash == infoHash.lowercased() }) else {
+            return .error(.notFound, "No such download.", status: 404)
+        }
+        if path.hasSuffix("/pause") {
+            model.downloads.pause(item)
+        } else if path.hasSuffix("/resume") {
+            model.downloads.resume(item)
+        } else {
+            return .error(.badRequest, "Unknown download action.", status: 400)
+        }
+        return LinkHTTPResponse(status: 204)
     }
 
     // MARK: - Handoff

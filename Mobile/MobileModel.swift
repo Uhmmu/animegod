@@ -186,6 +186,65 @@ final class MobileModel: ObservableObject {
         return pool
     }
 
+    // MARK: - The More tab
+
+    /// These screens are read on demand rather than kept in the main sync:
+    /// nobody opens the diary often, and statistics are expensive to build.
+    /// Each caches its last answer so the screen is not empty offline.
+    func diary() async -> LinkDiary? {
+        await fetch("diary", LinkDiary.self) { try await $0.diary() }
+    }
+
+    func rankings() async -> [LinkRankedWork]? {
+        await fetch("rankings", [LinkRankedWork].self) { try await $0.rankings() }
+    }
+
+    func statistics(year: Int?) async -> StatisticsReport? {
+        await fetch("statistics-\(year.map(String.init) ?? "current")", StatisticsReport.self) {
+            try await $0.statistics(year: year)
+        }
+    }
+
+    func downloads() async -> [LinkDownload]? {
+        guard let client else { return nil }
+        return try? await client.downloads()
+    }
+
+    func subscriptions() async -> [LinkSubscription]? {
+        guard let client else { return nil }
+        return try? await client.subscriptions()
+    }
+
+    /// Charts are never cached: they are somebody else's live data, and a
+    /// stale ranking is worse than an honest "could not reach".
+    func charts(channel: String, page: Int) async throws -> LinkCharts {
+        guard let client else {
+            throw LinkError(code: .unavailable, message: String(localized: "Not paired with a Mac."))
+        }
+        return try await client.charts(channel: channel, page: page)
+    }
+
+    func downloadAction(infoHash: String, _ action: String) async {
+        guard let client else { return }
+        try? await client.downloadAction(infoHash: infoHash, action)
+    }
+
+    func setSubscriptionEnabled(id: UUID, _ isEnabled: Bool) async {
+        guard let client else { return }
+        try? await client.setSubscriptionEnabled(id: id, isEnabled)
+    }
+
+    private func fetch<T: Codable & Sendable>(
+        _ name: String,
+        _ type: T.Type,
+        _ load: (LinkClient) async throws -> T
+    ) async -> T? {
+        guard let client else { return LinkCache.load(type, name) }
+        guard let value = try? await load(client) else { return LinkCache.load(type, name) }
+        LinkCache.save(value, name)
+        return value
+    }
+
     // MARK: - Handoff
 
     /// Takes an episode from the Mac: it pauses, writes where it got to, and

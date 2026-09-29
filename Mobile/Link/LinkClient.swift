@@ -48,6 +48,35 @@ actor LinkClient {
         try await get(LinkProtocol.Route.animePrefix + animeID.uuidString)
     }
 
+    // MARK: - The More tab
+
+    func diary() async throws -> LinkDiary { try await get(LinkProtocol.Route.diary) }
+    func rankings() async throws -> [LinkRankedWork] { try await get(LinkProtocol.Route.rankings) }
+    func downloads() async throws -> [LinkDownload] { try await get(LinkProtocol.Route.downloads) }
+    func subscriptions() async throws -> [LinkSubscription] { try await get(LinkProtocol.Route.subscriptions) }
+
+    func statistics(year: Int?) async throws -> StatisticsReport {
+        try await get(LinkProtocol.Route.statistics + (year.map { "?year=\($0)" } ?? ""))
+    }
+
+    func charts(channel: String, page: Int) async throws -> LinkCharts {
+        try await get(LinkProtocol.Route.charts + "?channel=\(channel)&page=\(page)")
+    }
+
+    func downloadAction(infoHash: String, _ action: String) async throws {
+        var request = authorized(LinkProtocol.Route.downloads + "/" + infoHash + "/" + action)
+        request.httpMethod = "POST"
+        _ = try await perform(request)
+    }
+
+    func setSubscriptionEnabled(id: UUID, _ isEnabled: Bool) async throws {
+        var request = authorized(LinkProtocol.Route.subscriptions + "/" + id.uuidString)
+        request.httpMethod = "POST"
+        request.httpBody = try LinkCoding.encoder.encode(["isEnabled": isEnabled])
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        _ = try await perform(request)
+    }
+
     func danmaku(mediaFileID: UUID) async throws -> LinkDanmakuPool {
         try await get(LinkProtocol.Route.danmakuPrefix + mediaFileID.uuidString)
     }
@@ -130,15 +159,25 @@ actor LinkClient {
     // MARK: - Plumbing
 
     private func authorized(_ path: String) -> URLRequest {
-        var request = URLRequest(url: base.appending(path: path))
+        var request = URLRequest(url: url(for: path))
         request.setValue("\(LinkProtocol.bearerPrefix)\(token)", forHTTPHeaderField: LinkProtocol.authorizationHeader)
         return request
     }
 
     private func get<T: Decodable>(_ path: String, authenticated: Bool = true) async throws -> T {
-        let request = authenticated ? authorized(path) : URLRequest(url: base.appending(path: path))
+        let request = authenticated ? authorized(path) : URLRequest(url: url(for: path))
         let data = try await perform(request)
         return try LinkCoding.decoder.decode(T.self, from: data)
+    }
+
+    /// `appending(path:)` percent-encodes `?` and `&`, which turns a query
+    /// string into part of the path. Anything carrying one is resolved against
+    /// the base URL instead.
+    private func url(for path: String) -> URL {
+        if path.contains("?"), let resolved = URL(string: path, relativeTo: base) {
+            return resolved
+        }
+        return base.appending(path: path)
     }
 
     private func raw(_ path: String) async throws -> Data {
