@@ -8,6 +8,7 @@ struct SettingsView: View {
     @ObservedObject var subtitles: SubtitlePreferences
     @ObservedObject var downloads: TorrentDownloadManager
     @ObservedObject var subscriptions: TorrentSubscriptionManager
+    @ObservedObject var link: LinkServer
     let database: LibraryDatabase?
     @State private var savedFeedback = false
     @State private var danmakuSavedFeedback = false
@@ -55,6 +56,7 @@ struct SettingsView: View {
                     }
                 }
             }
+            LinkSettingsSection(link: link)
             Section("Translation") {
                 Picker("Provider", selection: $translation.provider) {
                     ForEach(TranslationCoordinator.Provider.allCases) { provider in

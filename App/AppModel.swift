@@ -49,6 +49,10 @@ final class AppModel: ObservableObject {
     /// The sidebar's release search, kept alive so results survive switching
     /// sections.
     let releaseSearch: TorrentSearchModel
+    /// The HTTP server the iPhone app talks to. Off until Settings turns it
+    /// on: it binds every interface, so it should not be listening because the
+    /// app happens to be open.
+    let link = LinkServer()
     /// Read access for player-owned subsystems (danmaku cache/match).
     var libraryDatabase: LibraryDatabase? { database }
     private let metadataProviders: [MetadataProviderID: any MetadataProvider] = [
@@ -97,6 +101,11 @@ final class AppModel: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.objectWillChange.send() }
             .store(in: &cancellables)
+        link.objectWillChange
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &cancellables)
+        link.attach(model: self)
         // Plugging a drive back in (or pulling it) changes which episodes can
         // play from source, so the library reflects mount state immediately.
         for name in [NSWorkspace.didMountNotification, NSWorkspace.didUnmountNotification] {
@@ -928,6 +937,68 @@ final class AppModel: ObservableObject {
                 ),
                 overridesWatched: overridesWatched
             )
+            await reloadLibrary()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    // MARK: - The link
+
+    /// Where a media file actually is, together with the security scope that
+    /// makes it openable.
+    ///
+    /// A library file cannot be reached from its stored path alone: the
+    /// sandbox needs the scope granted for its root, which only the root's
+    /// bookmark can re-open. The caller keeps the returned access alive for as
+    /// long as it is reading and calls `stop()` when done.
+    func locateMedia(mediaFileID: UUID) async -> (url: URL, access: ScopedLibraryAccess, size: Int64)? {
+        guard let database, let file = try? await database.mediaFile(id: mediaFileID) else { return nil }
+        guard let root = roots.first(where: { $0.id == file.libraryRootID }),
+              let access = try? ScopedLibraryAccess(root: root)
+        else { return nil }
+        let url = access.url.appending(path: file.relativePath)
+        guard FileManager.default.isReadableFile(atPath: url.path) else {
+            access.stop()
+            return nil
+        }
+        let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Int64.init) ?? file.fileSize
+        return (url, access, size)
+    }
+
+    /// The link's progress write. Goes through the same path the player's
+    /// autosave does, so a phone write obeys the `MAX(old, new)` rule and the
+    /// tail rule identically — the phone must not be able to un-watch an
+    /// episode just by opening it.
+    func saveProgress(
+        forEpisodeID episodeID: UUID,
+        position: Double,
+        duration: Double,
+        isWatched: Bool?,
+        overridesWatched: Bool
+    ) async {
+        guard duration > 0, let database else { return }
+        guard let animeID = try? await database.animeID(forEpisodeID: episodeID) else { return }
+        let watched = isWatched ?? WatchedWorkKind.isWatched(
+            position: position,
+            duration: duration,
+            kind: watchedKind(forAnimeID: animeID)
+        )
+        do {
+            try await database.save(
+                progress: .init(episodeID: episodeID, position: position, duration: duration, isWatched: watched),
+                overridesWatched: overridesWatched
+            )
+            await reloadLibrary()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func setWatched(_ isWatched: Bool, forEpisodeID episodeID: UUID) async {
+        guard let database else { return }
+        do {
+            try await database.setWatched(episodeID: episodeID, isWatched: isWatched)
             await reloadLibrary()
         } catch {
             errorMessage = error.localizedDescription

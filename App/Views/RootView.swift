@@ -72,7 +72,7 @@ struct RootView: View {
                 case .episodeCache: EpisodeCacheView(cache: model.episodeCache)
                 case .downloads: DownloadsView(downloads: model.downloads)
                 case .subscriptions: SubscriptionsView(subscriptions: model.subscriptions, downloads: model.downloads)
-                case .settings: SettingsView(translation: model.translation, danmaku: model.danmakuPreferences, torrentSources: model.torrentSources, subtitles: model.subtitlePreferences, downloads: model.downloads, subscriptions: model.subscriptions, database: model.libraryDatabase)
+                case .settings: SettingsView(translation: model.translation, danmaku: model.danmakuPreferences, torrentSources: model.torrentSources, subtitles: model.subtitlePreferences, downloads: model.downloads, subscriptions: model.subscriptions, link: model.link, database: model.libraryDatabase)
                 case nil: ContentUnavailableView("Choose a section", systemImage: "sidebar.left")
                 }
             }
@@ -134,6 +134,21 @@ struct RootView: View {
                     selection = SidebarItem(rawValue: name)
                 }
             }
+        }
+        .task {
+            // Exercises the phone link end to end, headless:
+            //
+            //     AnimeGod -smokeLink
+            //
+            // Waits for the library because the interesting checks stream a
+            // real episode off a real library root.
+            guard LinkSmokeTest.isRequested else { return }
+            var waited = 0
+            while model.library.isEmpty && waited < 40 {
+                try? await Task.sleep(for: .milliseconds(500))
+                waited += 1
+            }
+            await LinkSmokeTest.run(model: model)
         }
         .task {
             // Fills in every metadata source the library is missing, headless:

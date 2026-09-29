@@ -1,0 +1,370 @@
+import AnimeGodCore
+import AppKit
+import Foundation
+import Network
+
+/// The Mac half of the link: an HTTP server the phone talks to.
+///
+/// Design: `docs/IOS_COMPANION_PLAN.md`. Written directly on `NWListener`
+/// rather than pulled in as a dependency — the surface is a dozen routes, and
+/// the one interesting part (byte ranges for the media stream) is exactly what
+/// a general-purpose server would bury.
+///
+/// Access control is a bearer token on **every** request, `/health` excepted
+/// and deliberately empty. The listener binds to every interface so the phone
+/// can reach it, so "the request arrived" says nothing about who sent it —
+/// including from localhost.
+@MainActor
+final class LinkServer: ObservableObject {
+    @Published private(set) var isRunning = false
+    @Published private(set) var lastError: String?
+    @Published private(set) var pairedDevices: [LinkPairedDevice] = []
+    /// Non-nil while a pairing code is live and typeable.
+    @Published private(set) var pairingCode: String?
+    @Published private(set) var pairingExpiresAt: Date?
+    /// Addresses this Mac can currently be reached on, for the Settings panel.
+    @Published private(set) var endpoints: [String] = []
+    @Published private(set) var lastSeenDeviceName: String?
+
+    private var listener: NWListener?
+    private var connections: [ObjectIdentifier: LinkConnection] = [:]
+    private var pairingAttempts = 0
+    private weak var model: AppModel?
+    private var activity: NSObjectProtocol?
+
+    private static let credentialService = "com.uhmmu.AnimeGod.link"
+    private static let devicesAccount = "pairedDevices"
+
+    var port: UInt16 = LinkProtocol.defaultPort
+
+    init() {
+        pairedDevices = Self.loadDevices()
+    }
+
+    func attach(model: AppModel) {
+        self.model = model
+    }
+
+    // MARK: - Lifecycle
+
+    func start() {
+        guard listener == nil else { return }
+        do {
+            let parameters = NWParameters.tcp
+            parameters.allowLocalEndpointReuse = true
+            // The phone finds the Mac by name on the LAN; every other
+            // transport in the ladder needs no advertisement.
+            let listener = try NWListener(using: parameters, on: NWEndpoint.Port(rawValue: port)!)
+            listener.service = NWListener.Service(name: Host.current().localizedName ?? "AnimeGod", type: LinkProtocol.bonjourType)
+            listener.stateUpdateHandler = { [weak self] state in
+                Task { @MainActor in self?.listenerDidChange(state) }
+            }
+            listener.newConnectionHandler = { [weak self] connection in
+                Task { @MainActor in self?.accept(connection) }
+            }
+            listener.start(queue: .global(qos: .userInitiated))
+            self.listener = listener
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    func stop() {
+        listener?.cancel()
+        listener = nil
+        for connection in connections.values { connection.close() }
+        connections.removeAll()
+        isRunning = false
+        endpoints = []
+        releaseActivity()
+    }
+
+    private func listenerDidChange(_ state: NWListener.State) {
+        switch state {
+        case .ready:
+            isRunning = true
+            lastError = nil
+            endpoints = Self.localAddresses(port: port)
+        case .failed(let error):
+            isRunning = false
+            lastError = error.localizedDescription
+            listener?.cancel()
+            listener = nil
+        case .cancelled:
+            isRunning = false
+        default:
+            break
+        }
+    }
+
+    private func accept(_ connection: NWConnection) {
+        let wrapper = LinkConnection(connection: connection) { [weak self] request in
+            guard let self else {
+                return .response(.error(.unavailable, "Server stopped.", status: 503))
+            }
+            return await self.route(request)
+        } onClose: { [weak self] id in
+            Task { @MainActor in self?.connections.removeValue(forKey: id) }
+        }
+        connections[ObjectIdentifier(wrapper)] = wrapper
+        wrapper.start()
+    }
+
+    // MARK: - Sleep
+
+    /// mpv on the phone is pulling bytes off this machine; nothing else tells
+    /// macOS that. Held only while a stream is actually running, the way
+    /// `PlaybackActivity` holds it only while playback runs.
+    func beginStreaming() {
+        guard activity == nil else { return }
+        activity = ProcessInfo.processInfo.beginActivity(
+            options: [.idleSystemSleepDisabled, .suddenTerminationDisabled],
+            reason: "Streaming to a paired device"
+        )
+    }
+
+    func releaseActivity() {
+        if let activity { ProcessInfo.processInfo.endActivity(activity) }
+        activity = nil
+    }
+
+    // MARK: - Pairing
+
+    func beginPairing() {
+        pairingCode = LinkAuth.makePairingCode()
+        pairingExpiresAt = Date.now.addingTimeInterval(LinkAuth.pairingLifetime)
+        pairingAttempts = 0
+    }
+
+    func cancelPairing() {
+        pairingCode = nil
+        pairingExpiresAt = nil
+        pairingAttempts = 0
+    }
+
+    func revoke(_ device: LinkPairedDevice) {
+        pairedDevices.removeAll { $0.id == device.id }
+        Self.saveDevices(pairedDevices)
+    }
+
+    private var isPairingOpen: Bool {
+        guard pairingCode != nil, let expiry = pairingExpiresAt else { return false }
+        return expiry > .now
+    }
+
+    private func device(forToken token: String) -> LinkPairedDevice? {
+        pairedDevices.first { LinkAuth.constantTimeEquals($0.token, token) }
+    }
+
+    private static func loadDevices() -> [LinkPairedDevice] {
+        guard let raw = CredentialStore.load(account: devicesAccount, service: credentialService),
+              let data = raw.data(using: .utf8),
+              let devices = try? JSONDecoder().decode([LinkPairedDevice].self, from: data)
+        else { return [] }
+        return devices
+    }
+
+    private static func saveDevices(_ devices: [LinkPairedDevice]) {
+        let data = (try? JSONEncoder().encode(devices)) ?? Data()
+        CredentialStore.save(String(data: data, encoding: .utf8) ?? "", account: devicesAccount, service: credentialService)
+    }
+
+    // MARK: - Routing
+
+    func route(_ request: LinkHTTPRequest) async -> LinkRouteResult {
+        // `/health` is the only unauthenticated route, and it exists so the
+        // resolver can race endpoints — so it must leak nothing beyond "an
+        // AnimeGod is here and this is its protocol version".
+        if request.path == LinkProtocol.Route.health {
+            let health = LinkHealth(
+                name: Host.current().localizedName ?? "Mac",
+                appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0",
+                isPairing: isPairingOpen
+            )
+            return .response(.json(health))
+        }
+
+        if request.path == LinkProtocol.Route.pair, request.method == "POST" {
+            return .response(handlePair(request))
+        }
+
+        guard let token = LinkAuth.bearerToken(from: request.header(LinkProtocol.authorizationHeader)),
+              var device = device(forToken: token)
+        else {
+            return .response(.error(.unauthorized, "Pair this device with AnimeGod on the Mac.", status: 401))
+        }
+        device.lastSeenAt = .now
+        if let index = pairedDevices.firstIndex(where: { $0.id == device.id }) {
+            pairedDevices[index] = device
+        }
+        lastSeenDeviceName = device.name
+
+        guard let model else {
+            return .response(.error(.unavailable, "The library is not open.", status: 503))
+        }
+
+        switch request.path {
+        case LinkProtocol.Route.library:
+            return .response(.json(await LinkPayloads.library(model: model)))
+        case LinkProtocol.Route.continueWatching:
+            return .response(.json(await LinkPayloads.continueWatching(model: model)))
+        default:
+            break
+        }
+
+        if let id = request.identifier(after: LinkProtocol.Route.animePrefix), let uuid = UUID(uuidString: id) {
+            guard let detail = await LinkPayloads.detail(animeID: uuid, model: model) else {
+                return .response(.error(.notFound, "No such work.", status: 404))
+            }
+            return .response(.json(detail))
+        }
+
+        if let id = request.identifier(after: LinkProtocol.Route.progressPrefix),
+           let uuid = UUID(uuidString: id), request.method == "PUT" {
+            return .response(await handleProgress(episodeID: uuid, body: request.body, model: model))
+        }
+
+        if let id = request.identifier(after: LinkProtocol.Route.episodesPrefix),
+           let uuid = UUID(uuidString: id), request.path.hasSuffix("/watched"), request.method == "POST" {
+            let watched = (try? LinkCoding.decoder.decode([String: Bool].self, from: request.body))?["isWatched"] ?? true
+            await model.setWatched(watched, forEpisodeID: uuid)
+            return .response(LinkHTTPResponse(status: 204))
+        }
+
+        if let id = request.identifier(after: LinkProtocol.Route.mediaPrefix), let uuid = UUID(uuidString: id) {
+            return await handleMedia(mediaFileID: uuid, range: request.rangeHeader, model: model)
+        }
+
+        if let id = request.identifier(after: LinkProtocol.Route.posterPrefix), let uuid = UUID(uuidString: id) {
+            return await handlePoster(animeID: uuid, model: model)
+        }
+
+        return .response(.error(.notFound, "No such route.", status: 404))
+    }
+
+    private func handlePair(_ request: LinkHTTPRequest) -> LinkHTTPResponse {
+        guard isPairingOpen, let code = pairingCode else {
+            return .error(.pairingClosed, "Open pairing in AnimeGod on the Mac first.", status: 403)
+        }
+        guard let body = try? LinkCoding.decoder.decode(LinkPairRequest.self, from: request.body) else {
+            return .error(.badRequest, "Malformed pairing request.", status: 400)
+        }
+        guard LinkAuth.constantTimeEquals(body.code, code) else {
+            pairingAttempts += 1
+            // Five guesses at a six-digit code is the whole budget; after that
+            // the code is burned rather than left to be ground down.
+            if pairingAttempts >= LinkAuth.pairingAttemptLimit { cancelPairing() }
+            return .error(.pairingRejected, "That code does not match.", status: 403)
+        }
+        let device = LinkPairedDevice(name: body.deviceName, token: LinkAuth.makeToken())
+        pairedDevices.append(device)
+        Self.saveDevices(pairedDevices)
+        cancelPairing()
+        return .json(LinkPairResponse(token: device.token, macName: Host.current().localizedName ?? "Mac"))
+    }
+
+    private func handleProgress(episodeID: UUID, body: Data, model: AppModel) async -> LinkHTTPResponse {
+        guard let update = try? LinkCoding.decoder.decode(LinkProgressUpdate.self, from: body) else {
+            return .error(.badRequest, "Malformed progress update.", status: 400)
+        }
+        // Goes through the same call the Mac player uses, so the `MAX(old,
+        // new)` rule and the tail rule apply identically to a phone write.
+        await model.saveProgress(
+            forEpisodeID: episodeID,
+            position: update.position,
+            duration: update.duration,
+            isWatched: update.isWatched,
+            overridesWatched: update.overridesWatched
+        )
+        return LinkHTTPResponse(status: 204)
+    }
+
+    private func handleMedia(mediaFileID: UUID, range: LinkByteRange?, model: AppModel) async -> LinkRouteResult {
+        guard let located = await model.locateMedia(mediaFileID: mediaFileID) else {
+            return .response(.error(.notFound, "That episode is not in an available library folder.", status: 404))
+        }
+        beginStreaming()
+        return .file(LinkFileBody(
+            url: located.url,
+            access: located.access,
+            size: located.size,
+            contentType: Self.contentType(for: located.url),
+            range: range
+        ))
+    }
+
+    /// Posters are proxied rather than linked: the phone never talks to
+    /// Bangumi's or AniList's CDN, which is one less thing to be slow or
+    /// blocked, and it reuses artwork this Mac has already fetched.
+    private func handlePoster(animeID: UUID, model: AppModel) async -> LinkRouteResult {
+        guard let url = model.posterCandidates(for: animeID).first else {
+            return .response(.error(.notFound, "No poster for this work.", status: 404))
+        }
+        do {
+            let (data, response) = try await URLSession.shared.data(from: url)
+            let type = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Type") ?? "image/jpeg"
+            return .response(LinkHTTPResponse(
+                status: 200,
+                headers: ["Content-Type": type, "Cache-Control": "max-age=604800"],
+                body: data
+            ))
+        } catch {
+            return .response(.error(.unavailable, "Could not fetch the poster.", status: 503))
+        }
+    }
+
+    private static func contentType(for url: URL) -> String {
+        switch url.pathExtension.lowercased() {
+        case "mkv": "video/x-matroska"
+        case "mp4", "m4v": "video/mp4"
+        case "avi": "video/x-msvideo"
+        case "mov": "video/quicktime"
+        case "ts": "video/mp2t"
+        case "webm": "video/webm"
+        case "iso": "application/octet-stream"
+        default: "application/octet-stream"
+        }
+    }
+
+    /// Every IPv4 address this Mac holds, so Settings can show what to type
+    /// on the phone when Bonjour is filtered.
+    private static func localAddresses(port: UInt16) -> [String] {
+        var results: [String] = []
+        var head: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&head) == 0, let first = head else { return [] }
+        defer { freeifaddrs(head) }
+        var pointer: UnsafeMutablePointer<ifaddrs>? = first
+        while let current = pointer {
+            defer { pointer = current.pointee.ifa_next }
+            guard let addr = current.pointee.ifa_addr, addr.pointee.sa_family == UInt8(AF_INET) else { continue }
+            let name = String(cString: current.pointee.ifa_name)
+            guard name != "lo0" else { continue }
+            var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+            guard getnameinfo(addr, socklen_t(addr.pointee.sa_len), &host, socklen_t(host.count), nil, 0, NI_NUMERICHOST) == 0
+            else { continue }
+            let text = String(cString: host)
+            guard !text.isEmpty else { continue }
+            results.append("\(text):\(port)")
+        }
+        return results
+    }
+}
+
+/// What a route produced: either a complete response, or a file to stream.
+enum LinkRouteResult: Sendable {
+    case response(LinkHTTPResponse)
+    case file(LinkFileBody)
+}
+
+/// A media file to send, with the security scope that lets it be opened.
+///
+/// The scope is carried rather than re-derived: a download's save path cannot
+/// be rebuilt from a stored path string, and the same is true of a library
+/// file — writing or reading through the bare path lands in the container.
+struct LinkFileBody: @unchecked Sendable {
+    let url: URL
+    let access: ScopedLibraryAccess?
+    let size: Int64
+    let contentType: String
+    let range: LinkByteRange?
+}

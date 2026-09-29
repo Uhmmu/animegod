@@ -351,6 +351,39 @@ public actor LibraryDatabase {
         }
     }
 
+    /// Which work an episode belongs to — the link knows an episode id and
+    /// needs the work to apply the right watched rule to it.
+    public func animeID(forEpisodeID episodeID: UUID) throws -> UUID? {
+        try database.read { db in
+            try String.fetchOne(db, sql: "SELECT animeID FROM episode WHERE id = ?", arguments: [episodeID.uuidString])
+                .flatMap(UUID.init(uuidString:))
+        }
+    }
+
+    /// One media file by id.
+    ///
+    /// The link serves bytes by media file rather than by episode: an episode
+    /// can have several encodes, and the phone has already been told which one
+    /// it is playing.
+    public func mediaFile(id: UUID) throws -> MediaFile? {
+        try database.read { db in
+            try Row.fetchOne(db, sql: """
+                SELECT id, libraryRootID, episodeID, relativePath, fileSize, modifiedAt, discoveredAt
+                FROM mediaFile WHERE id = ?
+                """, arguments: [id.uuidString]).map { row in
+                MediaFile(
+                    id: UUID(uuidString: row["id"]) ?? id,
+                    libraryRootID: UUID(uuidString: row["libraryRootID"]) ?? UUID(),
+                    episodeID: UUID(uuidString: row["episodeID"]) ?? UUID(),
+                    relativePath: row["relativePath"],
+                    fileSize: row["fileSize"],
+                    modifiedAt: row["modifiedAt"],
+                    discoveredAt: row["discoveredAt"]
+                )
+            }
+        }
+    }
+
     /// Multiple encodes of the same episode (DoVi + SDR releases, for
     /// example) share one episode row. SDR leads by default — macOS players
     /// cannot render Dolby Vision metadata — otherwise the largest file does.
