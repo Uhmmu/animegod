@@ -16,6 +16,10 @@ final class MobilePlayerState: ObservableObject {
     @Published var audioID: Int64?
     @Published var subtitleID: Int64?
     @Published var speed: Double = 1
+    /// Seconds the subtitles are shifted by; positive shows them later.
+    @Published var subtitleDelay: Double = 0
+    /// Subtitle size, as a multiple of the file's own.
+    @Published var subtitleScale: Double = 1
     @Published var isScrubbing = false
     @Published private(set) var isWatched = false
 

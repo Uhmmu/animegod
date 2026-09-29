@@ -124,6 +124,37 @@ final class MobilePlayerController: UIViewController {
         mpv_set_property(mpv, "speed", MPV_FORMAT_DOUBLE, &value)
     }
 
+    /// Shifts the subtitles against the picture, in seconds. Positive shows
+    /// them later.
+    ///
+    /// Needed far more often on the phone than on the Mac: an episode played
+    /// over the link with a sidecar the Mac matched separately has two
+    /// timelines that were never checked against each other, and a fansub's
+    /// own timing can be a second out on a different release anyway.
+    func setSubtitleDelay(_ seconds: Double) {
+        guard let mpv else { return }
+        var value = seconds
+        mpv_set_property(mpv, "sub-delay", MPV_FORMAT_DOUBLE, &value)
+    }
+
+    /// Scales the subtitles. 1.0 is the file's own size.
+    ///
+    /// `sub-scale` governs plain-text subtitles (mpv converts SRT into its
+    /// own ASS style, so it applies there). A real ASS file carries its own
+    /// sizes and mpv honours them unless told otherwise, which is why
+    /// `sub-ass-override` goes along with it — set to `scale`, which applies
+    /// the size and leaves the fansub's colours, positions and signs alone.
+    /// It is set **without** the usual rejection assert: the value is
+    /// documented but this is not the place to discover that a particular
+    /// libass build disagrees, and the cost of it not applying is a slider
+    /// that does nothing to one subtitle format, not a broken player.
+    func setSubtitleScale(_ scale: Double) {
+        guard let mpv else { return }
+        var value = scale
+        mpv_set_property(mpv, "sub-scale", MPV_FORMAT_DOUBLE, &value)
+        _ = mpv_set_property_string(mpv, "sub-ass-override", scale == 1 ? "no" : "scale")
+    }
+
     func select(audioID: Int64) {
         var value = audioID
         mpv_set_property(mpv, "aid", MPV_FORMAT_INT64, &value)

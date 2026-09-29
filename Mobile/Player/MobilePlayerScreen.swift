@@ -18,6 +18,8 @@ struct MobilePlayerScreen: View {
     @State private var conflict: LinkHandoffConflict?
     @State private var sendsBackToMac = false
     @State private var danmakuCanvas: MobileDanmakuCanvas?
+    @StateObject private var danmakuSettings = MobileDanmakuSettingsStore()
+    @State private var showsDanmakuPanel = false
 
     init(episode: LinkEpisode, work: LinkWork, model: MobileModel) {
         _state = StateObject(wrappedValue: MobilePlayerState(episode: episode, work: work, model: model))
@@ -42,6 +44,7 @@ struct MobilePlayerScreen: View {
                 MobileDanmakuOverlay(
                     comments: state.danmakuComments,
                     isVisible: state.danmakuEnabled,
+                    settings: danmakuSettings.settings,
                     videoAspect: state.videoAspect
                 ) { canvas in
                     danmakuCanvas = canvas
@@ -100,6 +103,9 @@ struct MobilePlayerScreen: View {
             } else if showsControls {
                 chrome.transition(.opacity)
             }
+        }
+        .sheet(isPresented: $showsDanmakuPanel) {
+            MobilePlayerStylePanel(store: danmakuSettings, state: state, controller: controller)
         }
         .statusBarHidden(!showsControls)
         .persistentSystemOverlays(showsControls ? .automatic : .hidden)
@@ -234,6 +240,13 @@ struct MobilePlayerScreen: View {
                         systemImage: state.danmakuEnabled ? "text.bubble.fill" : "text.bubble"
                     )
                     .font(.caption)
+                }
+                .opacity(state.danmakuComments.isEmpty ? 0.5 : 1)
+                .disabled(state.danmakuComments.isEmpty)
+
+                Button { showsDanmakuPanel = true } label: {
+                    Label(String(localized: "Style"), systemImage: "slider.horizontal.3")
+                        .font(.caption)
                 }
                 .opacity(state.danmakuComments.isEmpty ? 0.5 : 1)
                 .disabled(state.danmakuComments.isEmpty)
