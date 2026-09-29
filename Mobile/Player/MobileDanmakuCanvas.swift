@@ -185,10 +185,17 @@ final class MobileDanmakuCanvas: UIView {
             for layer in freeLayers { layer.contentsScale = displayScale }
         }
         let scale = Int(displayScale.rounded())
-        // Base size tracks the player height, with the user's scale and line
-        // spacing on top.
-        let baseFontSize = min(max(bounds.height * 0.032, 12), 34)
-        let fontSize = min(max(baseFontSize * settings.fontScale, 9), 50)
+        // Base size tracks the player height — but **not** with the Mac's
+        // factor. The Mac derives ~29pt from a 1100pt-tall window; a phone in
+        // landscape is only ~402pt tall, and the same 0.026–0.032 gives 13pt.
+        // Dense CJK glyphs at 13pt read as mush however cleanly they are
+        // rasterized, which is what "the danmaku look low resolution" turned
+        // out to mean: measured at 12.86pt, the bitmap was a correct 3× (95×51
+        // pixels for 31.7×17 points) and simply too small. A phone is also
+        // held far closer to the eye than a laptop, so angular size does not
+        // rescue it either.
+        let baseFontSize = min(max(bounds.height * 0.05, 16), 44)
+        let fontSize = min(max(baseFontSize * settings.fontScale, 12), 60)
         let spacing = min(max(settings.lineSpacing, 1.05), 2)
         let metricsChanged = fontSize != rasterizer.fontSize
             || (fontSize * spacing).rounded() != rasterizer.lineHeight
@@ -198,6 +205,15 @@ final class MobileDanmakuCanvas: UIView {
         if metricsChanged { discardLayers() }
         engine.updateSettings(settings)
         engine.updateViewport(width: max(bounds.width, 1), height: max(bounds.height, 1), lineHeight: lineHeight)
+        if ProcessInfo.processInfo.environment["AG_DANMAKU_LOG"] == "1" {
+            let probe = DanmakuComment(id: "probe", time: 0, text: "測試", mode: .scroll)
+            let bitmap = rasterizer.bitmap(for: probe)
+            FileHandle.standardError.write(Data(String(
+                format: "DANMAKU bounds=%.0fx%.0f font=%.2f line=%.2f rasterScale=%d contentsScale=%.1f probe=%dx%dpx probeWidthPt=%.1f\n",
+                bounds.width, bounds.height, fontSize, lineHeight, scale, contentsScale,
+                bitmap?.width ?? -1, bitmap?.height ?? -1, rasterizer.width(of: probe)
+            ).utf8))
+        }
         syncLayers(structural: true)
     }
 
