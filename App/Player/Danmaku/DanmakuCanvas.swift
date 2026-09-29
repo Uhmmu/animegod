@@ -159,12 +159,13 @@ final class DanmakuCanvas: NSView {
     /// magnitude and rebuilds engine state instead of replaying.
     func playbackSample(position: Double, speed: Double, paused: Bool, hostTime: Double = CACurrentMediaTime()) {
         latestPlaybackPosition = max(0, position)
-        let predicted = clock.mediaTime(atHost: hostTime)
-        if abs(position - predicted) > max(0.5, 0.25 * speed) {
+        // Tracked, not anchored: mpv reports a position quantised to the
+        // video frame period, so taking each one whole shakes the timeline
+        // several times a second. See `DanmakuPlaybackClock.sample`.
+        if clock.sample(position: position, speed: speed, playing: !paused, hostTime: hostTime) == .discontinuous {
             engine.seek(to: max(0, position))
             syncLayers(structural: true)
         }
-        clock.anchor(position: position, speed: speed, playing: !paused, hostTime: hostTime)
     }
 
     // MARK: - Display link
@@ -188,7 +189,10 @@ final class DanmakuCanvas: NSView {
 
     @objc private func displayLinkTick(_ link: CADisplayLink) {
         let host = CACurrentMediaTime()
-        let media = clock.mediaTime(atHost: host)
+        // The frame's own display time, not the callback's arrival time: the
+        // latter carries the run loop's scheduling jitter straight into every
+        // comment's position.
+        let media = clock.mediaTime(atHost: link.targetTimestamp)
 
         CATransaction.begin()
         CATransaction.setDisableActions(true)

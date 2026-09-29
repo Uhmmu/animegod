@@ -138,12 +138,12 @@ final class MobileDanmakuCanvas: UIView {
     /// magnitude, rebuilding engine state instead of replaying.
     func playbackSample(position: Double, speed: Double, paused: Bool, hostTime: Double = CACurrentMediaTime()) {
         latestPlaybackPosition = max(0, position)
-        let predicted = clock.mediaTime(atHost: hostTime)
-        if abs(position - predicted) > max(0.5, 0.25 * speed) {
+        // Tracked, not anchored. A hard anchor on every sample is what made
+        // the comments judder: see `DanmakuPlaybackClock.sample`.
+        if clock.sample(position: position, speed: speed, playing: !paused, hostTime: hostTime) == .discontinuous {
             engine.seek(to: max(0, position))
             syncLayers(structural: true)
         }
-        clock.anchor(position: position, speed: speed, playing: !paused, hostTime: hostTime)
     }
 
     // MARK: - Display link
@@ -152,6 +152,13 @@ final class MobileDanmakuCanvas: UIView {
         let shouldRun = window != nil && isVisible && hasComments
         if shouldRun, !displayLinkIsRunning {
             let link = CADisplayLink(target: self, selector: #selector(tick))
+            // 60, deliberately, not the panel's 120. `tick()` runs on the
+            // main actor and so does mpv's event drain, so every extra danmaku
+            // frame is taken directly out of the player's budget — at 120 Hz
+            // the video itself starts stuttering. The source is 24 fps and the
+            // comments move a few points a frame; there is nothing up there
+            // to see.
+            link.preferredFrameRateRange = CAFrameRateRange(minimum: 24, maximum: 60, preferred: 60)
             link.add(to: .main, forMode: .common)
             stopDisplayLink = { [weak link] in link?.invalidate() }
             displayLinkIsRunning = true
@@ -162,8 +169,12 @@ final class MobileDanmakuCanvas: UIView {
         }
     }
 
-    @objc private func tick() {
-        let media = clock.mediaTime(atHost: CACurrentMediaTime())
+    @objc private func tick(_ link: CADisplayLink) {
+        // `targetTimestamp` — when this frame will actually be on screen —
+        // not `CACurrentMediaTime()`, which is merely when the callback got
+        // to run. The callback's latency varies by a few milliseconds and
+        // would otherwise be added straight onto every comment's position.
+        let media = clock.mediaTime(atHost: link.targetTimestamp)
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         let structural = engine.tick(at: media)
