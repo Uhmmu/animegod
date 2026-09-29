@@ -13,8 +13,13 @@ import Network
 final class LinkResolver: ObservableObject {
     @Published private(set) var discovered: [Discovered] = []
     @Published private(set) var isBrowsing = false
-    /// Which candidate answered last, for the Settings readout.
-    @Published private(set) var activeTransport: String?
+    /// Which address answered last and what kind it is, for the Settings
+    /// readout. A stuttering stream should have a visible cause.
+    @Published private(set) var activeHost: String?
+    @Published private(set) var activeKind: LinkAddressKind?
+    /// The Wi-Fi network the phone thinks it is on, used to remember what
+    /// worked there. Nil on cellular or when the name is not readable.
+    @Published private(set) var networkName: String?
 
     struct Discovered: Identifiable, Hashable {
         let id: String
@@ -143,13 +148,16 @@ final class LinkResolver: ObservableObject {
         return host.split(separator: "%").first.map(String.init) ?? host
     }
 
-    /// Everything worth trying, best first.
-    func candidates(pinned: String?) -> [String] {
-        var hosts: [String] = []
-        if let pinned, !pinned.isEmpty { hosts.append(pinned) }
-        hosts.append(contentsOf: discovered.compactMap(\.host))
-        var seen = Set<String>()
-        return hosts.filter { seen.insert($0).inserted }
+    func noteActive(host: String?) {
+        activeHost = host
+        activeKind = host.map(LinkAddressKind.classify)
+    }
+
+    /// Everything worth trying, best first. Ordering decides ties only —
+    /// they are raced — but nothing may be *omitted*, which is how a phone
+    /// ends up unreachable the moment it leaves the building.
+    func candidates(from book: LinkAddressBook) -> [String] {
+        book.candidates(network: networkName, discovered: discovered.compactMap(\.host))
     }
 }
 

@@ -55,6 +55,13 @@ final class LinkServer: ObservableObject {
         do {
             let parameters = NWParameters.tcp
             parameters.allowLocalEndpointReuse = true
+            // Also advertise over peer-to-peer Wi-Fi, so a phone can find
+            // this Mac with no router between them at all. AWDL shares the
+            // radio with the infrastructure connection, so this costs
+            // something when it is actually used — but advertising alone is
+            // cheap, and it is the only route that survives a network which
+            // isolates every client from every other.
+            parameters.includePeerToPeer = true
             // The phone finds the Mac by name on the LAN; every other
             // transport in the ladder needs no advertisement.
             let listener = try NWListener(using: parameters, on: NWEndpoint.Port(rawValue: port)!)

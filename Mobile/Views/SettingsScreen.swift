@@ -58,14 +58,43 @@ struct SettingsScreen: View {
                 }
 
                 Section {
-                    TransportRow(name: String(localized: "Bonjour / same Wi-Fi"), icon: "wifi", rank: 1, isLive: model.resolver.isBrowsing)
-                    TransportRow(name: String(localized: "Pinned address"), icon: "network", rank: 2, isLive: LinkCredentials.host != nil)
-                    TransportRow(name: String(localized: "Tailscale"), icon: "lock.shield", rank: 3, isLive: false)
-                    TransportRow(name: String(localized: "Peer-to-peer Wi-Fi"), icon: "dot.radiowaves.left.and.right", rank: 4, isLive: false)
+                    let book = LinkCredentials.addresses
+                    TransportRow(
+                        name: String(localized: "Bonjour / same Wi-Fi"), icon: "wifi", rank: 1,
+                        state: model.resolver.activeKind == .lan && model.isReachable ? .active
+                            : (model.resolver.isBrowsing ? .available : .idle),
+                        detail: book.lan
+                    )
+                    TransportRow(
+                        name: String(localized: "Tailscale"), icon: "lock.shield", rank: 2,
+                        state: model.resolver.activeKind == .tailscale && model.isReachable ? .active
+                            : (book.tailscale != nil ? .available : .idle),
+                        detail: book.tailscale
+                    )
+                    TransportRow(
+                        name: String(localized: "Other address"), icon: "network", rank: 3,
+                        state: model.resolver.activeKind == .other && model.isReachable ? .active
+                            : (book.other != nil ? .available : .idle),
+                        detail: book.other
+                    )
                 } header: {
                     Text("Transports")
                 } footer: {
-                    Text("Every transport produces the same thing: an address that reaches the Mac. They are raced and the first to answer wins. A Tailscale name goes in as an address like any other.")
+                    Text("Every transport produces the same thing: an address that reaches your Mac. They are all raced at once and the first to answer wins — a filled dot is the one carrying this connection.")
+                }
+
+                Section {
+                    TextField("mac.tailnet-abcd.ts.net:47380", text: Binding(
+                        get: { model.tailscaleAddress },
+                        set: { model.tailscaleAddress = $0 }
+                    ))
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .keyboardType(.URL)
+                } header: {
+                    Text("Reaching your Mac from elsewhere")
+                } footer: {
+                    Text("Nothing here is exposed to the internet. Off your own network, install Tailscale on both devices and put your Mac's name here — it is then an address like any other, and it is never overwritten when a local one works.")
                 }
 
                 Section("Library") {
@@ -78,7 +107,10 @@ struct SettingsScreen: View {
                 }
 
                 Section {
-                    LabeledContent("Playback", value: String(localized: "Not built yet"))
+                    LabeledContent("Downloaded", value: String(model.offline.entries.count))
+                    LabeledContent("On this phone", value: formatBytes(model.offline.totalBytes))
+                } header: {
+                    Text("Offline")
                 } footer: {
                     Text("Design: docs/IOS_COMPANION_PLAN.md")
                 }
@@ -95,20 +127,39 @@ struct SettingsScreen: View {
 }
 
 private struct TransportRow: View {
+    enum State { case active, available, idle }
+
     let name: String
     let icon: String
     let rank: Int
-    let isLive: Bool
+    let state: State
+    var detail: String?
 
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: icon).frame(width: 24).foregroundStyle(.secondary)
-            Text(name)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(name)
+                if let detail, !detail.isEmpty {
+                    Text(verbatim: detail)
+                        .font(.caption2.monospaced())
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
+            }
             Spacer()
             Text(verbatim: "#\(rank)").font(.caption2).foregroundStyle(.tertiary)
-            Image(systemName: isLive ? "circle.fill" : "circle")
+            Image(systemName: state == .idle ? "circle" : "circle.fill")
                 .font(.caption2)
-                .foregroundStyle(isLive ? AnyShapeStyle(.green) : AnyShapeStyle(.tertiary))
+                .foregroundStyle(tint)
+        }
+    }
+
+    private var tint: AnyShapeStyle {
+        switch state {
+        case .active: AnyShapeStyle(.green)
+        case .available: AnyShapeStyle(.secondary)
+        case .idle: AnyShapeStyle(.tertiary)
         }
     }
 }

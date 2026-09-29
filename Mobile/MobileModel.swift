@@ -45,6 +45,9 @@ final class MobileModel: ObservableObject {
         let response = try await LinkClient.pair(host: host, code: code, deviceName: name)
         LinkCredentials.token = response.token
         LinkCredentials.host = host
+        var book = LinkCredentials.addresses
+        book.remember(host, network: resolver.networkName)
+        LinkCredentials.addresses = book
         LinkCredentials.macName = response.macName
         macName = response.macName
         client = LinkClient(host: host, token: response.token)
@@ -71,16 +74,24 @@ final class MobileModel: ObservableObject {
         isRefreshing = true
         defer { isRefreshing = false }
 
-        // The stored address may be stale — a different network, a new DHCP
-        // lease. Racing the ladder costs nothing when the pinned one works.
-        let candidates = resolver.candidates(pinned: LinkCredentials.host)
+        // Every known address is raced, not just the last one that worked:
+        // the phone does not know which network it is on, and a Tailscale
+        // name is the only thing that answers from outside.
+        var book = LinkCredentials.addresses
+        let candidates = resolver.candidates(from: book)
         if let host = await resolver.resolve(candidates: candidates) {
-            if host != LinkCredentials.host { LinkCredentials.host = host }
+            book.remember(host, network: resolver.networkName)
+            LinkCredentials.addresses = book
+            LinkCredentials.host = host
+            resolver.noteActive(host: host)
             await client.update(host: host)
             isReachable = true
         } else {
+            resolver.noteActive(host: nil)
             isReachable = false
-            lastError = String(localized: "Could not reach your Mac. Is AnimeGod open on it?")
+            lastError = book.tailscale == nil
+                ? String(localized: "Could not reach your Mac. Is AnimeGod open on it? Off your own network, add its Tailscale address in Settings.")
+                : String(localized: "Could not reach your Mac. Is AnimeGod open on it?")
             return
         }
 
@@ -184,6 +195,18 @@ final class MobileModel: ObservableObject {
         guard let client, let pool = try? await client.danmaku(mediaFileID: mediaFileID) else { return nil }
         if !pool.comments.isEmpty { LinkCache.save(pool, name) }
         return pool
+    }
+
+    /// The address that reaches the Mac from outside this network. Typed
+    /// rather than discovered, and never overwritten by a resolution.
+    var tailscaleAddress: String {
+        get { LinkCredentials.addresses.tailscale ?? "" }
+        set {
+            var book = LinkCredentials.addresses
+            book.setTailscale(newValue)
+            LinkCredentials.addresses = book
+            objectWillChange.send()
+        }
     }
 
     // MARK: - The More tab

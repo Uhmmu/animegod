@@ -1,3 +1,4 @@
+import AnimeGodCore
 import Foundation
 import Security
 
@@ -97,6 +98,31 @@ enum LinkCredentials {
         set { set(newValue, "link.host") }
     }
 
+    /// Every address the Mac has been reached on, by kind.
+    ///
+    /// Replaces the single `host` slot for resolution: one address is
+    /// overwritten by whatever answered last, which silently discards the
+    /// Tailscale name the moment a LAN address wins. `host` is kept as the
+    /// *current* one for display and for building media URLs.
+    static var addresses: LinkAddressBook {
+        get {
+            guard let data = UserDefaults.standard.data(forKey: "link.addresses"),
+                  let book = try? JSONDecoder().decode(LinkAddressBook.self, from: data)
+            else {
+                // First run after the upgrade: seed from whatever single
+                // address was already stored, so nobody has to re-pair.
+                var book = LinkAddressBook()
+                if let host { book.remember(host) }
+                return book
+            }
+            return book
+        }
+        set {
+            guard let data = try? JSONEncoder().encode(newValue) else { return }
+            UserDefaults.standard.set(data, forKey: "link.addresses")
+        }
+    }
+
     static var macName: String? {
         get { UserDefaults.standard.string(forKey: "link.macName") }
         set { set(newValue, "link.macName") }
@@ -113,5 +139,6 @@ enum LinkCredentials {
         token = nil
         host = nil
         macName = nil
+        UserDefaults.standard.removeObject(forKey: "link.addresses")
     }
 }
