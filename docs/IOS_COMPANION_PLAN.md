@@ -1,6 +1,7 @@
 # AnimeGod for iPhone — Plan
 
-Status: **Phases 0–3 done.** Phase 4, the handoff, is next.
+Status: **Phases 0–4 done** — the handoff works in both directions.
+Phase 5 (danmaku, subtitles, offline) is next.
 Written 2026-09-29.
 
 The phone app is called AnimeGod too. It is not a second library and not a
@@ -553,7 +554,30 @@ position into the Mac's database. What it cost:
 - **Done when** an episode plays end to end over the LAN and the Mac's library
   shows the new position.
 
-### Phase 4 — the handoff ⭐
+### Phase 4 — the handoff ⭐ — **done 2026-09-29**
+
+The sentence at the top of this document is literally true, both ways, and was
+driven against a live player rather than reasoned about:
+
+| | |
+|---|---|
+| Mac playing at | `380.672s` |
+| Cached row on the phone said | `365s` |
+| Phone started at | `380.672s` |
+| Mac's player window | closed |
+| `WatchEvent` recorded | 77.3 s watched, completion 0.268 |
+| Sent back → Mac reopened at | `~480s` |
+
+The gap between 365 and 380.672 is the entire point: the row is up to ten
+seconds stale by construction, which is why the claim is a request.
+
+`LinkClaimRegistry` lives in the core with tests — leases, takeover, and the
+rule that only the holder may renew or release are pure logic, and the app
+target has no tests. `AG_SERVE_PLAY=1` makes `-smokeLinkServe` start playing
+so there is something to take, and the serve loop prints the live player's
+position.
+
+### Phase 4 — the handoff (original)
 - Claim/release, leases, the `409` takeover.
 - Mac side: pause → flush → `endSession()` → close window, in that order.
 - SSE so both screens agree live.
