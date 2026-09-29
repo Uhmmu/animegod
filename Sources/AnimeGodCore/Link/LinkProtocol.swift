@@ -30,6 +30,8 @@ public enum LinkProtocol {
         public static let mediaPrefix = "/media/"
         /// `/poster/{animeID}`
         public static let posterPrefix = "/poster/"
+        /// `/danmaku/{mediaFileID}`
+        public static let danmakuPrefix = "/danmaku/"
         /// `/progress/{episodeID}`
         public static let progressPrefix = "/progress/"
         /// `/episodes/{episodeID}/watched`

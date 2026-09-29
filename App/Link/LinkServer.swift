@@ -253,6 +253,13 @@ final class LinkServer: ObservableObject {
             return await handlePoster(animeID: uuid, model: model)
         }
 
+        if let id = request.identifier(after: LinkProtocol.Route.danmakuPrefix), let uuid = UUID(uuidString: id) {
+            guard let pool = await LinkDanmaku.pool(mediaFileID: uuid, model: model) else {
+                return .response(.error(.notFound, "No danmaku for that file.", status: 404))
+            }
+            return .response(.json(pool))
+        }
+
         return .response(.error(.notFound, "No such route.", status: 404))
     }
 

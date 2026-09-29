@@ -161,6 +161,23 @@ final class MobileModel: ObservableObject {
         return (url, LinkProtocol.bearerPrefix + token)
     }
 
+    /// The danmaku pool for a file, cached on the phone.
+    ///
+    /// Everything hard already happened on the Mac: the dandanplay file hash,
+    /// Bilibili's WBI signing, the per-part cid, the cross-source merge with
+    /// each provider's shift baked in. The phone asks for comments and gets
+    /// comments, holds no credentials, and cannot disagree with the Mac about
+    /// which pool belongs to which file.
+    func danmaku(mediaFileID: UUID) async -> LinkDanmakuPool? {
+        let name = "danmaku-\(mediaFileID.uuidString)"
+        if let cached = LinkCache.load(LinkDanmakuPool.self, name), !cached.comments.isEmpty {
+            return cached
+        }
+        guard let client, let pool = try? await client.danmaku(mediaFileID: mediaFileID) else { return nil }
+        if !pool.comments.isEmpty { LinkCache.save(pool, name) }
+        return pool
+    }
+
     // MARK: - Handoff
 
     /// Takes an episode from the Mac: it pauses, writes where it got to, and

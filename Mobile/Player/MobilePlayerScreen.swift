@@ -17,6 +17,7 @@ struct MobilePlayerScreen: View {
     @State private var handoff: LinkHandoffState?
     @State private var conflict: LinkHandoffConflict?
     @State private var sendsBackToMac = false
+    @State private var danmakuCanvas: MobileDanmakuCanvas?
 
     init(episode: LinkEpisode, work: LinkWork, model: MobileModel) {
         _state = StateObject(wrappedValue: MobilePlayerState(episode: episode, work: work, model: model))
@@ -31,6 +32,20 @@ struct MobilePlayerScreen: View {
                     controller = ready
                     start(on: ready)
                 }
+                .ignoresSafeArea()
+
+                MobileDanmakuOverlay(
+                    comments: state.danmakuComments,
+                    isVisible: state.danmakuEnabled
+                ) { canvas in
+                    danmakuCanvas = canvas
+                    // The clock is anchored on player samples, never on a
+                    // timer of its own.
+                    state.onPlaybackSample = { [weak canvas] position, speed, paused in
+                        canvas?.playbackSample(position: position, speed: speed, paused: paused)
+                    }
+                }
+                .allowsHitTesting(false)
                 .ignoresSafeArea()
             }
 
@@ -83,6 +98,9 @@ struct MobilePlayerScreen: View {
             UIApplication.shared.isIdleTimerDisabled = true
             revealControls()
             await beginHandoff(force: false)
+            // After the handoff, so a slow match never delays the picture.
+            // Danmaku is additive: if it never arrives, playback is unaffected.
+            Task { await state.loadDanmaku() }
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(10))
                 guard !Task.isCancelled else { break }
@@ -196,6 +214,20 @@ struct MobilePlayerScreen: View {
                     selection: state.subtitleID,
                     allowsOff: true
                 ) { controller?.select(subtitleID: $0) }
+
+                Button {
+                    state.danmakuEnabled.toggle()
+                } label: {
+                    Label(
+                        state.danmakuComments.isEmpty
+                            ? String(localized: "Danmaku")
+                            : String(localized: "\(state.danmakuComments.count)"),
+                        systemImage: state.danmakuEnabled ? "text.bubble.fill" : "text.bubble"
+                    )
+                    .font(.caption)
+                }
+                .opacity(state.danmakuComments.isEmpty ? 0.5 : 1)
+                .disabled(state.danmakuComments.isEmpty)
 
                 Menu {
                     ForEach([0.5, 0.75, 1.0, 1.25, 1.5, 2.0], id: \.self) { rate in

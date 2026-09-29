@@ -48,6 +48,10 @@ actor LinkClient {
         try await get(LinkProtocol.Route.animePrefix + animeID.uuidString)
     }
 
+    func danmaku(mediaFileID: UUID) async throws -> LinkDanmakuPool {
+        try await get(LinkProtocol.Route.danmakuPrefix + mediaFileID.uuidString)
+    }
+
     func poster(animeID: UUID) async throws -> Data {
         try await raw(LinkProtocol.Route.posterPrefix + animeID.uuidString)
     }

@@ -285,6 +285,32 @@ public struct LinkHandoffRelease: Codable, Sendable {
     }
 }
 
+/// The danmaku the Mac resolved for one file.
+///
+/// The phone is handed a finished pool. Everything hard about getting one
+/// happened on the Mac already: dandanplay's 16 MB file hash, Bilibili's
+/// `buvid3` bootstrap and daily WBI key signing, the per-part `cid`, the
+/// cross-source merge with each provider's shift baked in, and the cache. The
+/// phone needs no credentials and cannot disagree with the Mac about which
+/// pool belongs to which file.
+public struct LinkDanmakuPool: Codable, Sendable {
+    public let mediaFileID: UUID
+    public let comments: [DanmakuComment]
+    /// One line per provider that contributed, for the "where did these come
+    /// from" row.
+    public let sources: [String]
+    /// Set when no provider matched the file, so the phone can say so rather
+    /// than showing an empty screen that looks like a failure.
+    public let unmatched: Bool
+
+    public init(mediaFileID: UUID, comments: [DanmakuComment], sources: [String], unmatched: Bool) {
+        self.mediaFileID = mediaFileID
+        self.comments = comments
+        self.sources = sources
+        self.unmatched = unmatched
+    }
+}
+
 public enum LinkCoding {
     public static let encoder: JSONEncoder = {
         let e = JSONEncoder()

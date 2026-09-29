@@ -542,9 +542,9 @@ position into the Mac's database. What it cost:
 - **MoltenVK works in the simulator**, with benign
   `VK_ERROR_FEATURE_NOT_PRESENT: Metal does not support disabling primitive
   restart` warnings.
-- **Not yet verified: landscape.** The layout is written for it — the surface
-  is landscape-oriented so a rotation is a layout pass, not a renderer rebuild
-  — but rotating the simulator was not driven from here.
+- **Landscape works** (confirmed by hand, 2026-09-29). The surface is
+  landscape-oriented, so a rotation is a layout pass and not a renderer
+  rebuild — which is the whole reason mpv does not have to reconfigure.
 
 ### Phase 3 — playback (original)
 - `MPVPlayerController` for iOS over MPVKit, `hwdec=videotoolbox`, SDR only.

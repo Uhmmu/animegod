@@ -30,6 +30,15 @@ final class MobilePlayerState: ObservableObject {
     /// seconds later.
     private(set) var keepsUnwatched = false
 
+    @Published var danmakuEnabled = true
+    @Published private(set) var danmakuComments: [DanmakuComment] = []
+    @Published private(set) var danmakuSources: [String] = []
+    @Published private(set) var danmakuUnmatched = false
+    /// Every position sample, unthrottled. The danmaku clock is anchored on
+    /// player samples and never on a timer of its own, so a pause, a seek or a
+    /// speed change has to reach it immediately.
+    var onPlaybackSample: ((Double, Double, Bool) -> Void)?
+
     let episode: LinkEpisode
     let work: LinkWork
     private weak var model: MobileModel?
@@ -83,6 +92,14 @@ final class MobilePlayerState: ObservableObject {
         Task { await model?.setWatched(value, episodeID: episode.id) }
     }
 
+    func loadDanmaku() async {
+        guard danmakuEnabled else { return }
+        guard let pool = await model?.danmaku(mediaFileID: episode.mediaFileID) else { return }
+        danmakuComments = pool.comments
+        danmakuSources = pool.sources
+        danmakuUnmatched = pool.unmatched
+    }
+
     func save() async {
         guard duration > 0 else { return }
         await model?.saveProgress(episodeID: episode.id, position: livePosition, duration: duration)
@@ -107,5 +124,10 @@ final class MobilePlayerState: ObservableObject {
         }
         if let duration, duration > 0 { self.duration = duration }
         if let paused { self.paused = paused }
+        // Pause-only events must re-anchor too, or the danmaku keeps
+        // interpolating forward until the next position sample arrives.
+        if position != nil || paused != nil {
+            onPlaybackSample?(position ?? livePosition, speed, paused ?? self.paused)
+        }
     }
 }
