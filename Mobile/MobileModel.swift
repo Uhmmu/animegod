@@ -65,6 +65,50 @@ final class MobileModel: ObservableObject {
         macName = nil
         isReachable = false
         isPaired = false
+        cancelReconnect()
+    }
+
+    // MARK: - Reconnecting
+
+    private var reconnectTask: Task<Void, Never>?
+    /// How long to keep looking before giving up until something changes.
+    private static let reconnectWindow: Duration = .seconds(180)
+
+    /// Keeps looking for the Mac on its own, then stops.
+    ///
+    /// Not finding it usually means the wrong network, and each attempt races
+    /// every known address — a burst of connections, Bonjour included. Hunting
+    /// on that schedule all day in a pocket would be rude to the battery and
+    /// to the network, and pointless: if it has not answered in three minutes
+    /// it is not about to. So the interval widens, the window closes, and
+    /// bringing the app forward opens a fresh one — which is the moment
+    /// something has plausibly changed.
+    private func scheduleReconnect() {
+        guard isPaired, !isReachable, reconnectTask == nil else { return }
+        reconnectTask = Task { [weak self] in
+            let deadline = ContinuousClock.now.advanced(by: Self.reconnectWindow)
+            var delay = Duration.seconds(2)
+            while !Task.isCancelled, ContinuousClock.now < deadline {
+                try? await Task.sleep(for: delay)
+                guard !Task.isCancelled, let self, self.isPaired, !self.isReachable else { break }
+                await self.refresh()
+                if self.isReachable { break }
+                delay = min(delay * 2, .seconds(30))
+            }
+            self?.reconnectTask = nil
+        }
+    }
+
+    private func cancelReconnect() {
+        reconnectTask?.cancel()
+        reconnectTask = nil
+    }
+
+    /// The app came forward: worth another window, whatever the last one
+    /// concluded.
+    func resumeFromBackground() async {
+        cancelReconnect()
+        await refresh()
     }
 
     // MARK: - Sync
@@ -92,8 +136,10 @@ final class MobileModel: ObservableObject {
             lastError = book.tailscale == nil
                 ? String(localized: "Could not reach your Mac. Is AnimeGod open on it? Off your own network, add its Tailscale address in Settings.")
                 : String(localized: "Could not reach your Mac. Is AnimeGod open on it?")
+            scheduleReconnect()
             return
         }
+        cancelReconnect()
 
         await flushOutbox()
 

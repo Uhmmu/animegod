@@ -106,6 +106,9 @@ final class AppModel: ObservableObject {
             .sink { [weak self] _ in self?.objectWillChange.send() }
             .store(in: &cancellables)
         link.attach(model: self)
+        // A paired phone is a standing arrangement, so serving resumes on its
+        // own rather than waiting for the switch in Settings every launch.
+        link.startIfEnabled()
         // Plugging a drive back in (or pulling it) changes which episodes can
         // play from source, so the library reflects mount state immediately.
         for name in [NSWorkspace.didMountNotification, NSWorkspace.didUnmountNotification] {

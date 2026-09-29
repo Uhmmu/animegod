@@ -37,11 +37,33 @@ final class LinkServer: ObservableObject {
 
     private static let credentialService = "com.uhmmu.AnimeGod.link"
     private static let devicesAccount = "pairedDevices"
+    /// Whether the switch in Settings was left on. Absent until it is touched.
+    private static let autostartKey = "link.servesAtLaunch"
 
     var port: UInt16 = LinkProtocol.defaultPort
 
     init() {
         pairedDevices = Self.loadDevices()
+    }
+
+    /// Whether to serve without being asked, at launch.
+    ///
+    /// The listener binds every interface, so it should not come up merely
+    /// because the app was opened by someone who has never owned a phone that
+    /// wants it. But once a phone **is** paired, the switch has been thrown
+    /// deliberately at least once and a paired device is a standing
+    /// arrangement — having to re-enable it after every launch is a chore
+    /// that teaches nothing. So: on if it was on, off if it was turned off,
+    /// and on by default once there is somebody to serve.
+    var servesAtLaunch: Bool {
+        get { UserDefaults.standard.object(forKey: Self.autostartKey) as? Bool ?? !pairedDevices.isEmpty }
+        set { UserDefaults.standard.set(newValue, forKey: Self.autostartKey) }
+    }
+
+    /// Called once at launch.
+    func startIfEnabled() {
+        guard servesAtLaunch else { return }
+        start()
     }
 
     func attach(model: AppModel) {

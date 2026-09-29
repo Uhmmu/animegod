@@ -25,7 +25,7 @@ struct AnimeGodMobileApp: App {
                     // Coming back from the background is exactly when the
                     // library is most likely to be stale — something was
                     // probably just watched on the Mac.
-                    if phase == .active { Task { await model.refresh() } }
+                    if phase == .active { Task { await model.resumeFromBackground() } }
                 }
         }
     }

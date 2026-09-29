@@ -3,9 +3,9 @@ import SwiftUI
 
 /// Settings → iPhone. Turning the server on, pairing a phone, and revoking one.
 ///
-/// The server is off until this switch is thrown. It binds every interface so
-/// the phone can find it, which is not something that should happen merely
-/// because the app is open.
+/// The server binds every interface, so it does not come up merely because
+/// the app is open — but the switch is remembered, and it defaults to on once
+/// a phone has been paired. See `LinkServer.servesAtLaunch`.
 struct LinkSettingsSection: View {
     @ObservedObject var link: LinkServer
     @State private var now = Date.now
@@ -16,7 +16,12 @@ struct LinkSettingsSection: View {
         Section {
             Toggle("Serve this library to AnimeGod on iPhone", isOn: Binding(
                 get: { link.isRunning },
-                set: { $0 ? link.start() : link.stop() }
+                set: { serve in
+                    // Remembered, so a paired phone keeps working across
+                    // launches instead of waiting on this switch every time.
+                    link.servesAtLaunch = serve
+                    serve ? link.start() : link.stop()
+                }
             ))
 
             if let error = link.lastError {
