@@ -159,12 +159,17 @@ final class MobilePlayerController: UIViewController {
         if let authorization {
             setOption("http-header-fields", "Authorization: \(authorization)")
         }
-        // A phone on Wi-Fi is not a local disk; a larger demuxer cache is what
-        // keeps a seek from stalling the picture.
-        setOption("cache", "yes")
-        setOption("demuxer-max-bytes", "150MiB")
-        setOption("demuxer-readahead-secs", "20")
-        setOption("network-timeout", "20")
+        // A local file needs none of the network tuning below, and a large
+        // demuxer cache on a file already on disk is wasted memory.
+        let isLocal = currentURL?.isFileURL == true
+        if !isLocal {
+            // A phone on Wi-Fi is not a local disk; a larger demuxer cache is
+            // what keeps a seek from stalling the picture.
+            setOption("cache", "yes")
+            setOption("demuxer-max-bytes", "150MiB")
+            setOption("demuxer-readahead-secs", "20")
+            setOption("network-timeout", "20")
+        }
         setOption("keepaspect", "yes")
         setOption("panscan", "0")
         setOption("video-unscaled", "no")

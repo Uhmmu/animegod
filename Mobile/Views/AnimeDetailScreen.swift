@@ -157,6 +157,18 @@ struct EpisodeRow: View {
                 }
             }
             Spacer(minLength: 0)
+
+            // Downloaded episodes are worth seeing at a glance: they are the
+            // ones that will still play on the Tube.
+            if model.offline.isDownloaded(item.id) {
+                Image(systemName: "iphone")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            } else if let progress = model.offline.active[item.id] {
+                ProgressView(value: progress.fraction)
+                    .progressViewStyle(.circular)
+                    .controlSize(.mini)
+            }
         }
         .padding(.vertical, 2)
         .contentShape(.rect)
@@ -164,6 +176,15 @@ struct EpisodeRow: View {
         .contextMenu {
             Button(item.isWatched ? "Mark as Unwatched" : "Mark as Watched") {
                 Task { await model.setWatched(!item.isWatched, episodeID: item.id) }
+            }
+            if model.offline.isDownloaded(item.id) {
+                Button("Remove Download", role: .destructive) {
+                    model.offline.remove(episodeID: item.id)
+                }
+            } else if model.offline.isDownloading(item.id) {
+                Button("Cancel Download") { model.offline.cancel(episodeID: item.id) }
+            } else {
+                Button("Download to This Phone") { model.downloadOffline(item) }
             }
         }
     }

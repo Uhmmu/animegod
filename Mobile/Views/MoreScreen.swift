@@ -20,12 +20,30 @@ struct MoreScreen: View {
         .init(title: "Find Releases", icon: "magnifyingglass", detail: "Search here, download on the Mac", phase: 6),
         .init(title: "Downloads", icon: "arrow.down.circle", detail: "Live progress, pause and resume remotely", phase: 6),
         .init(title: "Subscriptions", icon: "bell", detail: "Follow a season, confirm candidates", phase: 6),
-        .init(title: "Offline Episodes", icon: "iphone.and.arrow.forward", detail: "Pull episodes onto this phone", phase: 5)
     ]
 
     var body: some View {
         NavigationStack {
             List {
+                SwiftUI.Section {
+                    NavigationLink {
+                        OfflineScreen()
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "iphone.and.arrow.forward")
+                                .frame(width: 26)
+                                .foregroundStyle(.secondary)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Offline Episodes")
+                                Text("Play with no network at all")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
+
                 SwiftUI.Section {
                     ForEach(sections) { section in
                         HStack(spacing: 12) {

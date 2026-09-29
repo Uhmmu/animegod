@@ -23,6 +23,8 @@ final class MobileModel: ObservableObject {
     @Published private(set) var isPaired = false
 
     let resolver = LinkResolver()
+    /// Episodes copied onto this phone, playable with no network at all.
+    let offline = MobileOfflineStore()
     private var client: LinkClient?
     private var detailCache: [UUID: LinkAnimeDetail] = [:]
 
@@ -152,6 +154,12 @@ final class MobileModel: ObservableObject {
     ///
     /// The token goes in a header rather than the URL: a URL lands in logs and
     /// history, and `-smokeLink` proves libmpv honours `http-header-fields`.
+    /// A downloaded copy, when there is one. Preferred over the link: it
+    /// needs no Mac, no network, and no claim.
+    func offlineURL(for episode: LinkEpisode) -> URL? {
+        offline.localURL(for: episode.id)
+    }
+
     func playbackTarget(for episode: LinkEpisode) -> (url: URL, authorization: String)? {
         guard let host = LinkCredentials.host,
               let token = LinkCredentials.token,
@@ -202,6 +210,12 @@ final class MobileModel: ObservableObject {
                 resumeOnMac: resumeOnMac
             )
         )
+    }
+
+    /// Starts copying an episode onto the phone.
+    func downloadOffline(_ episode: LinkEpisode) {
+        guard let target = playbackTarget(for: episode) else { return }
+        offline.download(episode: episode, title: title(forAnimeID: episode.animeID), target: target)
     }
 
     // MARK: - Writes

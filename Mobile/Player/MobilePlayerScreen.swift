@@ -345,8 +345,25 @@ struct MobilePlayerScreen: View {
     }
 
     /// Asks the Mac for the episode, then starts.
+    ///
+    /// A downloaded episode plays whatever the Mac says, including nothing at
+    /// all. That is the point of downloading it: the claim is still attempted,
+    /// so a reachable Mac still stops playing and still hands over its live
+    /// position, but an unreachable one falls back to the cached row rather
+    /// than blocking playback on a train.
     private func beginHandoff(force: Bool) async {
+        let isOffline = model.offlineURL(for: state.episode) != nil
         guard let result = await model.claim(state.episode, force: force) else {
+            if isOffline {
+                handoff = LinkHandoffState(
+                    position: state.episode.position,
+                    duration: state.episode.duration,
+                    isWatched: state.episode.isWatched,
+                    keepsUnwatched: false,
+                    wasPlayingHere: false
+                )
+                return
+            }
             state.errorMessage = String(localized: "Could not reach your Mac.")
             return
         }
@@ -360,6 +377,11 @@ struct MobilePlayerScreen: View {
     }
 
     private func start(on controller: MobilePlayerController) {
+        // A local copy wins: no network, no bearer header, no Mac.
+        if let local = model.offlineURL(for: state.episode) {
+            controller.play(url: local, authorization: nil, position: state.startPosition)
+            return
+        }
         guard let target = model.playbackTarget(for: state.episode) else {
             state.errorMessage = String(localized: "This phone is not paired with a Mac.")
             return
@@ -374,6 +396,10 @@ struct MobilePlayerScreen: View {
     private func close() {
         Task {
             controller?.stop()
+            // Offline playback may have had no claim to release; the call is
+            // harmless either way and still carries the position, which the
+            // outbox keeps if the Mac cannot be reached.
+
             // Released rather than merely saved: this is what lets the Mac
             // pick the episode back up, and what frees the claim for another
             // device. The position goes with it, so no separate save is needed.
