@@ -1,6 +1,6 @@
 # AnimeGod for iPhone — Plan
 
-Status: **Design only** — Phase 0 verified, nothing else implemented.
+Status: **Phases 0–1 done**, Phase 2 in progress.
 Written 2026-09-29.
 
 The phone app is called AnimeGod too. It is not a second library and not a
@@ -271,25 +271,37 @@ Consequences:
 
 ---
 
-## 5. Data on the phone: a read-through mirror, not a second source of truth
+## 5. Data on the phone: a cache of answers, not a second database
 
-The phone runs **`LibraryDatabase` with the same migrations**, populated from
-the Mac. It is a cache with an outbox, and the distinction is load-bearing:
+> **Revised 2026-09-29, after Phase 1 shipped.** This section originally
+> called for the phone to run `LibraryDatabase` with the same migrations and
+> be populated from the Mac. That was reasoned about before the DTOs existed,
+> and writing them changed the answer: **the phone is not sent rows, it is
+> sent answers.** The server has already run `library()`, resolved the display
+> title, averaged the scores and joined the progress. Feeding that back
+> through DTO → domain model → SQLite → the same query → domain model → view
+> would be a mapping layer in both directions whose only payoff is reusing SQL
+> whose result is already in hand. The phone caches the responses instead.
+>
+> The original reasoning for a mirror — instant launch, browsing offline — is
+> still right, and a JSON snapshot on disk delivers both. What is given up is
+> running queries the server does not offer, and there are none.
 
-- **Reads** come from the mirror, so the app opens instantly and works on the
-  Tube. Every existing query — `library()`, `episodes(animeID:)`,
-  `continueWatching()` — is reused verbatim, which is the real payoff of the
-  core being portable.
-- **Writes** never go to the mirror directly. Progress, watched flags and
-  profile edits go into an **outbox** table, are POSTed to the Mac, and the
-  mirror is updated only from the Mac's response. The Mac's database is the
-  single source of truth, always. Two writers to one logical library is a
-  conflict-resolution problem nobody needs.
-- **Sync** is `GET /library?since=<iso8601>` for a delta, plus an SSE stream
-  for live pushes while the app is foregrounded. Full refresh on first pair
-  and on schema version mismatch.
+The phone keeps the last good response to each read route on disk and renders
+from it:
 
-The mirror stores **no media files** — only rows and cached posters.
+- **Reads** come from the cache first and are refreshed in the background, so
+  the app opens instantly and still works with the Mac asleep.
+- **Writes** never touch the cache directly. Progress and watched flags go
+  into an **outbox**, are sent to the Mac, and the cache is updated only from
+  what comes back. The Mac's database is the single source of truth, always —
+  two writers to one logical library is a conflict-resolution problem nobody
+  needs, and it is why `PUT /progress` goes through the same call the Mac
+  player's autosave uses rather than writing the row directly.
+- **Sync** is a full `GET /library` for now; `?since=` and the SSE stream are
+  the optimisation, not the design.
+
+The cache stores **no media files** — only responses and posters.
 
 One thing the server must send that is not in the schema: **the displayed
 title**. The Mac sorts the grid in `LibraryView` over the title the metadata
@@ -493,7 +505,7 @@ phase:
 **Done when** the above builds and `swift test` still reports its full 395
 tests in 65 suites on macOS.
 
-### Phase 1 — the link, Mac side
+### Phase 1 — the link, Mac side — **done 2026-09-29**
 - `AnimeGodLink`: DTOs, `LinkTransport`, `LinkResolver`, the protocol version.
 - `LinkServer` on the Mac (`Network.framework` `NWListener`; no third-party
   HTTP server — the surface is ~15 routes).
@@ -580,10 +592,11 @@ later. `UIBackgroundModes: audio` is what lets playback survive a screen lock.
 
 Collected in advance so they are recognised rather than rediscovered.
 
-1. **mpv and the bearer token.** If `http-header-fields` does not carry
-   through as expected, the whole auth design needs a different answer
-   (a short-lived signed URL, probably). **Test this in Phase 1**, before
-   anything is built on top of it.
+1. ~~**mpv and the bearer token.**~~ **Settled 2026-09-29.** `-smokeLink`
+   drives a headless libmpv at the real media route and checks both
+   directions: it loads the stream when `http-header-fields` carries
+   `Authorization: Bearer …`, and is refused without it. The token stays out
+   of the URL, and out of logs and history with it. No signed URLs needed.
 2. **`livePosition` vs `position`.** Using the throttled one in the handoff
    costs up to 200 ms — small, but it is exactly the kind of thing that gets
    copied into three more places once it is wrong.

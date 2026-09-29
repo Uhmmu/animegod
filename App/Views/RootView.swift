@@ -142,6 +142,15 @@ struct RootView: View {
             //
             // Waits for the library because the interesting checks stream a
             // real episode off a real library root.
+            if LinkSmokeTest.servesOnly {
+                var waited = 0
+                while model.library.isEmpty && waited < 40 {
+                    try? await Task.sleep(for: .milliseconds(500))
+                    waited += 1
+                }
+                LinkSmokeTest.serve(model: model)
+                return
+            }
             guard LinkSmokeTest.isRequested else { return }
             var waited = 0
             while model.library.isEmpty && waited < 40 {

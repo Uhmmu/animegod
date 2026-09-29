@@ -80,20 +80,34 @@ targets:
         PRODUCT_NAME: AnimeGod
         MARKETING_VERSION: 0.1.0
         CURRENT_PROJECT_VERSION: 1
-        GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_CFBundleDisplayName: AnimeGod
-        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.entertainment
-        INFOPLIST_KEY_UILaunchScreen_Generation: YES
-        INFOPLIST_KEY_UISupportedInterfaceOrientations: >-
-          UIInterfaceOrientationPortrait
-          UIInterfaceOrientationLandscapeLeft
-          UIInterfaceOrientationLandscapeRight
-        INFOPLIST_KEY_NSLocalNetworkUsageDescription: AnimeGod finds your Mac on the same Wi-Fi network to mirror your library and stream episodes.
-        INFOPLIST_KEY_NSBonjourServices: _animegod._tcp
-        INFOPLIST_KEY_UIBackgroundModes: audio
         SWIFT_STRICT_CONCURRENCY: complete
-        CODE_SIGN_IDENTITY: ""
-        CODE_SIGNING_REQUIRED: NO
-        CODE_SIGNING_ALLOWED: NO
+        # Ad-hoc signed rather than unsigned. An unsigned app has no
+        # application-identifier entitlement, so every Keychain call fails
+        # with errSecMissingEntitlement (-34018) — which is how the paired
+        # token silently vanished on the first run. A real device still needs
+        # a development team here.
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGNING_REQUIRED: YES
+        CODE_SIGNING_ALLOWED: YES
+    info:
+      path: Mobile/Info.plist
+      properties:
+        CFBundleDisplayName: AnimeGod
+        LSApplicationCategoryType: public.app-category.entertainment
+        UILaunchScreen: {}
+        UIBackgroundModes: [audio]
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        NSLocalNetworkUsageDescription: AnimeGod finds your Mac on this Wi-Fi network to show your library and stream episodes from it.
+        NSBonjourServices: [_animegod._tcp]
+        # The link is plain HTTP to the user's own Mac. Off the local network
+        # it is reached through Tailscale, which is already WireGuard
+        # encrypted end to end; TLS with a cert pinned at pairing is the
+        # Phase 6 answer for untrusted LANs. Scoped to local networking rather
+        # than opening arbitrary loads.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
     scheme:
       testTargets: []

@@ -3,89 +3,185 @@ import Foundation
 
 /// The phone's hub.
 ///
-/// Phase 2 of `docs/IOS_COMPANION_PLAN.md`: the phone keeps a **read-through
-/// mirror** of the Mac's library — the same `LibraryDatabase`, the same
-/// migrations, the same queries. Nothing here reimplements a query the Mac
-/// already has; that reuse is the whole point of the core being portable.
-///
-/// What is not here yet is the link. The mirror is currently seeded by hand
-/// (see `README-PREVIEW.md`); Phase 1 replaces that with `GET /library`.
+/// Reads come from the cache first and are refreshed behind it, so the app
+/// opens instantly and still browses with the Mac asleep. Writes never touch
+/// the cache: they go to the outbox, are sent to the Mac, and what comes back
+/// is what counts — the Mac's database is the single source of truth.
 @MainActor
 final class MobileModel: ObservableObject {
-    @Published private(set) var library: [LibraryAnime] = []
-    @Published private(set) var continueWatching: [EpisodeMedia] = []
-    @Published private(set) var metadataByAnimeID: [UUID: AnimeMetadata] = [:]
-    @Published private(set) var isLoading = true
-    @Published private(set) var loadError: String?
+    @Published private(set) var works: [LinkWork] = []
+    @Published private(set) var continueWatching: [LinkEpisode] = []
+    @Published private(set) var isRefreshing = false
+    @Published private(set) var isReachable = false
+    @Published private(set) var lastError: String?
+    @Published private(set) var lastSyncedAt: Date?
+    @Published private(set) var macName: String?
     @Published var sortOrder: MobileSortOrder = .watchStatus
+    /// Stored rather than computed off `LinkCredentials`: a computed property
+    /// reading the Keychain publishes nothing, so the first screen stayed on
+    /// "Not Paired" after a pairing that had in fact succeeded.
+    @Published private(set) var isPaired = false
 
-    private var database: LibraryDatabase?
+    let resolver = LinkResolver()
+    private var client: LinkClient?
+    private var detailCache: [UUID: LinkAnimeDetail] = [:]
 
-    /// Where the mirror lives. The real app writes this from the link; for now
-    /// it is copied in beside the app.
-    static var mirrorURL: URL {
-        URL.documentsDirectory.appending(path: "library.sqlite")
+    init() {
+        works = LinkCache.load(LinkLibrary.self, "library")?.works ?? []
+        continueWatching = LinkCache.load([LinkEpisode].self, "continue") ?? []
+        macName = LinkCredentials.macName
+        isPaired = LinkCredentials.isPaired
+        if let host = LinkCredentials.host, let token = LinkCredentials.token {
+            client = LinkClient(host: host, token: token)
+        }
     }
 
-    var isPaired: Bool { database != nil }
+    // MARK: - Pairing
 
-    func load() async {
-        isLoading = true
-        defer { isLoading = false }
-        guard FileManager.default.fileExists(atPath: Self.mirrorURL.path) else {
-            loadError = nil
+    func pair(host: String, code: String) async throws {
+        let name = await UIDeviceName.current
+        let response = try await LinkClient.pair(host: host, code: code, deviceName: name)
+        LinkCredentials.token = response.token
+        LinkCredentials.host = host
+        LinkCredentials.macName = response.macName
+        macName = response.macName
+        client = LinkClient(host: host, token: response.token)
+        isPaired = true
+        await refresh()
+    }
+
+    func unpair() {
+        LinkCredentials.forget()
+        LinkCache.clear()
+        client = nil
+        works = []
+        continueWatching = []
+        detailCache = [:]
+        macName = nil
+        isReachable = false
+        isPaired = false
+    }
+
+    // MARK: - Sync
+
+    func refresh() async {
+        guard let client else { return }
+        isRefreshing = true
+        defer { isRefreshing = false }
+
+        // The stored address may be stale — a different network, a new DHCP
+        // lease. Racing the ladder costs nothing when the pinned one works.
+        let candidates = resolver.candidates(pinned: LinkCredentials.host)
+        if let host = await resolver.resolve(candidates: candidates) {
+            if host != LinkCredentials.host { LinkCredentials.host = host }
+            await client.update(host: host)
+            isReachable = true
+        } else {
+            isReachable = false
+            lastError = String(localized: "Could not reach your Mac. Is AnimeGod open on it?")
+            return
+        }
+
+        await flushOutbox()
+
+        do {
+            let library = try await client.library()
+            works = library.works
+            LinkCache.save(library, "library")
+
+            let items = try await client.continueWatching()
+            continueWatching = items
+            LinkCache.save(items, "continue")
+
+            lastSyncedAt = .now
+            lastError = nil
+        } catch {
+            lastError = describe(error)
+        }
+    }
+
+    /// Sends anything the phone wrote while the Mac was unreachable. An entry
+    /// that fails stays queued; one the Mac rejects outright is dropped, or it
+    /// would be retried for ever.
+    private func flushOutbox() async {
+        guard let client else { return }
+        for entry in LinkOutbox.pending() {
+            do {
+                try await client.putProgress(episodeID: entry.episodeID, entry.update)
+                LinkOutbox.remove(id: entry.id)
+            } catch let error as LinkError where error.code == .notFound || error.code == .badRequest {
+                LinkOutbox.remove(id: entry.id)
+            } catch {
+                break
+            }
+        }
+    }
+
+    // MARK: - Reads
+
+    func detail(for animeID: UUID) async -> LinkAnimeDetail? {
+        if let cached = LinkCache.load(LinkAnimeDetail.self, "anime-\(animeID.uuidString)") {
+            detailCache[animeID] = cached
+        }
+        guard let client else { return detailCache[animeID] }
+        do {
+            let detail = try await client.detail(animeID: animeID)
+            detailCache[animeID] = detail
+            LinkCache.save(detail, "anime-\(animeID.uuidString)")
+            return detail
+        } catch {
+            return detailCache[animeID]
+        }
+    }
+
+    func cachedDetail(for animeID: UUID) -> LinkAnimeDetail? { detailCache[animeID] }
+
+    /// Posters are fetched through the Mac and kept on the phone, so a work
+    /// that has been opened once still shows its cover offline.
+    func posterData(for animeID: UUID) async -> Data? {
+        if let cached = LinkCache.poster(animeID: animeID) { return cached }
+        guard let client else { return nil }
+        guard let data = try? await client.poster(animeID: animeID), !data.isEmpty else { return nil }
+        LinkCache.savePoster(data, animeID: animeID)
+        return data
+    }
+
+    // MARK: - Writes
+
+    func saveProgress(episodeID: UUID, position: Double, duration: Double) async {
+        let update = LinkProgressUpdate(position: position, duration: duration)
+        guard let client else {
+            LinkOutbox.enqueue(.init(episodeID: episodeID, update: update))
             return
         }
         do {
-            let db = try database ?? LibraryDatabase(url: Self.mirrorURL)
-            database = db
-            library = try await db.library()
-            continueWatching = try await db.continueWatching(limit: 12)
-            // Bangumi first so a reachable CDN wins over an unreachable one —
-            // the same preference `AppModel.posterCandidates` makes.
-            var best: [UUID: AnimeMetadata] = [:]
-            for entry in try await db.metadata() {
-                if let existing = best[entry.animeID], existing.provider == .bangumi { continue }
-                best[entry.animeID] = entry
-            }
-            metadataByAnimeID = best
-            loadError = nil
+            try await client.putProgress(episodeID: episodeID, update)
         } catch {
-            loadError = error.localizedDescription
+            LinkOutbox.enqueue(.init(episodeID: episodeID, update: update))
         }
     }
 
-    func episodes(for animeID: UUID) async -> [EpisodeMedia] {
-        guard let database else { return [] }
-        return (try? await database.episodes(animeID: animeID)) ?? []
+    func setWatched(_ isWatched: Bool, episodeID: UUID) async {
+        guard let client else { return }
+        try? await client.setWatched(episodeID: episodeID, isWatched)
+        await refresh()
     }
 
     // MARK: - Display
 
-    /// The title the card shows. The Mac sorts the grid over *this*, not over
-    /// `anime.sortTitle` (which is the folder's romaji name) — if the phone
-    /// sorted on `sortTitle` the two grids would come out in different orders.
-    func displayTitle(for entry: LibraryAnime) -> String {
-        let title = metadataByAnimeID[entry.id]?.title
-        return (title?.isEmpty == false ? title! : entry.anime.title)
+    private func describe(_ error: any Error) -> String {
+        (error as? LinkError)?.message ?? error.localizedDescription
     }
 
-    func posterURL(for animeID: UUID) -> URL? {
-        metadataByAnimeID[animeID]?.posterURL
-    }
-
-    func score(for animeID: UUID) -> Double? {
-        metadataByAnimeID[animeID]?.score
-    }
+    func work(id: UUID) -> LinkWork? { works.first { $0.id == id } }
 
     func title(forAnimeID animeID: UUID) -> String {
-        if let entry = library.first(where: { $0.id == animeID }) { return displayTitle(for: entry) }
-        return metadataByAnimeID[animeID]?.title ?? ""
+        work(id: animeID)?.displayTitle ?? ""
     }
 
     /// Latin-leading titles sort ahead of the rest: `localizedStandardCompare`
-    /// in a Chinese locale orders Han by pinyin, which is right, but puts
-    /// every Latin title after every Chinese one.
+    /// in a Chinese locale orders Han by pinyin, which is right, but puts every
+    /// Latin title after every Chinese one.
     private func precedes(_ a: String, _ b: String) -> Bool {
         func isLatin(_ s: String) -> Bool {
             guard let first = s.unicodeScalars.first(where: { !$0.properties.isWhitespace }) else { return false }
@@ -96,22 +192,20 @@ final class MobileModel: ObservableObject {
         return a.localizedStandardCompare(b) == .orderedAscending
     }
 
-    var sortedLibrary: [LibraryAnime] {
+    var sortedWorks: [LinkWork] {
         switch sortOrder {
         case .title:
-            return library.sorted { precedes(displayTitle(for: $0), displayTitle(for: $1)) }
+            return works.sorted { precedes($0.sortKey, $1.sortKey) }
         case .recentlyAdded:
-            return library.sorted { $0.anime.createdAt > $1.anime.createdAt }
+            return works.sorted { $0.createdAt > $1.createdAt }
         case .rating:
-            return library.sorted { (score(for: $0.id) ?? -1) > (score(for: $1.id) ?? -1) }
+            return works.sorted { ($0.score ?? -1) > ($1.score ?? -1) }
         case .watchStatus:
-            // Finished / Still Watching / Not Started, newest-first in the
-            // first two — the Mac's `LibrarySortOrder.watchStatus`.
-            func rank(_ e: LibraryAnime) -> Int { e.isFinished ? 0 : (e.isInProgress ? 1 : 2) }
-            return library.sorted { a, b in
+            func rank(_ e: LinkWork) -> Int { e.isFinished ? 0 : (e.isInProgress ? 1 : 2) }
+            return works.sorted { a, b in
                 let ra = rank(a), rb = rank(b)
                 if ra != rb { return ra < rb }
-                if ra == 2 { return precedes(displayTitle(for: a), displayTitle(for: b)) }
+                if ra == 2 { return precedes(a.sortKey, b.sortKey) }
                 let da = (ra == 0 ? a.lastWatchedAt : a.lastPlayedAt) ?? .distantPast
                 let db = (rb == 0 ? b.lastWatchedAt : b.lastPlayedAt) ?? .distantPast
                 return da > db
@@ -125,10 +219,16 @@ enum MobileSortOrder: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var label: String {
         switch self {
-        case .watchStatus: "Watch Status"
-        case .title: "Title"
-        case .recentlyAdded: "Recently Added"
-        case .rating: "Rating"
+        case .watchStatus: String(localized: "Watch Status")
+        case .title: String(localized: "Title")
+        case .recentlyAdded: String(localized: "Recently Added")
+        case .rating: String(localized: "Rating")
         }
+    }
+}
+
+enum UIDeviceName {
+    @MainActor static var current: String {
+        UIDeviceNameBridge.name
     }
 }

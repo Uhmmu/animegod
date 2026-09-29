@@ -16,7 +16,25 @@ import Libmpv
 enum LinkSmokeTest {
     static var isRequested: Bool { ProcessInfo.processInfo.arguments.contains("-smokeLink") }
 
-    private static func say(_ text: String) { print("SMOKE link: \(text)") }
+    /// `AnimeGod -smokeLinkServe` — start the server, open pairing, and stay
+    /// up. The development counterpart to `-smokeLink`: something has to be
+    /// listening while the phone app is driven against it.
+    static var servesOnly: Bool { ProcessInfo.processInfo.arguments.contains("-smokeLinkServe") }
+
+    static func serve(model: AppModel) {
+        model.link.start()
+        model.link.beginPairing()
+        say("serving; pairing code \(model.link.pairingCode ?? "none")")
+        say("endpoints \(model.link.endpoints.joined(separator: ", "))")
+    }
+
+    /// Flushed explicitly: stdout is block-buffered when it is not a
+    /// terminal, so a long-running serve mode would print nothing at all
+    /// until it exited.
+    private static func say(_ text: String) {
+        print("SMOKE link: \(text)")
+        fflush(stdout)
+    }
 
     static func run(model: AppModel) async {
         say("starting server on port \(model.link.port)")
