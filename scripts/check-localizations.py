@@ -10,7 +10,11 @@ skipped. Plural variations count as translated when every variant is.
 import json
 import sys
 
-CATALOGS = ["App/Localizable.xcstrings", "Sources/AnimeGodCore/Resources/Localizable.xcstrings"]
+CATALOGS = [
+    "App/Localizable.xcstrings",
+    "Sources/AnimeGodCore/Resources/Localizable.xcstrings",
+    "Mobile/Localizable.xcstrings",
+]
 LANGUAGES = ["zh-Hans", "ja"]
 
 
