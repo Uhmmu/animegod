@@ -217,6 +217,15 @@ final class MobilePlayerController: UIViewController {
         setOption("panscan", "0")
         setOption("video-unscaled", "no")
         setOption("sub-auto", "no")
+        // The bundled CJK face, and only once it has been confirmed to
+        // resolve. mpv's default `sans-serif` is Helvetica here, and the
+        // fallback CoreText offers for CJK is a system file the sandbox
+        // cannot open — see `MobileSubtitleFont` for the log that shows it.
+        // Naming a font that does not resolve turns every glyph into a box,
+        // so this is deliberately conditional.
+        if MobileSubtitleFont.isAvailable {
+            setOption("sub-font", MobileSubtitleFont.familyName)
+        }
 
         var layerPointer = Int64(bitPattern: UInt64(UInt(bitPattern: Unmanaged.passUnretained(metalLayer).toOpaque())))
         let windowStatus = mpv_set_option(handle, "wid", MPV_FORMAT_INT64, &layerPointer)

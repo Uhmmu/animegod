@@ -5,6 +5,12 @@ struct AnimeGodMobileApp: App {
     @StateObject private var model = MobileModel()
     @Environment(\.scenePhase) private var scenePhase
 
+    init() {
+        // Before any player exists: libass asks CoreText for the font by
+        // name, so it has to be registered by the time mpv starts.
+        MobileSubtitleFont.register()
+    }
+
     var body: some Scene {
         WindowGroup {
             RootTabView()
