@@ -10,12 +10,16 @@ struct MobileDanmakuOverlay: UIViewRepresentable {
     let comments: [DanmakuComment]
     let isVisible: Bool
     var settings: DanmakuDisplaySettings = .default
+    /// The picture's aspect. The canvas covers the screen but keeps its lanes
+    /// and its type size on the picture.
+    var videoAspect: Double?
     /// Handed back so the player state can anchor the clock on every sample.
     var onReady: (MobileDanmakuCanvas) -> Void
 
     func makeUIView(context: Context) -> MobileDanmakuCanvas {
         let canvas = MobileDanmakuCanvas(frame: .zero)
         canvas.apply(settings: settings)
+        canvas.setVideoAspect(videoAspect)
         canvas.setVisible(isVisible)
         canvas.setComments(comments)
         DispatchQueue.main.async { onReady(canvas) }
@@ -24,6 +28,7 @@ struct MobileDanmakuOverlay: UIViewRepresentable {
 
     func updateUIView(_ canvas: MobileDanmakuCanvas, context: Context) {
         canvas.apply(settings: settings)
+        canvas.setVideoAspect(videoAspect)
         canvas.setVisible(isVisible)
         if context.coordinator.loadedCount != comments.count {
             context.coordinator.loadedCount = comments.count

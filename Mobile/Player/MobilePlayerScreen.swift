@@ -41,7 +41,8 @@ struct MobilePlayerScreen: View {
                 // across the black bars.
                 MobileDanmakuOverlay(
                     comments: state.danmakuComments,
-                    isVisible: state.danmakuEnabled
+                    isVisible: state.danmakuEnabled,
+                    videoAspect: state.videoAspect
                 ) { canvas in
                     danmakuCanvas = canvas
                     // The clock is anchored on player samples, never on a
@@ -50,7 +51,15 @@ struct MobilePlayerScreen: View {
                         canvas?.playbackSample(position: position, speed: speed, paused: paused)
                     }
                 }
-                .aspectRatio(state.videoAspect ?? (16.0 / 9.0), contentMode: .fit)
+                // The whole screen, like the video layer — the canvas works
+                // out where the picture is inside it and keeps its lanes and
+                // its type size there, while comments travel the full width.
+                // Fitting the *view* to the picture instead put the seam they
+                // enter and leave on 80 points inside the bezel, and, because
+                // this view respected the safe area while the video layer did
+                // not, left it 18 points inside the picture as well (measured:
+                // a 679×382 canvas over a 715×402 picture).
+                .ignoresSafeArea()
                 .allowsHitTesting(false)
             }
 

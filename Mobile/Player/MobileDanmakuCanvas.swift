@@ -38,6 +38,9 @@ final class MobileDanmakuCanvas: UIView {
     /// player position means a late match starts at the current scene rather
     /// than scanning the whole episode from zero on its first frame.
     private var latestPlaybackPosition: Double = 0
+    /// The picture's aspect, so the canvas can work out where the video
+    /// actually is inside a full-screen view.
+    private var videoAspect: Double?
 
     /// Layers aligned with the engine's active list, plus the ids and drawn
     /// widths they carry. Reconciling the three by a two-pointer walk keeps
@@ -53,6 +56,34 @@ final class MobileDanmakuCanvas: UIView {
     /// sublayers is the expensive part, reusing a hidden one is not.
     private var freeLayers: [CALayer] = []
 
+    /// Where the picture sits inside this view.
+    ///
+    /// **The canvas is the whole screen; the picture usually is not.** Those
+    /// are two different rectangles and they govern different things. Type
+    /// size and how far down comments may stack belong to the *picture* — a
+    /// font scaled off a 19.5:9 screen over a letterboxed strip is the bug
+    /// that produced 44pt text in portrait. But how far a comment *travels*
+    /// belongs to the *screen*: a phone in landscape has black pillars either
+    /// side of a 16:9 film, and confining the scroll to the picture means
+    /// comments appear and vanish along a seam 80 points inside the bezel
+    /// instead of sliding off the edge of the device.
+    private var videoRect: CGRect {
+        guard let videoAspect, videoAspect > 0, bounds.width > 0, bounds.height > 0 else { return bounds }
+        let width: Double
+        let height: Double
+        if bounds.width / bounds.height > videoAspect {
+            height = bounds.height
+            width = height * videoAspect
+        } else {
+            width = bounds.width
+            height = width / videoAspect
+        }
+        return CGRect(
+            x: (bounds.width - width) / 2, y: (bounds.height - height) / 2,
+            width: width, height: height
+        )
+    }
+
     private var lineHeight: Double { rasterizer.lineHeight }
     /// The scale every comment layer is drawn at.
     ///
@@ -65,6 +96,11 @@ final class MobileDanmakuCanvas: UIView {
     /// composites that back up to the display's scale — which is exactly what
     /// pixellated danmaku over a sharp picture looks like.
     private var contentsScale: CGFloat = 1
+    /// `AG_DANMAKU_LOG=1` prints the metrics whenever they are recomputed;
+    /// `=2` adds every spawn. Guessing at what danmaku are doing on a device
+    /// has cost this project two rounds already, so the trace is cheap to
+    /// reach for.
+    private let traceLevel = Int(ProcessInfo.processInfo.environment["AG_DANMAKU_LOG"] ?? "") ?? 0
 
     override init(frame: CGRect) {
         rasterizer = DanmakuTextRasterizer(fontSize: 16, lineHeight: 21)
@@ -78,6 +114,12 @@ final class MobileDanmakuCanvas: UIView {
         )
         backgroundColor = .clear
         isUserInteractionEnabled = false
+        // The canvas is sized to the picture, and a comment spawns at the
+        // right edge of it. Without clipping that is drawn over whatever is
+        // beside the video — in portrait, the black bars and the chrome — so
+        // comments appear to pop into existence off the picture instead of
+        // sliding in from its edge.
+        clipsToBounds = true
         layer.addSublayer(hostLayer)
         hostLayer.backgroundColor = UIColor.clear.cgColor
         recomputeMetrics()
@@ -118,6 +160,12 @@ final class MobileDanmakuCanvas: UIView {
         }
     }
 
+    func setVideoAspect(_ aspect: Double?) {
+        guard aspect != videoAspect else { return }
+        videoAspect = aspect
+        recomputeMetrics()
+    }
+
     func setVisible(_ visible: Bool) {
         isVisible = visible
         hostLayer.isHidden = !visible
@@ -155,9 +203,9 @@ final class MobileDanmakuCanvas: UIView {
             // 60, deliberately, not the panel's 120. `tick()` runs on the
             // main actor and so does mpv's event drain, so every extra danmaku
             // frame is taken directly out of the player's budget — at 120 Hz
-            // the video itself starts stuttering. The source is 24 fps and the
-            // comments move a few points a frame; there is nothing up there
-            // to see.
+            // over a full-screen canvas the video itself started stuttering.
+            // The source is 24 fps and the comments move a few points a
+            // frame; there is nothing up there to see.
             link.preferredFrameRateRange = CAFrameRateRange(minimum: 24, maximum: 60, preferred: 60)
             link.add(to: .main, forMode: .common)
             stopDisplayLink = { [weak link] in link?.invalidate() }
@@ -205,8 +253,18 @@ final class MobileDanmakuCanvas: UIView {
         // pixels for 31.7×17 points) and simply too small. A phone is also
         // held far closer to the eye than a laptop, so angular size does not
         // rescue it either.
-        let baseFontSize = min(max(bounds.height * 0.05, 16), 44)
-        let fontSize = min(max(baseFontSize * settings.fontScale, 12), 60)
+        // Rounded to whole points, and the viewport with it. Every metric
+        // change throws away the bitmap cache and clears the engine, so a
+        // layout pass that moves the view by a fraction of a point — the
+        // controls appearing, a safe-area update, an aspect ratio that does
+        // not divide evenly — used to wipe the screen and respawn the lot
+        // from the right edge at once. Quantising means only a real size
+        // change costs that.
+        let picture = videoRect
+        let viewWidth = bounds.width.rounded()
+        let viewHeight = picture.height.rounded()
+        let baseFontSize = min(max(viewHeight * 0.05, 16), 44)
+        let fontSize = min(max(baseFontSize * settings.fontScale, 12), 60).rounded()
         let spacing = min(max(settings.lineSpacing, 1.05), 2)
         let metricsChanged = fontSize != rasterizer.fontSize
             || (fontSize * spacing).rounded() != rasterizer.lineHeight
@@ -215,13 +273,13 @@ final class MobileDanmakuCanvas: UIView {
         // drawing the old one at the new size.
         if metricsChanged { discardLayers() }
         engine.updateSettings(settings)
-        engine.updateViewport(width: max(bounds.width, 1), height: max(bounds.height, 1), lineHeight: lineHeight)
-        if ProcessInfo.processInfo.environment["AG_DANMAKU_LOG"] == "1" {
+        engine.updateViewport(width: max(viewWidth, 1), height: max(viewHeight, 1), lineHeight: lineHeight)
+        if traceLevel >= 1, metricsChanged || traceLevel >= 2 {
             let probe = DanmakuComment(id: "probe", time: 0, text: "測試", mode: .scroll)
             let bitmap = rasterizer.bitmap(for: probe)
             FileHandle.standardError.write(Data(String(
                 format: "DANMAKU bounds=%.0fx%.0f font=%.2f line=%.2f rasterScale=%d contentsScale=%.1f probe=%dx%dpx probeWidthPt=%.1f\n",
-                bounds.width, bounds.height, fontSize, lineHeight, scale, contentsScale,
+                viewWidth, viewHeight, fontSize, lineHeight, scale, contentsScale,
                 bitmap?.width ?? -1, bitmap?.height ?? -1, rasterizer.width(of: probe)
             ).utf8))
         }
@@ -264,6 +322,7 @@ final class MobileDanmakuCanvas: UIView {
         CATransaction.setDisableActions(true)
         let active = engine.activeComments
         let lineRectHeight = lineHeight
+        let pictureTop = videoRect.minY
         if structural {
             // Both lists are in spawn order and expiry compacts in place, so
             // the new list is the old one minus some entries plus appends: one
@@ -287,6 +346,7 @@ final class MobileDanmakuCanvas: UIView {
                     layer.contents = rasterizer.bitmap(for: commentForRaster(active[index]))
                     scratchLayers.append(layer)
                     scratchWidths.append(.nan)
+                    if traceLevel >= 2 { trace(spawned: active[index]) }
                 }
                 scratchIDs.append(id)
             }
@@ -304,8 +364,12 @@ final class MobileDanmakuCanvas: UIView {
             // subtracts from `bounds.height` here because its layer is
             // bottom-left; copying that line over is what makes lanes crawl up
             // from the bottom of the screen.
+            // The engine's lanes are measured from the top of the picture,
+            // not of the view: it is handed the picture's height, so lane
+            // zero is the picture's first line and everything shifts down by
+            // wherever the picture starts.
             let layer = orderedLayers[index]
-            layer.position = CGPoint(x: active[index].x, y: active[index].y)
+            layer.position = CGPoint(x: active[index].x, y: active[index].y + pictureTop)
             // Bounds are per-comment and never change while it is on screen;
             // setting them every frame would re-lay-out the layer for nothing.
             let width = max(active[index].width, 1)
@@ -315,6 +379,17 @@ final class MobileDanmakuCanvas: UIView {
             }
         }
         CATransaction.commit()
+    }
+
+    /// Where a comment came on screen. A scrolling comment must always
+    /// start at `x == bounds.width`; anything else is a bug, and a `top` or
+    /// `bottom` comment appearing centred is not one.
+    private func trace(spawned item: DanmakuActiveComment) {
+        FileHandle.standardError.write(Data(String(
+            format: "DANMAKU spawn mode=%@ x=%.1f y=%.1f w=%.1f viewW=%.0f text=%@\n",
+            String(describing: item.mode), item.x, item.y, item.width, bounds.width,
+            item.text.prefix(12).description
+        ).utf8))
     }
 
     private func commentForRaster(_ item: DanmakuActiveComment) -> DanmakuComment {
