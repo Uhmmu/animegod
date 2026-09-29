@@ -432,6 +432,30 @@ public struct LinkSubscription: Codable, Sendable, Identifiable {
     }
 }
 
+/// Subtitles the Mac downloaded for one video.
+///
+/// Embedded tracks need none of this — mpv plays them straight out of the
+/// Matroska. These are the sidecar files the Mac fetched from assrt, SubDL,
+/// OpenSubtitles or Jimaku, matched and scored there, so the phone inherits
+/// that work instead of repeating it with no credentials.
+///
+/// Fonts an archive shipped with a subtitle stay on the Mac: ASS typesetting
+/// falls back to system fonts on the phone rather than failing.
+public struct LinkSubtitleList: Codable, Sendable {
+    public let mediaFileID: UUID
+    public let subtitles: [SubtitleDownloadRecord]
+
+    public init(mediaFileID: UUID, subtitles: [SubtitleDownloadRecord]) {
+        self.mediaFileID = mediaFileID
+        self.subtitles = subtitles
+    }
+
+    /// The one to load when the video plays, if the Mac marked one.
+    public var active: SubtitleDownloadRecord? {
+        subtitles.first { $0.isActive }
+    }
+}
+
 public enum LinkCoding {
     public static let encoder: JSONEncoder = {
         let e = JSONEncoder()

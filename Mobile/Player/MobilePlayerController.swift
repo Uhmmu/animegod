@@ -21,6 +21,9 @@ protocol MobilePlayerDelegate: AnyObject {
     func playerDidUpdate(position: Double?, duration: Double?, paused: Bool?)
     func playerLoadingStateDidChange(isLoading: Bool)
     func playerDidUpdateTracks(audio: [MobileTrack], subtitles: [MobileTrack], audioID: Int64?, subtitleID: Int64?)
+    /// The video's display aspect, once mpv reports it. The danmaku overlay
+    /// needs it: comments belong over the picture, not over the letterbox.
+    func playerDidUpdateAspect(_ aspect: Double)
     func playerDidFail(message: String)
     func playerDidFinishFile()
 }
@@ -132,6 +135,15 @@ final class MobilePlayerController: UIViewController {
     }
 
     var position: Double { getDouble("time-pos") ?? 0 }
+
+    /// Loads a sidecar subtitle file and selects it.
+    ///
+    /// Additive only: a subtitle that will not load must never surface as a
+    /// playback failure, which is the rule the Mac's player already follows.
+    /// mpv reports the problem in its own log and carries on with the video.
+    func addSubtitle(url: URL) {
+        command("sub-add", url.path, "select")
+    }
 
     // MARK: - Setup
 
@@ -345,6 +357,7 @@ final class MobilePlayerController: UIViewController {
         guard videoDisplayAspect != aspect else { return }
         videoDisplayAspect = aspect
         layoutVideoLayer()
+        delegate?.playerDidUpdateAspect(aspect)
     }
 
     private func publishTracks() {

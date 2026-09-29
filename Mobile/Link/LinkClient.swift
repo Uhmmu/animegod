@@ -77,6 +77,17 @@ actor LinkClient {
         _ = try await perform(request)
     }
 
+    func subtitles(mediaFileID: UUID) async throws -> LinkSubtitleList {
+        try await get(LinkProtocol.Route.subtitlesPrefix + mediaFileID.uuidString)
+    }
+
+    func subtitleText(mediaFileID: UUID, id: UUID) async throws -> String {
+        let data = try await raw(
+            LinkProtocol.Route.subtitlesPrefix + mediaFileID.uuidString + "/" + id.uuidString
+        )
+        return String(data: data, encoding: .utf8) ?? ""
+    }
+
     func danmaku(mediaFileID: UUID) async throws -> LinkDanmakuPool {
         try await get(LinkProtocol.Route.danmakuPrefix + mediaFileID.uuidString)
     }

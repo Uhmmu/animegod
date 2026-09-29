@@ -30,6 +30,13 @@ final class MobilePlayerState: ObservableObject {
     /// seconds later.
     private(set) var keepsUnwatched = false
 
+    /// Sidecar subtitles the Mac downloaded for this file, and the one that
+    /// has been handed to mpv.
+    @Published private(set) var externalSubtitles: [SubtitleDownloadRecord] = []
+    @Published private(set) var loadedExternalSubtitleID: UUID?
+    /// The picture's aspect, once mpv reports it. Until then the overlay
+    /// spans the whole view, which is only ever black.
+    @Published var videoAspect: Double?
     @Published var danmakuEnabled = true
     @Published private(set) var danmakuComments: [DanmakuComment] = []
     @Published private(set) var danmakuSources: [String] = []
@@ -90,6 +97,29 @@ final class MobilePlayerState: ObservableObject {
         isWatched = value
         keepsUnwatched = !value
         Task { await model?.setWatched(value, episodeID: episode.id) }
+    }
+
+    /// Fetches the list and loads whichever one the Mac marked active.
+    ///
+    /// Purely additive: embedded tracks already play, and a sidecar that
+    /// cannot be had leaves the video exactly as it was.
+    func loadExternalSubtitles(into controller: MobilePlayerController?) async {
+        guard let list = await model?.subtitles(mediaFileID: episode.mediaFileID) else { return }
+        externalSubtitles = list.subtitles
+        guard let active = list.active, let model else { return }
+        await select(active, into: controller, model: model)
+    }
+
+    func select(
+        _ record: SubtitleDownloadRecord,
+        into controller: MobilePlayerController?,
+        model: MobileModel
+    ) async {
+        guard let url = await MobileSubtitleStore.fetch(
+            mediaFileID: episode.mediaFileID, record: record, using: model
+        ) else { return }
+        controller?.addSubtitle(url: url)
+        loadedExternalSubtitleID = record.id
     }
 
     func loadDanmaku() async {

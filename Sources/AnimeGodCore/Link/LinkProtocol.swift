@@ -36,6 +36,8 @@ public enum LinkProtocol {
         public static let charts = "/charts"
         public static let downloads = "/downloads"
         public static let subscriptions = "/subscriptions"
+        /// `/subtitles/{mediaFileID}` and `/subtitles/{mediaFileID}/{id}`
+        public static let subtitlesPrefix = "/subtitles/"
         /// `/danmaku/{mediaFileID}`
         public static let danmakuPrefix = "/danmaku/"
         /// `/progress/{episodeID}`

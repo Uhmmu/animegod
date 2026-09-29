@@ -268,6 +268,21 @@ final class MobileModel: ObservableObject {
         return value
     }
 
+    /// Sidecar subtitles the Mac has for a file. Cached, so an offline
+    /// episode still lists what it has.
+    func subtitles(mediaFileID: UUID) async -> LinkSubtitleList? {
+        guard let client, let list = try? await client.subtitles(mediaFileID: mediaFileID) else {
+            return MobileSubtitleStore.remembered(mediaFileID: mediaFileID)
+        }
+        MobileSubtitleStore.remember(list)
+        return list
+    }
+
+    func subtitleText(mediaFileID: UUID, id: UUID) async -> String? {
+        guard let client else { return nil }
+        return try? await client.subtitleText(mediaFileID: mediaFileID, id: id)
+    }
+
     // MARK: - Handoff
 
     /// Takes an episode from the Mac: it pauses, writes where it got to, and
@@ -294,10 +309,19 @@ final class MobileModel: ObservableObject {
         )
     }
 
-    /// Starts copying an episode onto the phone.
+    /// Starts copying an episode onto the phone, subtitles included.
+    ///
+    /// An episode downloaded for a train with no subtitle is half a download,
+    /// and the sidecar is tens of kilobytes against a gigabyte of video.
     func downloadOffline(_ episode: LinkEpisode) {
         guard let target = playbackTarget(for: episode) else { return }
         offline.download(episode: episode, title: title(forAnimeID: episode.animeID), target: target)
+        Task {
+            guard let list = await subtitles(mediaFileID: episode.mediaFileID) else { return }
+            for record in list.subtitles where record.isActive || list.active == nil {
+                _ = await MobileSubtitleStore.fetch(mediaFileID: episode.mediaFileID, record: record, using: self)
+            }
+        }
     }
 
     // MARK: - Writes

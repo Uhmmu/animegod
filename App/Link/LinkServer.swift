@@ -292,6 +292,12 @@ final class LinkServer: ObservableObject {
             return await handlePoster(animeID: uuid, model: model)
         }
 
+        if request.path.hasPrefix(LinkProtocol.Route.subtitlesPrefix),
+           let id = request.identifier(after: LinkProtocol.Route.subtitlesPrefix),
+           let uuid = UUID(uuidString: id) {
+            return await handleSubtitles(mediaFileID: uuid, path: request.path, model: model)
+        }
+
         if let id = request.identifier(after: LinkProtocol.Route.danmakuPrefix), let uuid = UUID(uuidString: id) {
             guard let pool = await LinkDanmaku.pool(mediaFileID: uuid, model: model) else {
                 return .response(.error(.notFound, "No danmaku for that file.", status: 404))
@@ -321,6 +327,44 @@ final class LinkServer: ObservableObject {
         Self.saveDevices(pairedDevices)
         cancelPairing()
         return .json(LinkPairResponse(token: device.token, macName: Host.current().localizedName ?? "Mac"))
+    }
+
+    /// The list for a video, or one subtitle's text.
+    ///
+    /// `/subtitles/{mediaFileID}` lists; `/subtitles/{mediaFileID}/{id}` sends
+    /// the file. Served as text rather than a download so the phone can write
+    /// it straight into its container and hand mpv a path.
+    private func handleSubtitles(mediaFileID: UUID, path: String, model: AppModel) async -> LinkRouteResult {
+        guard let database = model.libraryDatabase,
+              let file = try? await database.mediaFile(id: mediaFileID)
+        else { return .response(.error(.notFound, "No such file.", status: 404)) }
+
+        let key = SubtitleCacheStore.videoKey(
+            mediaFileID: mediaFileID,
+            fileName: (file.relativePath as NSString).lastPathComponent
+        )
+        let records = (try? await database.subtitleDownloads(videoKey: key)) ?? []
+
+        // A trailing component means "give me this one".
+        let tail = path
+            .dropFirst(LinkProtocol.Route.subtitlesPrefix.count)
+            .split(separator: "/")
+            .dropFirst()
+            .first
+            .map(String.init)
+        guard let tail else {
+            return .response(.json(LinkSubtitleList(mediaFileID: mediaFileID, subtitles: records)))
+        }
+        guard let wanted = UUID(uuidString: tail),
+              let record = records.first(where: { $0.id == wanted }),
+              let text = try? String(contentsOf: model.subtitlePreferences.cache.url(for: record), encoding: .utf8)
+        else { return .response(.error(.notFound, "No such subtitle.", status: 404)) }
+
+        return .response(LinkHTTPResponse(
+            status: 200,
+            headers: ["Content-Type": "text/plain; charset=utf-8"],
+            body: Data(text.utf8)
+        ))
     }
 
     // MARK: - The More tab

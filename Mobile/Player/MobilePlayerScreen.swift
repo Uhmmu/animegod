@@ -34,6 +34,11 @@ struct MobilePlayerScreen: View {
                 }
                 .ignoresSafeArea()
 
+                // Sized to the picture, not the screen. In landscape the two
+                // coincide; in portrait the video is a letterboxed strip, and
+                // a full-screen canvas both scales the font off the wrong
+                // dimension — 44pt instead of ~14 — and scrolls comments
+                // across the black bars.
                 MobileDanmakuOverlay(
                     comments: state.danmakuComments,
                     isVisible: state.danmakuEnabled
@@ -45,8 +50,8 @@ struct MobilePlayerScreen: View {
                         canvas?.playbackSample(position: position, speed: speed, paused: paused)
                     }
                 }
+                .aspectRatio(state.videoAspect ?? (16.0 / 9.0), contentMode: .fit)
                 .allowsHitTesting(false)
-                .ignoresSafeArea()
             }
 
             if state.isLoading || handoff == nil {
@@ -99,8 +104,9 @@ struct MobilePlayerScreen: View {
             revealControls()
             await beginHandoff(force: false)
             // After the handoff, so a slow match never delays the picture.
-            // Danmaku is additive: if it never arrives, playback is unaffected.
+            // Both are additive: if neither arrives, playback is unaffected.
             Task { await state.loadDanmaku() }
+            Task { await state.loadExternalSubtitles(into: controller) }
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(10))
                 guard !Task.isCancelled else { break }
@@ -207,13 +213,7 @@ struct MobilePlayerScreen: View {
                     selection: state.audioID
                 ) { controller?.select(audioID: $0) }
 
-                trackMenu(
-                    title: String(localized: "Subtitles"),
-                    icon: "captions.bubble",
-                    tracks: state.subtitleTracks,
-                    selection: state.subtitleID,
-                    allowsOff: true
-                ) { controller?.select(subtitleID: $0) }
+                subtitleMenu
 
                 Button {
                     state.danmakuEnabled.toggle()
@@ -282,6 +282,65 @@ struct MobilePlayerScreen: View {
             }
             .font(.caption2.monospacedDigit())
             .foregroundStyle(.white.opacity(0.75))
+        }
+    }
+
+    /// Embedded tracks and the Mac's sidecars in one menu.
+    ///
+    /// They are the same thing to the viewer; that one came out of the
+    /// Matroska and the other off assrt is not their problem.
+    @ViewBuilder
+    private var subtitleMenu: some View {
+        if !state.subtitleTracks.isEmpty || !state.externalSubtitles.isEmpty {
+            Menu {
+                Button {
+                    controller?.select(subtitleID: 0)
+                } label: {
+                    if state.subtitleID == nil || state.subtitleID == 0 {
+                        Label("Off", systemImage: "checkmark")
+                    } else {
+                        Text("Off")
+                    }
+                }
+
+                if !state.subtitleTracks.isEmpty {
+                    Section(String(localized: "In this file")) {
+                        ForEach(state.subtitleTracks) { track in
+                            Button {
+                                controller?.select(subtitleID: track.id)
+                            } label: {
+                                if state.subtitleID == track.id {
+                                    Label(track.displayName, systemImage: "checkmark")
+                                } else {
+                                    Text(track.displayName)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if !state.externalSubtitles.isEmpty {
+                    Section(String(localized: "From your Mac")) {
+                        ForEach(state.externalSubtitles) { record in
+                            Button {
+                                Task { await state.select(record, into: controller, model: model) }
+                            } label: {
+                                let name = [record.language?.displayName, record.releaseGroup]
+                                    .compactMap { $0 }
+                                    .joined(separator: " · ")
+                                let label = name.isEmpty ? record.fileName : name
+                                if state.loadedExternalSubtitleID == record.id {
+                                    Label(label, systemImage: "checkmark")
+                                } else {
+                                    Text(label)
+                                }
+                            }
+                        }
+                    }
+                }
+            } label: {
+                Label(String(localized: "Subtitles"), systemImage: "captions.bubble").font(.caption)
+            }
         }
     }
 
@@ -450,6 +509,10 @@ struct MobilePlayerHost: UIViewControllerRepresentable {
             state.subtitleTracks = subtitles
             state.audioID = audioID
             state.subtitleID = subtitleID
+        }
+
+        func playerDidUpdateAspect(_ aspect: Double) {
+            state.videoAspect = aspect
         }
 
         func playerDidFail(message: String) {
