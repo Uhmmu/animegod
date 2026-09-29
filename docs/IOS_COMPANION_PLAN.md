@@ -1,6 +1,6 @@
 # AnimeGod for iPhone — Plan
 
-Status: **Phases 0–1 done**, Phase 2 in progress.
+Status: **Phases 0–3 done.** Phase 4, the handoff, is next.
 Written 2026-09-29.
 
 The phone app is called AnimeGod too. It is not a second library and not a
@@ -516,13 +516,36 @@ tests in 65 suites on macOS.
   including a Range read of a real media file. The app target has no tests, so
   this *is* the test, the way the other smoke flags are.
 
-### Phase 2 — the phone, read-only
+### Phase 2 — the phone, read-only — **done 2026-09-29**
 - New `AnimeGodMobile` target in `project.yml`.
 - Pair, mirror, library grid, detail, episode list, continue-watching.
 - Posters via `/poster`. No playback yet.
 - **Done when** the phone shows the same grid in the same order as the Mac.
 
-### Phase 3 — playback
+### Phase 3 — playback — **done 2026-09-29**
+
+Driven end to end in the simulator against the real library: a 1080p 10-bit
+HEVC MKV decodes through VideoToolbox, the embedded Chinese subtitles render,
+playback resumes at the saved second, and closing the player writes the new
+position into the Mac's database. What it cost:
+
+- **`ytdl` does not exist on iOS.** MPVKit builds LuaJIT for macOS only, so
+  there is no `ytdl_hook` and setting the option is rejected outright — which
+  the strict option assertion turned into a launch crash. The assertion was
+  right; the option is gone.
+- **`loadfile` is `<url> [<flags> [<index> [<options>]]]`.** The options are
+  the *fourth* argument and the third is an integer. `start=` in the index
+  slot is rejected, and it presents as a spinner that never stops, because mpv
+  reports that class of failure only through its own log. `MPV_EVENT_LOG_MESSAGE`
+  is forwarded under `AG_MPV_LOG` now for exactly this reason.
+- **MoltenVK works in the simulator**, with benign
+  `VK_ERROR_FEATURE_NOT_PRESENT: Metal does not support disabling primitive
+  restart` warnings.
+- **Not yet verified: landscape.** The layout is written for it — the surface
+  is landscape-oriented so a rotation is a layout pass, not a renderer rebuild
+  — but rotating the simulator was not driven from here.
+
+### Phase 3 — playback (original)
 - `MPVPlayerController` for iOS over MPVKit, `hwdec=videotoolbox`, SDR only.
 - Playback from `/media/{id}` with the bearer header.
 - Progress write-back via the outbox.
