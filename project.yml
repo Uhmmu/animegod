@@ -3,6 +3,7 @@ options:
   bundleIdPrefix: com.uhmmu
   deploymentTarget:
     macOS: "14.0"
+    iOS: "17.0"
   xcodeVersion: "26.0"
   generateEmptyDirectories: true
   developmentLanguage: en
@@ -53,5 +54,46 @@ targets:
         # SystemConfiguration: libtorrent watches for IP changes through it.
         OTHER_LDFLAGS: -ltorrent-rasterbar -lssl -lcrypto -framework SystemConfiguration
         GCC_PREPROCESSOR_DEFINITIONS: $(inherited) TORRENT_USE_OPENSSL=1 TORRENT_USE_LIBCRYPTO=1 TORRENT_SSL_PEERS=1 BOOST_ASIO_ENABLE_CANCELIO=1 BOOST_ASIO_HAS_STD_CHRONO=1 BOOST_ASIO_NO_DEPRECATED=1 BOOST_EXCEPTION_DISABLE=1 _FILE_OFFSET_BITS=64
+    scheme:
+      testTargets: []
+
+  # The iPhone companion. Design: docs/IOS_COMPANION_PLAN.md.
+  #
+  # Deliberately does NOT depend on MPVKit yet: playback is Phase 3, and
+  # pulling the iOS xcframework slices in would cost a large download for a
+  # target that currently has no player. AnimeGodCore carries the models,
+  # LibraryDatabase and every query, which is the whole point of it having no
+  # AppKit imports.
+  #
+  # Signing is left empty so the simulator builds with no team. A real device
+  # needs a development team filled in here.
+  AnimeGodMobile:
+    type: application
+    platform: iOS
+    sources:
+      - path: Mobile
+    dependencies:
+      - package: AnimeGodCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.uhmmu.AnimeGod
+        PRODUCT_NAME: AnimeGod
+        MARKETING_VERSION: 0.1.0
+        CURRENT_PROJECT_VERSION: 1
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: AnimeGod
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.entertainment
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: >-
+          UIInterfaceOrientationPortrait
+          UIInterfaceOrientationLandscapeLeft
+          UIInterfaceOrientationLandscapeRight
+        INFOPLIST_KEY_NSLocalNetworkUsageDescription: AnimeGod finds your Mac on the same Wi-Fi network to mirror your library and stream episodes.
+        INFOPLIST_KEY_NSBonjourServices: _animegod._tcp
+        INFOPLIST_KEY_UIBackgroundModes: audio
+        SWIFT_STRICT_CONCURRENCY: complete
+        CODE_SIGN_IDENTITY: ""
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGNING_ALLOWED: NO
     scheme:
       testTargets: []
