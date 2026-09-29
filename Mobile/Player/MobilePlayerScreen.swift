@@ -11,6 +11,12 @@ struct MobilePlayerScreen: View {
     @State private var showsControls = true
     @State private var hideTask: Task<Void, Never>?
     @State private var scrubValue: Double = 0
+    /// Nothing plays until the Mac has handed the episode over. Starting from
+    /// the cached row and correcting afterwards would mean playing the wrong
+    /// ten seconds first, and leaving the Mac playing it too.
+    @State private var handoff: LinkHandoffState?
+    @State private var conflict: LinkHandoffConflict?
+    @State private var sendsBackToMac = false
 
     init(episode: LinkEpisode, work: LinkWork, model: MobileModel) {
         _state = StateObject(wrappedValue: MobilePlayerState(episode: episode, work: work, model: model))
@@ -20,25 +26,40 @@ struct MobilePlayerScreen: View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            MobilePlayerHost(state: state) { ready in
-                controller = ready
-                guard let target = model.playbackTarget(for: state.episode) else {
-                    state.errorMessage = String(localized: "This phone is not paired with a Mac.")
-                    return
+            if handoff != nil {
+                MobilePlayerHost(state: state) { ready in
+                    controller = ready
+                    start(on: ready)
                 }
-                ready.play(
-                    url: target.url,
-                    authorization: target.authorization,
-                    position: state.startPosition
-                )
-            }
-            .ignoresSafeArea()
-
-            if state.isLoading {
-                ProgressView().tint(.white).controlSize(.large)
+                .ignoresSafeArea()
             }
 
-            if let error = state.errorMessage {
+            if state.isLoading || handoff == nil {
+                VStack(spacing: 10) {
+                    ProgressView().tint(.white).controlSize(.large)
+                    if handoff == nil, conflict == nil {
+                        Text("Taking over from your Mac…")
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.7))
+                    }
+                }
+            }
+
+            if let conflict {
+                ContentUnavailableView {
+                    Label("Already Playing", systemImage: "play.slash")
+                } description: {
+                    Text("\(conflict.holder) is watching this episode.")
+                } actions: {
+                    Button("Take Over") {
+                        self.conflict = nil
+                        Task { await beginHandoff(force: true) }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    Button("Cancel") { dismiss() }
+                }
+                .foregroundStyle(.white)
+            } else if let error = state.errorMessage {
                 ContentUnavailableView {
                     Label("Playback Failed", systemImage: "exclamationmark.triangle")
                 } description: {
@@ -61,9 +82,12 @@ struct MobilePlayerScreen: View {
             // layer, so the idle timer has to be held off by hand.
             UIApplication.shared.isIdleTimerDisabled = true
             revealControls()
+            await beginHandoff(force: false)
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(10))
                 guard !Task.isCancelled else { break }
+                // Also renews this device's claim on the Mac, so no separate
+                // heartbeat is needed.
                 await state.save()
             }
         }
@@ -111,6 +135,17 @@ struct MobilePlayerScreen: View {
             .padding(.leading, 4)
 
             Spacer(minLength: 0)
+
+            Button {
+                sendsBackToMac = true
+                close()
+            } label: {
+                Image(systemName: "laptopcomputer.and.arrow.down")
+                    .font(.headline)
+                    .padding(10)
+                    .background(.ultraThinMaterial, in: .circle)
+            }
+            .foregroundStyle(.white)
 
             Button { state.setWatched(!state.isWatched) } label: {
                 Image(systemName: state.isWatched ? "checkmark.circle.fill" : "checkmark.circle")
@@ -277,12 +312,45 @@ struct MobilePlayerScreen: View {
         }
     }
 
+    /// Asks the Mac for the episode, then starts.
+    private func beginHandoff(force: Bool) async {
+        guard let result = await model.claim(state.episode, force: force) else {
+            state.errorMessage = String(localized: "Could not reach your Mac.")
+            return
+        }
+        switch result {
+        case .success(let handed):
+            state.adopt(handed)
+            handoff = handed
+        case .failure(let held):
+            conflict = held
+        }
+    }
+
+    private func start(on controller: MobilePlayerController) {
+        guard let target = model.playbackTarget(for: state.episode) else {
+            state.errorMessage = String(localized: "This phone is not paired with a Mac.")
+            return
+        }
+        controller.play(
+            url: target.url,
+            authorization: target.authorization,
+            position: state.startPosition
+        )
+    }
+
     private func close() {
         Task {
-            // Saved before the engine goes away, or the last stretch watched is
-            // lost — the autosave only runs every ten seconds.
-            await state.save()
             controller?.stop()
+            // Released rather than merely saved: this is what lets the Mac
+            // pick the episode back up, and what frees the claim for another
+            // device. The position goes with it, so no separate save is needed.
+            await model.release(
+                episodeID: state.episode.id,
+                position: state.livePosition,
+                duration: state.duration,
+                resumeOnMac: sendsBackToMac
+            )
             await model.refresh()
             dismiss()
         }

@@ -29,6 +29,9 @@ final class LinkServer: ObservableObject {
     private var listener: NWListener?
     private var connections: [ObjectIdentifier: LinkConnection] = [:]
     private var pairingAttempts = 0
+    /// Who is playing what, so two devices cannot both drive one episode.
+    /// The rules and the lease live in the core, where they are tested.
+    private var claims = LinkClaimRegistry()
     private weak var model: AppModel?
     private var activity: NSObjectProtocol?
 
@@ -219,8 +222,19 @@ final class LinkServer: ObservableObject {
             return .response(.json(detail))
         }
 
+        if request.path == LinkProtocol.Route.handoffClaim, request.method == "POST" {
+            return .response(await handleClaim(request, device: device, model: model))
+        }
+
+        if request.path == LinkProtocol.Route.handoffRelease, request.method == "POST" {
+            return .response(await handleRelease(request, device: device, model: model))
+        }
+
         if let id = request.identifier(after: LinkProtocol.Route.progressPrefix),
            let uuid = UUID(uuidString: id), request.method == "PUT" {
+            // Writing progress is the holder saying it is still there, so the
+            // lease renews itself and needs no heartbeat of its own.
+            renewClaim(episodeID: uuid, device: device)
             return .response(await handleProgress(episodeID: uuid, body: request.body, model: model))
         }
 
@@ -261,6 +275,47 @@ final class LinkServer: ObservableObject {
         Self.saveDevices(pairedDevices)
         cancelPairing()
         return .json(LinkPairResponse(token: device.token, macName: Host.current().localizedName ?? "Mac"))
+    }
+
+    // MARK: - Handoff
+
+    private func handleClaim(_ request: LinkHTTPRequest, device: LinkPairedDevice, model: AppModel) async -> LinkHTTPResponse {
+        guard let claim = try? LinkCoding.decoder.decode(LinkHandoffClaim.self, from: request.body) else {
+            return .error(.badRequest, "Malformed handoff request.", status: 400)
+        }
+        switch claims.claim(
+            episodeID: claim.episodeID,
+            deviceID: device.id,
+            deviceName: claim.deviceName,
+            force: claim.force
+        ) {
+        case .heldBy(let holder):
+            return .json(LinkHandoffConflict(holder: holder), status: 409)
+        case .granted:
+            break
+        }
+        guard let state = await model.handOff(episodeID: claim.episodeID) else {
+            _ = claims.release(episodeID: claim.episodeID, deviceID: device.id)
+            return .error(.notFound, "No such episode.", status: 404)
+        }
+        return .json(state)
+    }
+
+    private func handleRelease(_ request: LinkHTTPRequest, device: LinkPairedDevice, model: AppModel) async -> LinkHTTPResponse {
+        guard let release = try? LinkCoding.decoder.decode(LinkHandoffRelease.self, from: request.body) else {
+            return .error(.badRequest, "Malformed handoff request.", status: 400)
+        }
+        // Only the holder may release, or a stale phone coming back could
+        // reopen the player under whoever is watching now.
+        guard claims.release(episodeID: release.episodeID, deviceID: device.id) else {
+            return .error(.claimHeldElsewhere, "Another device is playing this episode.", status: 409)
+        }
+        await model.acceptHandoffBack(release)
+        return LinkHTTPResponse(status: 204)
+    }
+
+    private func renewClaim(episodeID: UUID, device: LinkPairedDevice) {
+        claims.renew(episodeID: episodeID, deviceID: device.id)
     }
 
     private func handleProgress(episodeID: UUID, body: Data, model: AppModel) async -> LinkHTTPResponse {

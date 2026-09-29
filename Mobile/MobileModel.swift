@@ -161,6 +161,32 @@ final class MobileModel: ObservableObject {
         return (url, LinkProtocol.bearerPrefix + token)
     }
 
+    // MARK: - Handoff
+
+    /// Takes an episode from the Mac: it pauses, writes where it got to, and
+    /// closes its player. What comes back is the session, not just a
+    /// timestamp — the position here is fresher than any row, because the
+    /// Mac's autosave only runs every ten seconds.
+    func claim(_ episode: LinkEpisode, force: Bool = false) async -> Result<LinkHandoffState, LinkHandoffConflict>? {
+        guard let client else { return nil }
+        let name = UIDeviceName.current
+        return try? await client.claim(episodeID: episode.id, deviceName: name, force: force)
+    }
+
+    /// Gives it back. Symmetric with the claim, so phone to Mac is the same
+    /// transaction run the other way.
+    func release(episodeID: UUID, position: Double, duration: Double, resumeOnMac: Bool) async {
+        guard let client else { return }
+        try? await client.release(
+            LinkHandoffRelease(
+                episodeID: episodeID,
+                position: position,
+                duration: duration,
+                resumeOnMac: resumeOnMac
+            )
+        )
+    }
+
     // MARK: - Writes
 
     func saveProgress(episodeID: UUID, position: Double, duration: Double) async {

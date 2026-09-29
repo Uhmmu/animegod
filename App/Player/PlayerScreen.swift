@@ -330,6 +330,13 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
         loadDanmaku(for: currentEpisode.mediaFile, url: mediaURL)
     }
 
+    /// Pause or resume outright, for callers that know which they want — the
+    /// handoff must pause, not toggle, and it may arrive while already paused.
+    func setPaused(_ value: Bool) {
+        guard paused != value else { return }
+        togglePause()
+    }
+
     func togglePause() {
         paused.toggle()
         // Freeze/resume the danmaku clock immediately. mpv may report the
@@ -1132,6 +1139,10 @@ struct PlayerScreen: View {
             )
         }
         .onAppear {
+            // The link needs to reach whatever is playing: a handoff has to
+            // read this window's own clock, not the row the database last saw.
+            model.activePlayer = state
+            model.closePlayerWindow = { dismiss() }
             state.onFileFinished = { Task { await advanceAfterFinish() } }
             state.watchedTail = watchedTail
             state.startObservingDisplay()
@@ -1157,6 +1168,12 @@ struct PlayerScreen: View {
             }
         }
         .onDisappear {
+            // Only clear the registration if it is still ours; a second window
+            // opening before this one tears down must not unregister itself.
+            if model.activePlayer === state {
+                model.activePlayer = nil
+                model.closePlayerWindow = nil
+            }
             hideTask?.cancel()
             arrowKeys.uninstall()
             state.endHold()

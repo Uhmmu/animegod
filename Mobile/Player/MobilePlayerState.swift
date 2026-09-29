@@ -53,9 +53,29 @@ final class MobilePlayerState: ObservableObject {
     /// than resuming a fraction of a second before EOF, which looks exactly
     /// like a file that will not play.
     var startPosition: Double {
-        guard episode.position > 0, episode.duration > 0 else { return episode.position }
-        return episode.position >= episode.duration - 15 ? 0 : episode.position
+        let from = handedOverPosition ?? episode.position
+        let total = duration > 0 ? duration : episode.duration
+        guard from > 0, total > 0 else { return from }
+        return from >= total - 15 ? 0 : from
     }
+
+    /// Takes the session the Mac handed over.
+    ///
+    /// The position here beats the cached row by up to ten seconds — the Mac's
+    /// autosave interval — which is the whole reason the handoff is a request
+    /// rather than a database read.
+    func adopt(_ handoff: LinkHandoffState) {
+        position = handoff.position
+        livePosition = handoff.position
+        if handoff.duration > 0 { duration = handoff.duration }
+        isWatched = handoff.isWatched
+        keepsUnwatched = handoff.keepsUnwatched
+        speed = handoff.speed
+        handedOverPosition = handoff.position
+    }
+
+    /// Where the Mac said to start, once it has said so.
+    private var handedOverPosition: Double?
 
     func setWatched(_ value: Bool) {
         isWatched = value

@@ -148,7 +148,13 @@ struct RootView: View {
                     try? await Task.sleep(for: .milliseconds(500))
                     waited += 1
                 }
-                LinkSmokeTest.serve(model: model)
+                await LinkSmokeTest.serve(model: model)
+                // Reports where the player is every few seconds, so a handoff
+                // can be checked against what was actually on screen.
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: .seconds(3))
+                    LinkSmokeTest.reportPlayer(model: model)
+                }
                 return
             }
             guard LinkSmokeTest.isRequested else { return }

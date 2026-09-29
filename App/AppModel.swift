@@ -945,6 +945,95 @@ final class AppModel: ObservableObject {
 
     // MARK: - The link
 
+    /// The player window that is open, if any.
+    ///
+    /// Held weakly and registered by the player screen: a handoff has to read
+    /// that window's own clock. The database is up to ten seconds stale — the
+    /// autosave interval — and ten seconds is exactly enough to be annoying.
+    weak var activePlayer: PlayerState?
+    /// Closes the player window. Set alongside `activePlayer`.
+    var closePlayerWindow: (() -> Void)?
+
+    /// Hands an episode to another device.
+    ///
+    /// The order here is the design, and each step is load-bearing:
+    ///
+    /// 1. Read `livePosition`, never the published `position` — the latter is
+    ///    throttled to 5 Hz for SwiftUI's sake and a handoff is a seek.
+    /// 2. Pause immediately, before anything can advance the clock.
+    /// 3. Flush progress, carrying `isWatched` and `overridesWatched` across,
+    ///    or handing off an episode the viewer had marked unwatched would
+    ///    silently re-mark it.
+    /// 4. Close the window. Its `onDisappear` ends the session and records the
+    ///    `WatchEvent` — which is why this closes the window rather than
+    ///    tearing the player down by hand. Skip it and every session that ends
+    ///    in a handoff vanishes from the diary and the statistics.
+    func handOff(episodeID: UUID) async -> LinkHandoffState? {
+        guard let player = activePlayer, player.currentEpisode.id == episodeID else {
+            return await storedHandoffState(episodeID: episodeID)
+        }
+        let position = player.livePosition
+        let duration = player.duration
+        player.setPaused(true)
+        await saveProgress(
+            for: player.currentEpisode,
+            position: position,
+            duration: duration,
+            isWatched: player.isWatched,
+            overridesWatched: player.keepsUnwatched
+        )
+        let state = LinkHandoffState(
+            position: position,
+            duration: duration,
+            isWatched: player.isWatched,
+            keepsUnwatched: player.keepsUnwatched,
+            speed: player.speed,
+            audioTrackID: player.audioID,
+            subtitleTrackID: player.subtitleID,
+            subtitleDelay: player.subtitleDelay,
+            wasPlayingHere: true
+        )
+        closePlayerWindow?()
+        return state
+    }
+
+    /// What the database knows, for an episode the Mac is not playing. Up to
+    /// ten seconds stale by definition, which is what `wasPlayingHere: false`
+    /// tells the phone.
+    private func storedHandoffState(episodeID: UUID) async -> LinkHandoffState? {
+        guard let database,
+              let animeID = try? await database.animeID(forEpisodeID: episodeID),
+              let episodes = try? await database.episodes(animeID: animeID),
+              let episode = episodes.first(where: { $0.id == episodeID })
+        else { return nil }
+        return LinkHandoffState(
+            position: episode.progress?.position ?? 0,
+            duration: episode.progress?.duration ?? 0,
+            isWatched: episode.progress?.isWatched ?? false,
+            keepsUnwatched: false,
+            wasPlayingHere: false
+        )
+    }
+
+    /// The phone has stopped. Writes where it got to and, if asked, reopens
+    /// the player here — the handoff is symmetric, so phone to Mac is the same
+    /// transaction run the other way.
+    func acceptHandoffBack(_ release: LinkHandoffRelease) async {
+        await saveProgress(
+            forEpisodeID: release.episodeID,
+            position: release.position,
+            duration: release.duration,
+            isWatched: nil,
+            overridesWatched: false
+        )
+        guard release.resumeOnMac, let database,
+              let animeID = try? await database.animeID(forEpisodeID: release.episodeID),
+              let episodes = try? await database.episodes(animeID: animeID),
+              let episode = episodes.first(where: { $0.id == release.episodeID })
+        else { return }
+        await play(episode)
+    }
+
     /// Where a media file actually is, together with the security scope that
     /// makes it openable.
     ///

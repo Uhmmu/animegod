@@ -21,11 +21,36 @@ enum LinkSmokeTest {
     /// listening while the phone app is driven against it.
     static var servesOnly: Bool { ProcessInfo.processInfo.arguments.contains("-smokeLinkServe") }
 
-    static func serve(model: AppModel) {
+    static func serve(model: AppModel) async {
         model.link.start()
         model.link.beginPairing()
+        // The endpoints are only known once the listener reaches .ready.
+        for _ in 0..<20 where !model.link.isRunning {
+            try? await Task.sleep(for: .milliseconds(100))
+        }
         say("serving; pairing code \(model.link.pairingCode ?? "none")")
         say("endpoints \(model.link.endpoints.joined(separator: ", "))")
+
+        // AG_SERVE_PLAY=1 also starts playing, so the handoff has something to
+        // take. Without it there is nothing on the Mac to hand over and the
+        // claim falls back to the stored row, which tests the wrong path.
+        guard ProcessInfo.processInfo.environment["AG_SERVE_PLAY"] == "1" else { return }
+        guard let episode = model.continueWatching.first else {
+            say("nothing in progress to play")
+            return
+        }
+        await model.play(episode)
+        say("playing \(episode.episode.displayLabel) from \(episode.progress?.position ?? 0)s")
+    }
+
+    /// Prints where the live player is, so a handoff can be checked against
+    /// what the Mac actually had on screen.
+    static func reportPlayer(model: AppModel) {
+        guard let player = model.activePlayer else {
+            say("no player window open")
+            return
+        }
+        say(String(format: "player at %.3f paused=%@", player.livePosition, player.paused ? "yes" : "no"))
     }
 
     /// Flushed explicitly: stdout is block-buffered when it is not a

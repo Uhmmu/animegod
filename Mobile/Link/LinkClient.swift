@@ -60,6 +60,34 @@ actor LinkClient {
         _ = try await perform(request)
     }
 
+    /// Takes an episode from the Mac.
+    ///
+    /// Returns the conflict instead of throwing when another device holds it,
+    /// because that is a question for the viewer, not an error.
+    func claim(episodeID: UUID, deviceName: String, force: Bool) async throws -> Result<LinkHandoffState, LinkHandoffConflict> {
+        var request = authorized(LinkProtocol.Route.handoffClaim)
+        request.httpMethod = "POST"
+        request.httpBody = try LinkCoding.encoder.encode(
+            LinkHandoffClaim(episodeID: episodeID, deviceName: deviceName, force: force)
+        )
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let (data, response) = try await session.data(for: request)
+        if let http = response as? HTTPURLResponse, http.statusCode == 409,
+           let conflict = try? LinkCoding.decoder.decode(LinkHandoffConflict.self, from: data) {
+            return .failure(conflict)
+        }
+        try Self.check(response, data)
+        return .success(try LinkCoding.decoder.decode(LinkHandoffState.self, from: data))
+    }
+
+    func release(_ release: LinkHandoffRelease) async throws {
+        var request = authorized(LinkProtocol.Route.handoffRelease)
+        request.httpMethod = "POST"
+        request.httpBody = try LinkCoding.encoder.encode(release)
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        _ = try await perform(request)
+    }
+
     func setWatched(episodeID: UUID, _ isWatched: Bool) async throws {
         var request = authorized(LinkProtocol.Route.episodesPrefix + episodeID.uuidString + "/watched")
         request.httpMethod = "POST"

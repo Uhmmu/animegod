@@ -205,10 +205,27 @@ public struct LinkProgressUpdate: Codable, Sendable {
 public struct LinkHandoffClaim: Codable, Sendable {
     public let episodeID: UUID
     public let deviceName: String
+    /// Take it from whoever holds it. Offered only after a 409 has already
+    /// told the viewer who that is — silently stealing an episode someone is
+    /// watching in another room is worse than asking.
+    public let force: Bool
 
-    public init(episodeID: UUID, deviceName: String) {
+    public init(episodeID: UUID, deviceName: String, force: Bool = false) {
         self.episodeID = episodeID
         self.deviceName = deviceName
+        self.force = force
+    }
+}
+
+/// Who is watching this episode right now, when it is not you.
+///
+/// An `Error` so it can be the failure side of a `Result`: it travels as one
+/// of two ordinary outcomes of a claim, not as something that went wrong.
+public struct LinkHandoffConflict: Codable, Sendable, Error {
+    public let holder: String
+
+    public init(holder: String) {
+        self.holder = holder
     }
 }
 
