@@ -1,8 +1,9 @@
 # AnimeGod for iPhone — Plan
 
-Status: **Phases 0–5 mostly done** — the handoff works both ways, danmaku
-render on the phone, and downloaded episodes play with no network at all.
-Still open in Phase 5: downloaded subtitles and the More tab's own screens.
+Status: **Phases 0–5 done.** The handoff works both ways, danmaku render on
+the phone, downloaded episodes play with no network at all, and the More tab
+is built. Still open: downloaded subtitles, and all of Phase 6 (Tailscale in
+the UI, peer-to-peer Wi-Fi, TLS, optional transcode).
 Written 2026-09-29.
 
 The phone app is called AnimeGod too. It is not a second library and not a
@@ -442,16 +443,26 @@ the same data.
 | Library | Tab 1 — grid, same sort orders incl. watch status | 2 |
 | Continue Watching | Tab 2 — the handoff lives at the top | 2 |
 | *(player)* | Full-screen, portrait + landscape | 3 |
-| Bangumi Charts | Tab 3 § | 5 |
-| Rankings | Tab 3 § | 5 |
-| Diary | Tab 3 § | 5 |
-| Statistics | Tab 3 § | 5 |
+| Bangumi Charts | More → Charts ✅ | 5 |
+| Rankings | More → Rankings ✅ | 5 |
+| Diary | More → Diary ✅ | 5 |
+| Statistics | More → Statistics ✅ | 5 |
 | Find Releases | Tab 3 § — search on the phone, **download on the Mac** | 6 |
-| Downloads | Tab 3 § — live progress over SSE, pause/resume remotely | 6 |
-| Subscriptions | Tab 3 § — follow/unfollow, confirm candidates | 6 |
+| Downloads | More → Downloads ✅ — polled; pause/resume remotely | 5 |
+| Subscriptions | More → Subscriptions ✅ — enable/disable only | 5 |
 | Library Folders | Settings — read-only; adding a folder is a Mac action | 5 |
-| Episode Cache | Settings — plus the phone's **own** offline downloads | 5 |
+| Episode Cache | More → Offline Episodes ✅ (the phone's own copies) | 5 |
 | Settings | Tab 4 — pairing, transport status, playback prefs | 1 |
+
+**Built 2026-09-29.** The More tab splits by what a screen actually *is*:
+diary, statistics, rankings and charts are the phone's own screens over the
+Mac's data and cache their last answer, so none is blank offline; downloads
+and subscriptions are the phone as a **remote control**, sent a flattened row
+and allowed exactly pause, resume and enable. Editing a subscription stays on
+the Mac deliberately — a rule is read off an episode set, and a
+half-specified one downloads the wrong season. Charts never cache: stale
+third-party rankings are worse than an honest "could not reach", which is also
+why that screen reports the failure rather than showing an empty list.
 
 Tab 3 is a "More" list. The four tabs are Library / Continue / More /
 Settings.
