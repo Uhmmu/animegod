@@ -102,6 +102,9 @@ targets:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
+        # The accelerometer, and only so the player can notice that the phone
+        # is being held sideways while rotation is locked.
+        NSMotionUsageDescription: AnimeGod uses the motion sensor to notice when you turn the phone, so it can offer to rotate the video even while rotation is locked.
         NSLocalNetworkUsageDescription: AnimeGod finds your Mac on this Wi-Fi network to show your library and stream episodes from it.
         NSBonjourServices: [_animegod._tcp]
         # The link is plain HTTP to the user's own Mac. Off the local network

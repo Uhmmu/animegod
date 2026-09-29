@@ -19,6 +19,7 @@ struct MobilePlayerScreen: View {
     @State private var sendsBackToMac = false
     @State private var danmakuCanvas: MobileDanmakuCanvas?
     @StateObject private var danmakuSettings = MobileDanmakuSettingsStore()
+    @StateObject private var orientation = MobileOrientation()
     @State private var showsDanmakuPanel = false
 
     init(episode: LinkEpisode, work: LinkWork, model: MobileModel) {
@@ -104,6 +105,8 @@ struct MobilePlayerScreen: View {
                 chrome.transition(.opacity)
             }
         }
+        .overlay(alignment: .topTrailing) { rotationHint }
+        .animation(.spring(duration: 0.3), value: orientation.suggestion?.rawValue)
         .sheet(isPresented: $showsDanmakuPanel) {
             MobilePlayerStylePanel(store: danmakuSettings, state: state, controller: controller)
         }
@@ -116,6 +119,7 @@ struct MobilePlayerScreen: View {
             // Nothing else tells iOS a film is on: mpv renders into our own
             // layer, so the idle timer has to be held off by hand.
             UIApplication.shared.isIdleTimerDisabled = true
+            orientation.start()
             revealControls()
             await beginHandoff(force: false)
             // After the handoff, so a slow match never delays the picture.
@@ -132,6 +136,11 @@ struct MobilePlayerScreen: View {
         }
         .onDisappear {
             UIApplication.shared.isIdleTimerDisabled = false
+            // Landscape belongs to the player. The rest of the app is a
+            // portrait interface, so leaving with the screen sideways means
+            // browsing the library on its side.
+            orientation.restoreIfForced()
+            orientation.stop()
             hideTask?.cancel()
         }
     }
@@ -197,6 +206,29 @@ struct MobilePlayerScreen: View {
         .padding(.horizontal, 16)
         .padding(.top, 8)
         .foregroundStyle(.white)
+    }
+
+    /// Appears only when the phone is being held one way and the interface
+    /// is pinned another — which can only happen with the system's rotation
+    /// lock on. With the lock off iOS has already turned the screen, there is
+    /// nothing to disagree about, and this is never drawn.
+    @ViewBuilder
+    private var rotationHint: some View {
+        if let suggestion = orientation.suggestion {
+            Button { orientation.takeSuggestion() } label: {
+                Image(systemName: "rotate.right")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 44, height: 44)
+                    .background(.ultraThinMaterial, in: .circle)
+                    .overlay(Circle().strokeBorder(.white.opacity(0.25)))
+                    .shadow(radius: 8)
+            }
+            .padding(.trailing, 14)
+            .padding(.top, showsControls ? 62 : 14)
+            .transition(.scale.combined(with: .opacity))
+            .accessibilityLabel(Text("Rotate to match how you are holding the phone"))
+        }
     }
 
     private var work: LinkWork { state.work }
@@ -267,6 +299,16 @@ struct MobilePlayerScreen: View {
                 }
 
                 Spacer()
+
+                // The deliberate one. The floating hint covers "I turned the
+                // phone and nothing happened"; this covers a phone lying flat
+                // on a table, where the accelerometer has no opinion.
+                Button { orientation.toggle() } label: {
+                    Image(systemName: orientation.current.isPortrait
+                          ? "rectangle.landscape.rotate" : "rectangle.portrait.rotate")
+                        .font(.callout)
+                }
+                .accessibilityLabel(Text("Rotate"))
             }
             .foregroundStyle(.white)
             .padding(.horizontal, 4)
