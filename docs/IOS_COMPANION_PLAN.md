@@ -1,9 +1,11 @@
 # AnimeGod for iPhone — Plan
 
-Status: **Phases 0–5 done.** The handoff works both ways, danmaku render on
-the phone, downloaded episodes play with no network at all, and the More tab
-is built. Still open: downloaded subtitles, and all of Phase 6 (Tailscale in
-the UI, peer-to-peer Wi-Fi, TLS, optional transcode).
+Status: **Phases 0–5 done, Phase 6 mostly.** The handoff works both ways,
+danmaku render on the phone, downloaded episodes play with no network at all,
+the More tab is built, and every known address is raced so Tailscale works
+across networks. Deliberately not built: TLS (no Apple API for self-signed
+certs; see Phase 6) and transcode (no measurement says it is needed).
+Still open: downloaded subtitles.
 Written 2026-09-29.
 
 The phone app is called AnimeGod too. It is not a second library and not a
@@ -626,7 +628,44 @@ position.
 - Danmaku over `/danmaku` + the iOS `DanmakuCanvas` port.
 - Subtitles, the More tab, offline download-to-phone.
 
-### Phase 6 — reach
+### Phase 6 — reach — **partly done 2026-09-29**
+
+**Done.** Addresses now live in `LinkAddressBook` (core, tested) with a slot
+per kind, all raced. This fixed a real fault rather than adding a feature: the
+phone stored *one* address and overwrote it with whatever answered last, so
+pairing at home and then leaving the building left nothing to try — the
+Tailscale name had already been replaced by a LAN win. Tailscale was
+unusable across networks, which is the one job it has. Settings now shows
+which transport is carrying the connection, with its address, and the
+Tailscale name is typed there. The Mac's listener also advertises over
+peer-to-peer Wi-Fi.
+
+**Unverified.** Peer-to-peer Wi-Fi needs two real devices and no router
+between them; it is advertised but has not been driven from here.
+
+**Not done, and why.**
+
+- **TLS with a pinned self-signed cert.** The premise checks out — MPVKit
+  ships OpenSSL and GnuTLS, so FFmpeg can open `https`. The blocker is
+  elsewhere: **Apple publishes no API for creating a self-signed
+  certificate.** `NWListener`'s TLS needs a `SecIdentity`, and getting one
+  means hand-writing the X.509 DER — ASN.1 TBSCertificate, sign with
+  `SecKeyCreateSignature`, wrap — which is exactly the class of code where a
+  quiet mistake produces something that *looks* encrypted. Weigh that against
+  what it buys: over Tailscale it is redundant (WireGuard already encrypts and
+  authenticates end to end), and on a LAN it protects the bearer token and the
+  video from a passive attacker on the same segment — on the user's own
+  network, or inside Glide's per-account VLAN. Worth doing as its own change
+  with real verification; not worth bolting onto the end of a session.
+  `LinkProtocol.version` exists so accepting it later changes no payload.
+- **Server-side transcode.** This plan's own rule is "only when measurements
+  show it is needed", and there are none: LAN and a direct Tailscale
+  connection both carry 1080p with room to spare. The case it is for is a
+  relayed tailnet connection, and that has not been observed here. Building a
+  transcode ladder now would be adding a subsystem to maintain against a
+  problem nobody has measured.
+
+### Phase 6 — reach (original)
 - Tailscale endpoint configuration and a transport indicator in the UI.
 - Peer-to-peer Wi-Fi transport.
 - Optional TLS with a pinned self-signed cert.
