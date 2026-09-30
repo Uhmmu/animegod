@@ -7,6 +7,11 @@ import Foundation
 final class AppModel: ObservableObject {
     @Published private(set) var roots: [LibraryRoot] = []
     @Published private(set) var library: [LibraryAnime] = []
+    /// Rises with every library reload. Views that hold a snapshot of rows the
+    /// library does not publish — an anime page's episode list, which is a
+    /// query of its own — reload on it, so watching an episode marks it seen
+    /// on the page that is already open instead of the next time it is opened.
+    @Published private(set) var libraryRevision = 0
     @Published private(set) var continueWatching: [EpisodeMedia] = []
     @Published private(set) var metadataByAnimeID: [UUID: AnimeMetadata] = [:]
     @Published private(set) var metadataSourcesByAnimeID: [UUID: [AnimeMetadata]] = [:]
@@ -109,6 +114,14 @@ final class AppModel: ObservableObject {
         // A paired phone is a standing arrangement, so serving resumes on its
         // own rather than waiting for the switch in Settings every launch.
         link.startIfEnabled()
+        // A window coming back to the front is when watch state written behind
+        // it has to be published again — see `republishesLibrary`.
+        for name in [NSWindow.didChangeOcclusionStateNotification, NSApplication.didBecomeActiveNotification] {
+            NotificationCenter.default.publisher(for: name)
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] _ in Task { await self?.republishLibraryIfNeeded() } }
+                .store(in: &cancellables)
+        }
         // Plugging a drive back in (or pulling it) changes which episodes can
         // play from source, so the library reflects mount state immediately.
         for name in [NSWorkspace.didMountNotification, NSWorkspace.didUnmountNotification] {
@@ -940,7 +953,7 @@ final class AppModel: ObservableObject {
                 ),
                 overridesWatched: overridesWatched
             )
-            await reloadLibrary()
+            await watchStateDidChange()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -1081,7 +1094,7 @@ final class AppModel: ObservableObject {
                 progress: .init(episodeID: episodeID, position: position, duration: duration, isWatched: watched),
                 overridesWatched: overridesWatched
             )
-            await reloadLibrary()
+            await watchStateDidChange()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -1091,7 +1104,7 @@ final class AppModel: ObservableObject {
         guard let database else { return }
         do {
             try await database.setWatched(episodeID: episodeID, isWatched: isWatched)
-            await reloadLibrary()
+            await watchStateDidChange()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -1103,7 +1116,7 @@ final class AppModel: ObservableObject {
         guard let database else { return }
         do {
             try await database.setWatched(episodeID: episode.id, isWatched: isWatched)
-            await reloadLibrary()
+            await watchStateDidChange()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -1246,6 +1259,36 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// Watch state was written while the window that shows it was covered.
+    ///
+    /// An episode is marked seen from the player window, which sits in front
+    /// of — and, in full screen, entirely over — the library window. macOS
+    /// stops drawing a window it has covered, and coming back to the grid is
+    /// not enough to correct it: nothing about the grid changed while it was
+    /// hidden, so there is nothing for SwiftUI to redraw, and the card keeps
+    /// the count it had before the episode was played until the app is
+    /// relaunched. Publishing the same state a second time, once there is a
+    /// window on screen to receive it, is what moves the count.
+    private var republishesLibrary = false
+
+    /// Every watch-state write ends here: the library is reloaded, and marked
+    /// for one more publish when a window comes back to the front.
+    private func watchStateDidChange() async {
+        republishesLibrary = true
+        await reloadLibrary()
+    }
+
+    /// A window became visible, or the app was activated.
+    func republishLibraryIfNeeded() async {
+        guard republishesLibrary else { return }
+        // A player still open means the window that just became visible is
+        // probably its own; the library's turn comes when it closes, so the
+        // flag is held until there is no player left to cover it. Reloading
+        // either way costs six small queries.
+        if activePlayer == nil { republishesLibrary = false }
+        await reloadLibrary()
+    }
+
     private func reloadLibrary() async {
         guard let database else { return }
         do {
@@ -1264,6 +1307,7 @@ final class AppModel: ObservableObject {
             profilesByAnimeID = Dictionary(uniqueKeysWithValues: profiles.map { ($0.animeID, $0) })
             watchHistory = history
             diarySummary = diary
+            libraryRevision += 1
         } catch {
             errorMessage = error.localizedDescription
         }

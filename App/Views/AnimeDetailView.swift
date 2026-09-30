@@ -116,8 +116,15 @@ struct AnimeDetailView: View {
                 .environmentObject(model)
                 .frame(minWidth: 620, minHeight: 650)
         }
-        .task {
+        // The episode list is a query of its own, not part of what the library
+        // publishes, so a page left open kept the snapshot it was opened with:
+        // watching an episode ticked no box until the page was closed and
+        // opened again. It follows every library reload now, which is what a
+        // watched episode, a scan and a metadata pass all end with.
+        .task(id: model.libraryRevision) {
             episodes = await model.episodes(for: anime)
+        }
+        .task {
             await model.loadCommunity(for: anime)
             if !communityProviders.contains(communityProvider), let first = communityProviders.first {
                 communityProvider = first

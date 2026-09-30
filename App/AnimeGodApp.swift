@@ -96,6 +96,9 @@ struct PlayerWindowRoot: View {
         .onDisappear {
             // Allow the next play action to reopen the window.
             model.playerRequest = nil
+            // The library window is about to be the one on screen again, and
+            // what it shows was written while this one covered it.
+            Task { await model.republishLibraryIfNeeded() }
         }
         .task {
             // Headless smoke mode: auto-play the first episode so resize and
