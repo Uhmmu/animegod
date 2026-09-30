@@ -22,6 +22,10 @@ struct MobilePlayerScreen: View {
     /// for a higher rate than a hold on its own.
     @State private var lastTapAt: Date = .distantPast
     @State private var speedBeforeBoost: Double?
+    /// The wait between a finger landing and the rate rising, and the finger
+    /// that is waiting it out.
+    @State private var boostTask: Task<Void, Never>?
+    @State private var pressBeganAt: Date = .distantPast
     @StateObject private var danmakuSettings = MobileDanmakuSettingsStore()
     @StateObject private var orientation = MobileOrientation()
     @State private var showsDanmakuPanel = false
@@ -119,14 +123,24 @@ struct MobilePlayerScreen: View {
         .preferredColorScheme(.dark)
         .contentShape(.rect)
         .onTapGesture {
+            // A hold ends with the finger lifting, and the tap gesture sees
+            // that lift as well; toggling the chrome there would make every
+            // fast-forward end by flashing it. How long the finger was down is
+            // what tells the two apart.
+            guard Date.now.timeIntervalSince(pressBeganAt) < Self.boostDelaySeconds else { return }
             lastTapAt = .now
             toggleControls()
         }
         // Press and hold to run fast, the way every video app on a phone now
         // works. A tap immediately before the hold asks for more: the second
         // gesture is deliberately harder to reach by accident than the first.
-        .onLongPressGesture(minimumDuration: 0.35) { } onPressingChanged: { isPressing in
-            isPressing ? beginBoost() : endBoost()
+        //
+        // `minimumDuration` is deliberately longer than any hold anyone makes:
+        // the gesture must not *succeed*, because succeeding ends it — and
+        // ending it reports the finger as lifted while it is still down. The
+        // wait before the rate rises is `boostDelaySeconds`, timed here.
+        .onLongPressGesture(minimumDuration: 3600, maximumDistance: 40) { } onPressingChanged: { isPressing in
+            isPressing ? scheduleBoost() : cancelBoost()
         }
         .overlay(alignment: .top) { boostBadge }
         .task {
@@ -262,14 +276,43 @@ struct MobilePlayerScreen: View {
         }
     }
 
+    /// How long a finger has to stay down before the rate rises. A tap is a
+    /// tap: it shows the chrome and nothing else.
+    private static let boostDelaySeconds: Double = 1
+
+    /// Starts the wait, not the boost.
+    ///
+    /// `onPressingChanged` reports the *press*, not the long press — it fires
+    /// the moment a finger lands. Raising the rate there turned every tap on
+    /// the picture into a fast-forward, which is what this wait is for.
+    private func scheduleBoost() {
+        boostTask?.cancel()
+        pressBeganAt = .now
+        boostTask = Task {
+            try? await Task.sleep(for: .seconds(Self.boostDelaySeconds))
+            guard !Task.isCancelled else { return }
+            beginBoost()
+        }
+    }
+
+    /// The finger left, or moved far enough to be a swipe: drop the wait and
+    /// the rate with it.
+    private func cancelBoost() {
+        boostTask?.cancel()
+        boostTask = nil
+        endBoost()
+    }
+
     /// Hold for double speed; tap first, then hold, for triple.
     ///
     /// The tap window is short on purpose. It is long enough to be a
     /// deliberate tap-then-hold and short enough that pausing with a tap and
     /// then settling a thumb on the screen does not silently triple the rate.
+    /// It is measured from the finger landing, not from here: the hold itself
+    /// takes a second, which would put every tap-then-hold outside the window.
     private func beginBoost() {
         guard state.boostedSpeed == nil, !state.paused else { return }
-        let rate = Date.now.timeIntervalSince(lastTapAt) < 0.6 ? 3.0 : 2.0
+        let rate = pressBeganAt.timeIntervalSince(lastTapAt) < 0.6 ? 3.0 : 2.0
         speedBeforeBoost = state.speed
         state.boostedSpeed = rate
         controller?.setSpeed(rate)
