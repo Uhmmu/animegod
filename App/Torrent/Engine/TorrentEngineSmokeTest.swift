@@ -55,8 +55,11 @@ enum TorrentEngineSmokeTest {
             exit(1)
         }
 
-        let seeder = AGTorrentEngine(stateDirectory: root.appending(path: "seed-state"), listenPort: 6991, preferTCP: false)
-        let leecher = AGTorrentEngine(stateDirectory: root.appending(path: "leech-state"), listenPort: 6992, preferTCP: false)
+        // Seeding on for both: the whole test is one engine serving another,
+        // so this is also what proves the switch's default does not reach
+        // past the app's own downloads.
+        let seeder = AGTorrentEngine(stateDirectory: root.appending(path: "seed-state"), listenPort: 6991, preferTCP: false, seedsWhenComplete: true)
+        let leecher = AGTorrentEngine(stateDirectory: root.appending(path: "leech-state"), listenPort: 6992, preferTCP: false, seedsWhenComplete: true)
         for (name, engine) in [("seeder", seeder), ("leecher", leecher)] where engine.startupError != nil {
             print("SMOKE \(name) failed to start: \(engine.startupError!)")
             exit(1)
@@ -91,6 +94,29 @@ enum TorrentEngineSmokeTest {
                 }
             }
 
+            // The sharing switch, measured rather than reasoned about: a
+            // finished task shares, stops the moment sharing is turned off,
+            // and shares again when it is turned back on. "The queue will
+            // get round to it" and "it has stopped uploading" are not the
+            // same claim, and only the second one is what the switch says.
+            func awaitLeecher(_ matches: (AGTorrentState) -> Bool, seconds: Int = 10) -> AGTorrentState {
+                var state = leecher.snapshot(forInfoHash: hash)?.state ?? .errored
+                for _ in 1...seconds where !matches(state) {
+                    RunLoop.current.run(until: Date().addingTimeInterval(1))
+                    state = leecher.snapshot(forInfoHash: hash)?.state ?? .errored
+                }
+                return state
+            }
+            let sharing = awaitLeecher { $0 == .seeding }
+            leecher.seedsWhenComplete = false
+            let stopped = awaitLeecher { $0 != .seeding }
+            let stoppedCount = leecher.seedingTaskCount
+            leecher.seedsWhenComplete = true
+            let resumed = awaitLeecher { $0 == .seeding }
+            let switchWorks = sharing == .seeding && stopped != .seeding
+                && stoppedCount == 0 && resumed == .seeding && leecher.seedingTaskCount == 1
+            print("SMOKE sharing switch: on=\(sharing.rawValue) off=\(stopped.rawValue) seedingWhenOff=\(stoppedCount) backOn=\(resumed.rawValue) ok=\(switchWorks)")
+
             // The engine puts a single-file torrent in a folder of its own,
             // so the payload lands one level down.
             let downloaded = leechFiles.appending(path: "sample/sample.bin")
@@ -109,7 +135,7 @@ enum TorrentEngineSmokeTest {
                 atPath: seedFiles.appending(path: "\(namedFolder)/sample.bin").path)
             print("SMOKE loopback complete=\(completed) bytesMatch=\(same) resumeFiles=\(resumeFiles.count) ownFolder=\(ownFolder) namedFolder=\(named)")
             try? FileManager.default.removeItem(at: root)
-            exit(completed && same && !resumeFiles.isEmpty && ownFolder && named ? 0 : 1)
+            exit(completed && same && !resumeFiles.isEmpty && ownFolder && named && switchWorks ? 0 : 1)
         } catch {
             print("SMOKE loopback failed: \(error.localizedDescription)")
             exit(1)
@@ -129,7 +155,7 @@ enum TorrentEngineSmokeTest {
         let saveDirectory = stateDirectory.appending(path: "files")
         try? FileManager.default.createDirectory(at: saveDirectory, withIntermediateDirectories: true)
 
-        let engine = AGTorrentEngine(stateDirectory: stateDirectory, listenPort: 6881, preferTCP: false)
+        let engine = AGTorrentEngine(stateDirectory: stateDirectory, listenPort: 6881, preferTCP: false, seedsWhenComplete: true)
         if let failure = engine.startupError {
             print("SMOKE engine failed to start: \(failure)")
             exit(1)

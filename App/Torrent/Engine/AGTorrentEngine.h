@@ -82,9 +82,15 @@ typedef NS_ENUM(NSInteger, AGTorrentState) {
 
 /// Creates and starts a session. `stateDirectory` holds resume data;
 /// `listenPort` is the preferred port (another is chosen if it is taken).
+///
+/// `seedsWhenComplete` is passed in rather than set afterwards because
+/// resume data is loaded inside this initializer: a session brought up with
+/// seeding off must never upload a single piece of the season it finished
+/// last week, not even for the tick between here and the first property set.
 - (instancetype)initWithStateDirectory:(NSURL *)stateDirectory
                             listenPort:(int)listenPort
-                              preferTCP:(BOOL)preferTCP NS_DESIGNATED_INITIALIZER;
+                              preferTCP:(BOOL)preferTCP
+                     seedsWhenComplete:(BOOL)seedsWhenComplete NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;
 
 @property (nonatomic, readonly, copy, nullable) NSString *startupError;
@@ -111,6 +117,23 @@ typedef NS_ENUM(NSInteger, AGTorrentState) {
 /// How many tasks libtorrent lets download at once; the rest are queued
 /// and start as slots free up. Clamped to 1…24.
 @property (nonatomic) int maximumActiveDownloads;
+
+/// Whether a release that has finished downloading goes on sharing itself.
+///
+/// NO shuts the seed queue (`active_seeds = 0`) *and* stops every task that
+/// has already finished, so nothing is uploaded once a download completes
+/// — setting the queue limit alone would only hold back the next one to
+/// finish. Turning it back on starts them again.
+///
+/// A task that is still downloading is left alone either way: BitTorrent
+/// trades pieces while it fetches, and a peer that uploads nothing is a peer
+/// the swarm has no reason to serve.
+@property (nonatomic) BOOL seedsWhenComplete;
+
+/// How many finished tasks are sharing right now — read from the live
+/// session rather than counted from snapshots, so "is it actually seeding?"
+/// has one answer.
+@property (nonatomic, readonly) int seedingTaskCount;
 
 /// Session-wide ceilings in bytes per second; 0 is unlimited. They apply to
 /// every task that has no ceiling of its own, so a download in the

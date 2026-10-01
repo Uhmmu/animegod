@@ -187,7 +187,7 @@ struct SettingsView: View {
                     Text(TorrentDownloadManager.rateLimitText(limit)).tag(limit)
                 }
             }
-            Text("BitTorrent uses every byte of a connection it is given, so a ceiling is what keeps everything else on the network usable. Uploading is how a swarm stays alive — limit it rather than stopping it.")
+            Text("BitTorrent uses every byte of a connection it is given, so a ceiling is what keeps everything else on the network usable. The upload limit applies to what a download gives back while it runs, and to finished releases when sharing is on.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Picker("Downloads at Once", selection: $downloads.maximumActiveDownloads) {
@@ -197,6 +197,11 @@ struct SettingsView: View {
             }
             .help("A whole season started at once is queued: this many run, the rest wait their turn")
             Toggle("Unpack Archives When Finished", isOn: $downloads.extractsArchives)
+            Toggle("Share Finished Downloads", isOn: $downloads.seedsAfterDownloading)
+                .help("Keep uploading a release after it has finished downloading. Switching it off stops every task that has already finished.")
+            Text("Off by default. Sharing is how a swarm stays alive — every episode here came from someone who left theirs running — but it uses upload bandwidth for as long as AnimeGod is open, so it is yours to switch on.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 

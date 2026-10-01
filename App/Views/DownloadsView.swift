@@ -83,6 +83,8 @@ struct DownloadsView: View {
                 Divider()
                 Toggle("Unpack Archives When Finished", isOn: $downloads.extractsArchives)
                     .help("Releases shipped as .rar, .zip or .7z are unpacked where they land, so the library scan finds episodes instead of archives")
+                Toggle("Share Finished Downloads", isOn: $downloads.seedsAfterDownloading)
+                    .help("Keep uploading a release after it finishes. Off by default.")
                 Picker("Downloads at Once", selection: $downloads.maximumActiveDownloads) {
                     ForEach(TorrentDownloadManager.activeDownloadChoices, id: \.self) { count in
                         Text(verbatim: "\(count)").tag(count)
@@ -113,6 +115,7 @@ struct DownloadsView: View {
                     }
                 }
                 .pickerStyle(.inline)
+                .help("Applies to what a download gives back while it runs, and to finished releases when sharing is on")
                 Divider()
                 Picker("Automatic Downloads", selection: $downloads.automaticRateLimitKB) {
                     ForEach(TorrentDownloadManager.rateLimitChoices, id: \.self) { limit in

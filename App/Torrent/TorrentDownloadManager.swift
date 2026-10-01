@@ -108,6 +108,22 @@ final class TorrentDownloadManager: ObservableObject {
     }
     private static let extractsArchivesKey = "torrent.extractArchives"
 
+    /// Whether a finished download goes on sharing itself.
+    ///
+    /// **Off by default.** Seeding is giving back, not a feature of watching
+    /// anime: it costs upload bandwidth for as long as the app is open, and
+    /// on a metered or shared connection — a dorm, a phone hotspot — that is
+    /// the user's cost, not ours to assume. Switching it off stops every
+    /// task that has already finished, not just the next one.
+    @Published var seedsAfterDownloading: Bool {
+        didSet {
+            UserDefaults.standard.set(seedsAfterDownloading, forKey: Self.seedsAfterDownloadingKey)
+            engine?.seedsWhenComplete = seedsAfterDownloading
+            refresh()
+        }
+    }
+    private static let seedsAfterDownloadingKey = "torrent.seedsAfterDownloading"
+
     /// How many tasks download at once; the rest wait their turn in the
     /// engine's queue. Four, not twelve: a whole season started together
     /// would split one connection budget twelve ways and finish nothing,
@@ -184,6 +200,7 @@ final class TorrentDownloadManager: ObservableObject {
     init(folders: DownloadFolderStore = DownloadFolderStore()) {
         self.folders = folders
         extractsArchives = UserDefaults.standard.object(forKey: Self.extractsArchivesKey) as? Bool ?? true
+        seedsAfterDownloading = UserDefaults.standard.object(forKey: Self.seedsAfterDownloadingKey) as? Bool ?? false
         maximumActiveDownloads = UserDefaults.standard.object(forKey: Self.maximumActiveDownloadsKey) as? Int
             ?? Self.defaultActiveDownloads
         downloadRateLimitKB = UserDefaults.standard.object(forKey: Self.downloadRateLimitKey) as? Int ?? 0
@@ -234,7 +251,12 @@ final class TorrentDownloadManager: ObservableObject {
         let engine = AGTorrentEngine(
             stateDirectory: Self.stateDirectory,
             listenPort: Self.listenPort,
-            preferTCP: false
+            preferTCP: false,
+            // Handed over at construction, not set afterwards: the engine
+            // resumes last session's tasks inside its initializer, and a
+            // finished season must not share a byte before the switch is
+            // read.
+            seedsWhenComplete: seedsAfterDownloading
         )
         if let failure = engine.startupError {
             errorMessage = String(localized: "The download engine could not start: \(failure)")

@@ -27,9 +27,10 @@ namespace lt = libtorrent;
 
 static NSString *const AGTorrentErrorDomain = @"com.uhmmu.AnimeGod.torrent";
 
-/// How many finished releases keep seeding at once. Generous on purpose: a
-/// library that has downloaded a few seasons should still be giving back,
-/// and a seed slot is not a download slot.
+/// How many finished releases keep seeding at once *while seeding is on*.
+/// Generous on purpose: a library that has downloaded a few seasons should
+/// still be giving back, and a seed slot is not a download slot. The switch
+/// itself drops the limit to zero — see `seedsWhenComplete`.
 static int const AGActiveSeedLimit = 64;
 
 /// Community tracker snapshot injected into tasks that arrive with few
@@ -152,6 +153,9 @@ static NSString *AGHexFromHandle(lt::torrent_handle const &handle) {
     int _listenPort;
     int _dhtNodes;
     int _maximumActiveDownloads;
+    /// Read on the alert queue as well as the main thread, so every access
+    /// goes through `@synchronized (self)`.
+    BOOL _seedsWhenComplete;
     int _downloadRateLimit;
     int _uploadRateLimit;
     int _dhtNodesMetricIndex;
@@ -169,13 +173,17 @@ static NSString *AGHexFromHandle(lt::torrent_handle const &handle) {
 
 - (instancetype)initWithStateDirectory:(NSURL *)stateDirectory
                             listenPort:(int)listenPort
-                             preferTCP:(BOOL)preferTCP {
+                             preferTCP:(BOOL)preferTCP
+                     seedsWhenComplete:(BOOL)seedsWhenComplete {
     self = [super init];
     if (!self) { return nil; }
     _stateDirectory = stateDirectory;
     _listenPort = listenPort;
     _dhtNodes = 0;
     _maximumActiveDownloads = 4;
+    // Set before the session starts and before resume data is loaded: the
+    // seed queue has to be shut before there is anything in it to seed.
+    _seedsWhenComplete = seedsWhenComplete;
     _downloadRateLimit = 0;
     _uploadRateLimit = 0;
     _directoriesToPrune = [NSMutableSet new];
@@ -220,12 +228,13 @@ static NSString *AGHexFromHandle(lt::torrent_handle const &handle) {
     // Seeding is not metered the same way. It costs upload only, and
     // libtorrent hands out download slots before seed slots, so a large seed
     // pool can never hold a download back — whereas capping seeds at the
-    // download count paused a finished season one episode at a time.
+    // download count paused a finished season one episode at a time. That
+    // same mechanism, at zero, is how sharing is switched off entirely.
     pack.set_int(lt::settings_pack::download_rate_limit, _downloadRateLimit);
     pack.set_int(lt::settings_pack::upload_rate_limit, _uploadRateLimit);
     pack.set_int(lt::settings_pack::active_downloads, _maximumActiveDownloads);
-    pack.set_int(lt::settings_pack::active_seeds, AGActiveSeedLimit);
-    pack.set_int(lt::settings_pack::active_limit, _maximumActiveDownloads + AGActiveSeedLimit);
+    pack.set_int(lt::settings_pack::active_seeds, [self activeSeedLimit]);
+    pack.set_int(lt::settings_pack::active_limit, _maximumActiveDownloads + [self activeSeedLimit]);
     pack.set_int(lt::settings_pack::alert_queue_size, 5000);
     // Announcing to only the first working tracker misses most of the swarm
     // for anime releases, which list many trackers.
@@ -371,6 +380,13 @@ static NSString *AGHexFromHandle(lt::torrent_handle const &handle) {
             _listenError = nil;
         } else if (auto *finished = lt::alert_cast<lt::torrent_finished_alert>(alert)) {
             finished->handle.save_resume_data(lt::torrent_handle::save_info_dict);
+            // The queue would get to this on its own tick; stopping it here
+            // means a download that completes while seeding is off never
+            // uploads a byte, which is the promise the switch makes.
+            if (![self seedsWhenComplete] && finished->handle.is_valid()
+                && (finished->handle.flags() & lt::torrent_flags::auto_managed)) {
+                finished->handle.pause();
+            }
         } else if (auto *added = lt::alert_cast<lt::add_torrent_alert>(alert)) {
             if (!added->error && added->handle.is_valid()) {
                 [self writeMetadataForHandle:added->handle];
@@ -616,13 +632,74 @@ static NSString *AGHexFromHandle(lt::torrent_handle const &handle) {
     _maximumActiveDownloads = limited;
     lt::settings_pack pack;
     pack.set_int(lt::settings_pack::active_downloads, limited);
-    pack.set_int(lt::settings_pack::active_seeds, AGActiveSeedLimit);
-    pack.set_int(lt::settings_pack::active_limit, limited + AGActiveSeedLimit);
+    pack.set_int(lt::settings_pack::active_seeds, [self activeSeedLimit]);
+    pack.set_int(lt::settings_pack::active_limit, limited + [self activeSeedLimit]);
     _session->apply_settings(pack);
 }
 
 - (int)maximumActiveDownloads {
     return _maximumActiveDownloads;
+}
+
+// MARK: - Seeding
+
+/// Nothing is given a seed slot when seeding is off, which is what keeps a
+/// task the queue would otherwise restart stopped.
+- (int)activeSeedLimit {
+    return [self seedsWhenComplete] ? AGActiveSeedLimit : 0;
+}
+
+- (BOOL)seedsWhenComplete {
+    @synchronized (self) { return _seedsWhenComplete; }
+}
+
+- (void)setSeedsWhenComplete:(BOOL)seedsWhenComplete {
+    @synchronized (self) {
+        if (_seedsWhenComplete == seedsWhenComplete) { return; }
+        _seedsWhenComplete = seedsWhenComplete;
+    }
+    if (!_session) { return; }
+    lt::settings_pack pack;
+    pack.set_int(lt::settings_pack::active_seeds, [self activeSeedLimit]);
+    pack.set_int(lt::settings_pack::active_limit, _maximumActiveDownloads + [self activeSeedLimit]);
+    _session->apply_settings(pack);
+    [self applySeedingPolicy];
+}
+
+/// Brings every finished task into line with the switch, now rather than
+/// whenever the queue next looks.
+///
+/// Only auto-managed tasks are touched. A task the user paused by hand has
+/// its auto-managed flag cleared (see `pause:`), and turning seeding on must
+/// not quietly restart something they stopped.
+- (void)applySeedingPolicy {
+    if (!_session) { return; }
+    BOOL const seeds = [self seedsWhenComplete];
+    for (auto const &handle : _session->get_torrents()) {
+        if (!handle.is_valid()) { continue; }
+        lt::torrent_status status = handle.status();
+        if (!(status.flags & lt::torrent_flags::auto_managed)) { continue; }
+        if (!status.is_finished) { continue; }
+        bool const paused = static_cast<bool>(status.flags & lt::torrent_flags::paused);
+        if (!seeds && !paused) {
+            // Not a graceful pause: there is no download in flight to
+            // protect, and "stop sharing" should mean this second.
+            handle.pause();
+        } else if (seeds && paused) {
+            handle.resume();
+            handle.force_reannounce();
+        }
+    }
+}
+
+- (int)seedingTaskCount {
+    if (!_session || ![self seedsWhenComplete]) { return 0; }
+    std::vector<lt::torrent_status> statuses = _session->get_torrent_status(
+        [](lt::torrent_status const &status) {
+            return status.state == lt::torrent_status::seeding
+                && !(status.flags & lt::torrent_flags::paused);
+        });
+    return static_cast<int>(statuses.size());
 }
 
 - (void)setDownloadRateLimit:(int)bytesPerSecond {

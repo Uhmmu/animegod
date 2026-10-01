@@ -1711,6 +1711,22 @@
         }
       }
     },
+    "Applies to what a download gives back while it runs, and to finished releases when sharing is on": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ダウンロード中の還元に適用され、シードが有効なときは完了済みの資源にも適用されます"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "对下载过程中的回传生效；开启做种后，也对已完成的资源生效"
+          }
+        }
+      }
+    },
     "Archive": {
       "localizations": {
         "ja": {
@@ -2043,6 +2059,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Bilibili 按标题和集数匹配，读取该集的官方弹幕池。"
+          }
+        }
+      }
+    },
+    "BitTorrent uses every byte of a connection it is given, so a ceiling is what keeps everything else on the network usable. The upload limit applies to what a download gives back while it runs, and to finished releases when sharing is on.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BitTorrent は与えられた帯域を使い切るので、上限を決めることがネットワーク上の他のものを使える状態に保つ方法です。アップロード上限はダウンロード中の還元に適用され、シードが有効なときは完了済みの資源にも適用されます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BitTorrent 会用尽给它的每一字节带宽，所以限速才是让网络上其他东西还能用的办法。上传限制对下载过程中的回传生效；开启做种后，也对已完成的资源生效。"
           }
         }
       }
@@ -6115,6 +6147,38 @@
         }
       }
     },
+    "Keep uploading a release after it finishes. Off by default.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "資源のダウンロード完了後もアップロードを続けます。既定ではオフです。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "资源下载完成后继续上传。默认关闭。"
+          }
+        }
+      }
+    },
+    "Keep uploading a release after it has finished downloading. Switching it off stops every task that has already finished.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "資源のダウンロードが終わった後もアップロードを続けます。オフにすると、すでに完了したタスクはすべて停止します。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "资源下载完成后继续上传。关闭后，所有已完成的任务都会停止。"
+          }
+        }
+      }
+    },
     "Keys are stored in AnimeGod's own local settings, not the Keychain. %@.": {
       "localizations": {
         "ja": {
@@ -8381,6 +8445,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "关闭"
+          }
+        }
+      }
+    },
+    "Off by default. Sharing is how a swarm stays alive — every episode here came from someone who left theirs running — but it uses upload bandwidth for as long as AnimeGod is open, so it is yours to switch on.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "既定ではオフです。共有は群（スウォーム）が生き延びる仕組みそのもので、ここにある一話一話も誰かが自分の分を動かし続けてくれた結果ですが、AnimeGod を開いている間ずっとアップロード帯域を使うため、オンにするかどうかはあなたが決めてください。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "默认关闭。分享是一个种子群能活下去的原因——这里的每一集都来自某个让自己的副本一直挂着的人——但只要 AnimeGod 开着，它就会占用上传带宽，所以开不开由你决定。"
           }
         }
       }
@@ -10897,6 +10977,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "设置"
+          }
+        }
+      }
+    },
+    "Share Finished Downloads": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完了したダウンロードを共有"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分享已完成的下载"
           }
         }
       }
