@@ -199,7 +199,7 @@ struct SettingsView: View {
             Toggle("Unpack Archives When Finished", isOn: $downloads.extractsArchives)
             Toggle("Share Finished Downloads", isOn: $downloads.seedsAfterDownloading)
                 .help("Keep uploading a release after it has finished downloading. Switching it off stops every task that has already finished.")
-            Text("Off by default. Sharing is how a swarm stays alive — every episode here came from someone who left theirs running — but it uses upload bandwidth for as long as AnimeGod is open, so it is yours to switch on.")
+            Text("Off by default. Sharing is how a swarm stays alive — every episode here came from someone who left theirs running — but it uses upload bandwidth for as long as AnimeGod is open, so it is yours to switch on. What is being shared, and how much, is in the Seeding section.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

@@ -12,6 +12,7 @@ private enum SidebarItem: String, Hashable, CaseIterable {
     case folders
     case episodeCache
     case downloads
+    case seeding
     case subscriptions
     case settings
 }
@@ -47,6 +48,8 @@ struct RootView: View {
                     // matching the selection, so the section does nothing.
                     DownloadsSidebarLabel(downloads: model.downloads)
                         .tag(SidebarItem.downloads)
+                    SeedingSidebarLabel(downloads: model.downloads)
+                        .tag(SidebarItem.seeding)
                     SubscriptionsSidebarLabel(subscriptions: model.subscriptions)
                         .tag(SidebarItem.subscriptions)
                 }
@@ -71,6 +74,7 @@ struct RootView: View {
                 case .folders: LibraryRootsView()
                 case .episodeCache: EpisodeCacheView(cache: model.episodeCache)
                 case .downloads: DownloadsView(downloads: model.downloads)
+                case .seeding: SeedingView(downloads: model.downloads)
                 case .subscriptions: SubscriptionsView(subscriptions: model.subscriptions, downloads: model.downloads)
                 case .settings: SettingsView(translation: model.translation, danmaku: model.danmakuPreferences, torrentSources: model.torrentSources, subtitles: model.subtitlePreferences, downloads: model.downloads, subscriptions: model.subscriptions, link: model.link, database: model.libraryDatabase)
                 case nil: ContentUnavailableView("Choose a section", systemImage: "sidebar.left")
@@ -282,5 +286,17 @@ private struct DownloadsSidebarLabel: View {
     var body: some View {
         Label("Downloads", systemImage: "arrow.down.to.line")
             .badge(downloads.activeCount)
+    }
+}
+
+/// The Seeding row counts what is actually uploading, which is zero whenever
+/// sharing is switched off — so the badge is also how the sidebar says the
+/// switch is off, without a second control for it.
+private struct SeedingSidebarLabel: View {
+    @ObservedObject var downloads: TorrentDownloadManager
+
+    var body: some View {
+        Label("Seeding", systemImage: "arrow.up.to.line")
+            .badge(downloads.seedingCount)
     }
 }

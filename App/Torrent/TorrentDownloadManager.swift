@@ -38,6 +38,21 @@ struct TorrentDownloadItem: Identifiable, Hashable {
     var totalBytes: Int64 { snapshot?.totalBytes ?? record.totalBytes }
     var downloadedBytes: Int64 { snapshot?.downloadedBytes ?? 0 }
 
+    /// Everything this task has ever given back. libtorrent's all-time
+    /// figure, which rides along in the resume data, so it survives a quit
+    /// instead of resetting to zero every launch.
+    var uploadedBytes: Int64 { snapshot?.uploadedBytes ?? 0 }
+    var uploadRate: Int { Int(snapshot?.uploadRate ?? 0) }
+    /// Uploading right now, as opposed to finished and stopped.
+    var isSeeding: Bool { snapshot?.state == .seeding && !isPaused }
+    /// Given back over taken: 1.0 is having returned the episode once. Nil
+    /// until the size is known, because dividing by it is the whole point.
+    var shareRatio: Double? {
+        let total = totalBytes
+        guard total > 0 else { return nil }
+        return Double(uploadedBytes) / Double(total)
+    }
+
     /// The episode this download is of, for showing a season in order before
     /// any of it is on disk. Read off the release name rather than the label,
     /// because a download added by hand has no label.
@@ -234,6 +249,49 @@ final class TorrentDownloadManager: ObservableObject {
 
     var activeCount: Int {
         items.filter { !$0.isComplete && !$0.isPaused }.count
+    }
+
+    // MARK: - Seeding
+
+    /// The finished downloads — the rows the Seeding section lists. One that
+    /// is still arriving has nothing to share yet, so it stays in Downloads.
+    var completedItems: [TorrentDownloadItem] {
+        items.filter(\.isComplete)
+    }
+
+    /// How many finished downloads are uploading this second. The sidebar
+    /// badge, and the honest answer to "is it actually sharing?" — a task can
+    /// be finished, listed and stopped all at once.
+    var seedingCount: Int {
+        guard seedsAfterDownloading else { return 0 }
+        return items.filter(\.isSeeding).count
+    }
+
+    /// Everything this Mac has ever given back, across the tasks the engine
+    /// still knows about. A removed download takes its share with it, which
+    /// is the right answer for a figure that is about what is being shared.
+    var sharedBytes: Int64 {
+        items.reduce(0) { $0 + $1.uploadedBytes }
+    }
+
+    /// Stops one finished download sharing, leaving the rest alone.
+    ///
+    /// This is the user's own stop, so it clears the auto-managed flag and
+    /// the task reads as Paused: turning the switch off and on again must not
+    /// quietly restart something they stopped by hand.
+    func stopSeeding(_ item: TorrentDownloadItem) {
+        engine?.pause(item.record.infoHash)
+        refresh()
+    }
+
+    /// Shares one finished download again. Only offered while the switch is
+    /// on — with the seed queue shut, resuming a task would last exactly one
+    /// of the queue's ticks, and a button that undoes itself is worse than no
+    /// button.
+    func startSeeding(_ item: TorrentDownloadItem) {
+        guard seedsAfterDownloading else { return }
+        startEngineIfNeeded()?.resume(item.record.infoHash)
+        refresh()
     }
 
     // MARK: - Engine lifecycle

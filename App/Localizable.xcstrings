@@ -265,6 +265,22 @@
         }
       }
     },
+    "%@ shared in total": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "合計 %@ 共有済み"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已共上传 %@"
+          }
+        }
+      }
+    },
     "%@ · %@": {
       "localizations": {
         "en": {
@@ -332,6 +348,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "%1$@，正在下载，%2$lld%%"
+          }
+        }
+      }
+    },
+    "%@/s · %@ shared · %d peers": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@/s · %2$@ shared · %3$d peers"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@/s · %2$@ 共有済み · ピア %3$d"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@/s · 已上传 %2$@ · %3$d 个用户"
           }
         }
       }
@@ -2059,6 +2097,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Bilibili 按标题和集数匹配，读取该集的官方弹幕池。"
+          }
+        }
+      }
+    },
+    "BitTorrent only works because finished downloads keep sharing. Turning this off stops every task that has finished — nothing is uploaded once a download completes.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BitTorrent が成り立つのは、ダウンロードを終えた人が共有を続けているからです。オフにすると完了済みのタスクはすべて停止し、ダウンロード完了後は一切アップロードしません。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BitTorrent 之所以能用，就是因为下载完的人还在继续分享。关闭后，所有已完成的任务都会停止——下载完成之后不再上传任何数据。"
           }
         }
       }
@@ -4358,6 +4412,22 @@
         }
       }
     },
+    "Downloads that finish appear here and go on sharing themselves until you remove them or switch this off.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ダウンロードが完了した資源はここに並び、削除するかシードをオフにするまで共有を続けます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载完成的资源会出现在这里，并持续分享，直到你把它移除或关闭做种。"
+          }
+        }
+      }
+    },
     "Downloads the pieces in order so the episode can be played before it finishes": {
       "localizations": {
         "ja": {
@@ -5871,6 +5941,38 @@
         }
       }
     },
+    "How fast this Mac is uploading right now": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この Mac の現在のアップロード速度"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这台 Mac 当前的上传速度"
+          }
+        }
+      }
+    },
+    "How much has been uploaded against the size of the download: 1.0× is having given the episode back once": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アップロード量とダウンロード容量の比：1.0× はその話を一度ぶん返したということ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已上传量与下载体积之比：1.0× 表示把这一集完整回馈了一遍"
+          }
+        }
+      }
+    },
     "How often the anime indexes are searched for the next episode of each followed show": {
       "localizations": {
         "ja": {
@@ -6147,18 +6249,18 @@
         }
       }
     },
-    "Keep uploading a release after it finishes. Off by default.": {
+    "Keep uploading a release after it finishes. Off by default; what is being shared is listed in the Seeding section.": {
       "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "資源のダウンロード完了後もアップロードを続けます。既定ではオフです。"
+            "value": "資源のダウンロード完了後もアップロードを続けます。既定ではオフで、共有中のものは「シード」セクションに並びます。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "资源下载完成后继续上传。默认关闭。"
+            "value": "资源下载完成后继续上传。默认关闭；正在分享的内容列在「做种」栏目里。"
           }
         }
       }
@@ -8161,6 +8263,22 @@
         }
       }
     },
+    "Not Sharing": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "共有していません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未在分享"
+          }
+        }
+      }
+    },
     "Not Started": {
       "localizations": {
         "ja": {
@@ -8353,6 +8471,22 @@
         }
       }
     },
+    "Nothing is being uploaded. Finished downloads stay on disk and stop sharing, and a download that completes from now on stops as soon as it finishes.\n\nSharing is how a swarm survives: every episode downloaded here came from someone who left theirs running. It costs upload bandwidth for as long as AnimeGod is open, so it is yours to switch on.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "現在、何もアップロードしていません。完了したダウンロードはディスクに残りますが共有は止まり、これから完了するものも終わった瞬間に停止します。\n\n共有は群（スウォーム）が生き延びる仕組みそのものです。ここで落ちてきた一話も、誰かが自分の分を動かし続けてくれたおかげで届いています。AnimeGod を開いている間ずっとアップロード帯域を使うので、オンにするかどうかはあなたが決めてください。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前没有上传任何数据。已完成的下载仍留在磁盘上，但不再分享；从现在起完成的下载也会在完成的那一刻停止。\n\n分享是一个种子群能活下去的原因：这里下载到的每一集，都来自某个让自己的副本一直挂着的人。只要 AnimeGod 开着，它就会占用上传带宽，所以开不开由你决定。"
+          }
+        }
+      }
+    },
     "Nothing new was matched. %lld lookup(s) failed; cached metadata and the local library remain available.": {
       "localizations": {
         "ja": {
@@ -8381,6 +8515,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "没有需要审核的内容"
+          }
+        }
+      }
+    },
+    "Nothing to Share Yet": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "まだ共有するものがありません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂时没有可分享的内容"
           }
         }
       }
@@ -8449,18 +8599,18 @@
         }
       }
     },
-    "Off by default. Sharing is how a swarm stays alive — every episode here came from someone who left theirs running — but it uses upload bandwidth for as long as AnimeGod is open, so it is yours to switch on.": {
+    "Off by default. Sharing is how a swarm stays alive — every episode here came from someone who left theirs running — but it uses upload bandwidth for as long as AnimeGod is open, so it is yours to switch on. What is being shared, and how much, is in the Seeding section.": {
       "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "既定ではオフです。共有は群（スウォーム）が生き延びる仕組みそのもので、ここにある一話一話も誰かが自分の分を動かし続けてくれた結果ですが、AnimeGod を開いている間ずっとアップロード帯域を使うため、オンにするかどうかはあなたが決めてください。"
+            "value": "既定ではオフです。共有は群（スウォーム）が生き延びる仕組みそのもので、ここにある一話一話も誰かが自分の分を動かし続けてくれた結果ですが、AnimeGod を開いている間ずっとアップロード帯域を使うため、オンにするかどうかはあなたが決めてください。何をどれだけ共有しているかは「シード」セクションにあります。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "默认关闭。分享是一个种子群能活下去的原因——这里的每一集都来自某个让自己的副本一直挂着的人——但只要 AnimeGod 开着，它就会占用上传带宽，所以开不开由你决定。"
+            "value": "默认关闭。分享是一个种子群能活下去的原因——这里的每一集都来自某个让自己的副本一直挂着的人——但只要 AnimeGod 开着，它就会占用上传带宽，所以开不开由你决定。正在分享什么、上传了多少，都在「做种」栏目里。"
           }
         }
       }
@@ -10869,6 +11019,22 @@
         }
       }
     },
+    "Seeding": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "シード"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "做种"
+          }
+        }
+      }
+    },
     "Seeding · %@ shared": {
       "localizations": {
         "ja": {
@@ -10993,6 +11159,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "分享已完成的下载"
+          }
+        }
+      }
+    },
+    "Share this one again": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "これをもう一度共有"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新分享这一项"
+          }
+        }
+      }
+    },
+    "Sharing": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "共有中"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分享中"
           }
         }
       }
@@ -11585,6 +11783,38 @@
         }
       }
     },
+    "Stop sharing this one, and leave the rest sharing": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "これだけ共有を止め、ほかはそのまま続ける"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只停止分享这一项，其余继续"
+          }
+        }
+      }
+    },
+    "Stopped": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停止中"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已停止"
+          }
+        }
+      }
+    },
     "Stopped at the time limit · %@": {
       "localizations": {
         "ja": {
@@ -11597,6 +11827,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "已到时限停止 · %@"
+          }
+        }
+      }
+    },
+    "Stopped · %@ shared": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停止中 · %@ 共有済み"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已停止 · 已上传 %@"
           }
         }
       }
@@ -11949,6 +12195,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "字幕组没发布的某一集，从最接近的其他字幕组补过来，而不是让这一季留空"
+          }
+        }
+      }
+    },
+    "Tell the trackers and the DHT this copy is here, so peers looking for it can find it": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "トラッカーと DHT にこのコピーがここにあると知らせ、探しているピアから見つけてもらう"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "向 Tracker 和 DHT 汇报这份副本在这里，让正在找它的用户能连上"
           }
         }
       }
@@ -13682,6 +13944,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "· 剩余 %@"
+          }
+        }
+      }
+    },
+    "· %@ shared back": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "· %@ 還元"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "· 已回馈 %@"
           }
         }
       }
