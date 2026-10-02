@@ -88,7 +88,16 @@ final class TorrentSearchModel: ObservableObject {
         }
     }
     @Published var sortOrder: TorrentResultMerger.SortOrder = .relevance
-    @Published var layout: Layout = .releases
+    /// Seasons, not single releases, is where a search starts. What is wanted
+    /// from a search is almost always "get me this show", and the set answers
+    /// that in one press; the release table is for picking a particular
+    /// encode, which is the rarer question.
+    @Published var layout: Layout = .episodeSets {
+        didSet { if !isChoosingLayout { layoutWasChosen = true } }
+    }
+    /// The user has picked a side themselves, so stop choosing for them.
+    private var layoutWasChosen = false
+    private var isChoosingLayout = false
     /// Fill an episode a fansub never published from the closest other
     /// team, rather than leaving a hole in the season.
     @Published var fillsGapsFromOtherGroups = true {
@@ -246,8 +255,27 @@ final class TorrentSearchModel: ObservableObject {
             }
             guard let self, self.generation == current else { return }
             self.isSearching = false
+            self.chooseLayout()
             await self.resolveEpisodeCount(for: TorrentSearchCoordinator.splitQueries(self.queryText))
         }
+    }
+
+    /// Which side a finished search lands on, until the user says otherwise.
+    ///
+    /// Sets whenever there are any, because that is the answer to "get me
+    /// this show". There are none when a season is in its first week — a line
+    /// needs two episodes to be a season — and an empty screen is no answer
+    /// at all when the one episode that exists is right there in the results,
+    /// so that search shows the releases instead. Decided once a search ends,
+    /// never while it streams: the sets are rebuilt from every snapshot, and
+    /// a view that swapped under the pointer eighty times would be unusable.
+    private func chooseLayout() {
+        guard !layoutWasChosen, !(snapshot?.results.isEmpty ?? true) else { return }
+        let wanted: Layout = episodeSets.isEmpty ? .releases : .episodeSets
+        guard wanted != layout else { return }
+        isChoosingLayout = true
+        layout = wanted
+        isChoosingLayout = false
     }
 
     // MARK: - Result actions
