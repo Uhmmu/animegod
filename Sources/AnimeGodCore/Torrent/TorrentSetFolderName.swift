@@ -15,7 +15,17 @@ public enum TorrentDownloadFolder {
     /// parser reads it back out — the same parser the scanner trusts. The
     /// fansub's name is deliberately not a fallback: every season that team
     /// ever published would land in one folder.
-    public static func name(animeTitle: String?, releaseNames: [String]) -> String? {
+    /// `season` is appended when it is a later one, so the second season of a
+    /// show does not land in the first's folder. It is the same suffix
+    /// wherever the base name came from: an episode fetched on its own has to
+    /// agree with the set it will later be part of, down to the spelling.
+    public static func name(animeTitle: String?, releaseNames: [String], season: Int? = nil) -> String? {
+        guard let base = baseName(animeTitle: animeTitle, releaseNames: releaseNames) else { return nil }
+        guard let season, season > 1 else { return base }
+        return "\(base) S\(season)"
+    }
+
+    private static func baseName(animeTitle: String?, releaseNames: [String]) -> String? {
         if let animeTitle {
             let cleaned = sanitised(animeTitle)
             if !cleaned.isEmpty { return cleaned }
@@ -187,12 +197,10 @@ extension TorrentEpisodeSet {
     /// The one folder this set is downloaded into, so a season arrives as a
     /// season. Nil leaves each episode in a folder named after itself.
     public func suggestedFolderName(animeTitle: String? = nil) -> String? {
-        let base = TorrentDownloadFolder.name(
+        TorrentDownloadFolder.name(
             animeTitle: animeTitle,
-            releaseNames: entries.map(\.result.title)
+            releaseNames: entries.map(\.result.title),
+            season: variant.season
         )
-        guard let base else { return nil }
-        guard let season = variant.season, season > 1 else { return base }
-        return "\(base) S\(season)"
     }
 }

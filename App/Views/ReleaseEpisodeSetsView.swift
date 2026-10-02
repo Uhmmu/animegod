@@ -105,7 +105,7 @@ private struct EpisodeSetCard: View {
     private var isFollowing: Bool {
         if let anime { return subscriptions.subscription(for: anime.id) != nil }
         let name = workTitle
-        return subscriptions.subscriptions.contains { $0.title.caseInsensitiveCompare(name) == .orderedSame }
+        return subscriptions.subscriptions.contains { TorrentWorkIdentity.namesSameWork($0.title, name) }
     }
 
     /// What the library will call this work: the folder the set is saved into,

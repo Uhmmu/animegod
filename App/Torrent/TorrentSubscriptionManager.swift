@@ -450,9 +450,13 @@ final class TorrentSubscriptionManager: ObservableObject {
 
 extension TorrentSubscription {
     /// Two rules follow the same thing when they are bound to the same anime,
-    /// or — before either has been matched — when they were named the same.
+    /// or — before either has been matched — when they name the same work.
+    ///
+    /// Named by the same rule the folders use, so a second press of Subscribe
+    /// updates the rule it already has rather than adding one that downloads
+    /// every episode a second time.
     func matchesSameWork(as other: TorrentSubscription) -> Bool {
         if let mine = animeID, let theirs = other.animeID { return mine == theirs }
-        return title.caseInsensitiveCompare(other.title) == .orderedSame
+        return TorrentWorkIdentity.namesSameWork(title, other.title)
     }
 }

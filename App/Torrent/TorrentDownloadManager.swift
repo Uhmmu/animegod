@@ -415,27 +415,42 @@ final class TorrentDownloadManager: ObservableObject {
             let sanitised = TorrentDownloadFolder.sanitised(title)
             folder = sanitised.isEmpty ? nil : sanitised
         }
+        // And one episode fetched from a plain search is still an episode of
+        // a work. A season in its first week has no set to download — there
+        // is one episode out — so this is the only way to start it, and
+        // leaving it in a folder named after the release is what made the
+        // second episode, a week later, a second show.
+        if folder == nil {
+            folder = TorrentDownloadFolder.name(
+                animeTitle: nil,
+                releaseNames: [result.title],
+                season: result.release.season
+            )
+        }
+        let work = self.work(joining: folder, animeID: anime?.id, animeTitle: anime?.title)
         add(
             magnet: result.magnet.uri,
             infoHash: result.infoHash.hex,
             title: result.title,
             trackers: result.trackers,
-            animeID: anime?.id,
-            animeTitle: anime?.title,
+            animeID: work.animeID,
+            animeTitle: work.animeTitle,
             episodeLabel: result.release.episodeLabel,
             sequential: sequential,
-            folderName: folder
+            folderName: work.folderName
         )
         // Only a download that arrived without an anime needs asking about:
-        // one started from an anime's own page is already linked. The
-        // listener answers per work, so a whole set asks once.
+        // one started from an anime's own page, or that joined a work already
+        // matched, is linked already. The listener answers per work, so a
+        // whole set asks once.
         //
         // The folder is the key rather than the series title read off this one
         // release: it is what every episode of the set shares, and what the
         // library will name the work when the files land. Keying on the
         // per-release title instead is how a season ended up matched under a
         // name the scan never used — an anime page with no episodes in it.
-        if anime == nil, let key = folder ?? TorrentDownloadFolder.sharedSeriesTitle(of: [result.title]) {
+        if work.animeID == nil,
+           let key = work.folderName ?? TorrentDownloadFolder.sharedSeriesTitle(of: [result.title]) {
             onWorkStarted?(key)
         }
     }
@@ -487,7 +502,14 @@ final class TorrentDownloadManager: ObservableObject {
     ) -> SetDownload {
         let entries = (includingOwned ? set.entries.filter { !$0.isExtra } : set.downloadableEntries)
             .sorted { $0.episode < $1.episode }
-        let folderName = set.suggestedFolderName(animeTitle: anime?.title)
+        // Joined up front rather than per episode, because the folder is also
+        // what a subscription made from this set records: the episode it
+        // fetches next month has to land where the ones started by hand are.
+        let folderName = work(
+            joining: set.suggestedFolderName(animeTitle: anime?.title),
+            animeID: anime?.id,
+            animeTitle: anime?.title
+        ).folderName
         var started = 0
         var skipped = 0
         for entry in entries {
@@ -511,6 +533,10 @@ final class TorrentDownloadManager: ObservableObject {
         return SetDownload(started: started, skipped: skipped, folderName: folderName)
     }
 
+    /// Starts one download. Every path that adds anything comes through here,
+    /// which is also where it is decided what the download is *of*: a name
+    /// that matches a work already being downloaded joins that work's folder
+    /// and that work's anime, however this episode was started.
     @discardableResult
     func add(
         magnet: String,
@@ -526,6 +552,12 @@ final class TorrentDownloadManager: ObservableObject {
         subscriptionID: UUID? = nil,
         reportsDuplicates: Bool = true
     ) -> Bool {
+        // Shadowed deliberately: what this download is of is settled here,
+        // once, and nothing below should be able to reach the unjoined values.
+        let work = self.work(joining: folderName, animeID: animeID, animeTitle: animeTitle)
+        let folderName = work.folderName
+        let animeID = work.animeID
+        let animeTitle = work.animeTitle
         guard let engine = startEngineIfNeeded() else { return false }
         if records[infoHash.lowercased()] != nil {
             // A subscription re-offering a release it already took is
@@ -564,6 +596,14 @@ final class TorrentDownloadManager: ObservableObject {
             )
             records[record.infoHash] = record
             Task { try? await database?.saveTorrentDownload(record) }
+            // The other direction: an episode that knows its anime, joining
+            // episodes that were started before the work was matched. Without
+            // this the folder would be shared while the cards were not —
+            // Downloads groups by the anime first, so one linked episode and
+            // one unlinked one are two cards of the same season.
+            if let animeID, let folderName {
+                bind(animeID: animeID, title: animeTitle ?? folderName, toUnlinkedDownloadsIn: folderName)
+            }
             refresh()
             return true
         } catch {
@@ -667,6 +707,56 @@ final class TorrentDownloadManager: ObservableObject {
             try? await database?.saveTorrentDownload(saved)
         }
         refresh()
+    }
+
+    /// What a download is of: the folder it belongs in and the anime it is
+    /// bound to, taken from the work this library is already downloading
+    /// whenever a name matches.
+    ///
+    /// The scenario this exists for is a season in its first week. One
+    /// episode is out, so there is no set to download and it is fetched on
+    /// its own. A week later the second episode arrives — as a set now, or
+    /// through a subscription, or on its own again — and nothing about it
+    /// says it belongs with the first. The names do, and that is enough: the
+    /// same folder on disk, the same card in Downloads, one entry in the
+    /// library.
+    ///
+    /// The rule itself is in the core, where it is tested; this is the
+    /// downloads this library knows about, handed to it.
+    private func work(joining candidate: String?, animeID: UUID?, animeTitle: String?) -> TorrentWorkIdentity.Join {
+        TorrentWorkIdentity.join(
+            folderName: candidate,
+            animeID: animeID,
+            animeTitle: animeTitle,
+            among: records.values.compactMap { record in
+                guard let folder = record.folderName, !folder.isEmpty else { return nil }
+                return TorrentWorkIdentity.Downloading(
+                    folderName: folder,
+                    animeID: record.animeID,
+                    animeTitle: record.animeTitle,
+                    addedAt: record.addedAt
+                )
+            }
+        )
+    }
+
+    /// Gives the downloads sharing a folder the anime one of them turned out
+    /// to be, leaving every other folder alone.
+    ///
+    /// Deliberately narrower than `link(seriesTitle:…)`, which also claims
+    /// the folders of a work's later seasons: here the folder is known
+    /// exactly, and binding "Yani Neko S2" to season one's row would file two
+    /// seasons as one show.
+    private func bind(animeID: UUID, title: String, toUnlinkedDownloadsIn folderName: String) {
+        let unlinked = records.values.filter { $0.animeID == nil && $0.folderName == folderName }
+        guard !unlinked.isEmpty else { return }
+        for var record in unlinked {
+            record.animeID = animeID
+            record.animeTitle = title
+            records[record.infoHash] = record
+            let saved = record
+            Task { try? await database?.saveTorrentDownload(saved) }
+        }
     }
 
     /// The name a record is known by right now — the torrent's own once
