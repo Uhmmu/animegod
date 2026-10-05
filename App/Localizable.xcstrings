@@ -415,6 +415,22 @@
     "%lld": {
       "shouldTranslate": false
     },
+    "%lld concerts": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 本のライブ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 场演唱会"
+          }
+        }
+      }
+    },
     "%lld days": {
       "localizations": {
         "ja": {
@@ -427,6 +443,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld 天"
+          }
+        }
+      }
+    },
+    "%lld discs": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 枚"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 碟"
           }
         }
       }
@@ -613,6 +645,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld 小时"
+          }
+        }
+      }
+    },
+    "%lld min of music": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音楽 %lld 分"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 分钟音乐"
           }
         }
       }
@@ -840,6 +888,22 @@
         }
       }
     },
+    "%lld songs": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 曲"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 首"
+          }
+        }
+      }
+    },
     "%lld subtitles found — click to choose": {
       "localizations": {
         "en": {
@@ -1038,6 +1102,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "免费的 DeepL API 密钥使用免费接口；以“:fx”结尾的密钥会被自动识别。密钥保存在 AnimeGod 自己的本地设置中。"
+          }
+        }
+      }
+    },
+    "A live Blu-ray lands here once it has been looked up. Discs are matched by the catalogue number in the folder name — ANZX-10294, BRMM-10716 — so a folder without one has to be matched by hand.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ライブ Blu-ray は照合されるとここに並びます。照合はフォルダ名の品番（ANZX-10294、BRMM-10716 など）で行うため、品番のないフォルダは手動で指定します。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "演唱会蓝光识别之后就会出现在这里。识别靠文件夹名里的品番 —— ANZX-10294、BRMM-10716 —— 所以不带品番的文件夹要手动匹配。"
           }
         }
       }
@@ -1284,6 +1364,22 @@
         }
       }
     },
+    "Add a Discogs API key in Settings to look covers and catalogue numbers up.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "カバーと品番を調べるには、設定で Discogs の API キーを登録してください。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在设置里填入 Discogs API 密钥，才能查封面和品番。"
+          }
+        }
+      }
+    },
     "Add a folder to turn local video files into an anime library.": {
       "localizations": {
         "ja": {
@@ -1440,6 +1536,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "同时下载此前已发布的剧集"
+          }
+        }
+      }
+    },
+    "Also on this release": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この作品の他のディスク"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本片其他碟"
           }
         }
       }
@@ -2005,6 +2117,22 @@
         }
       }
     },
+    "Barcode": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "バーコード"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "条形码"
+          }
+        }
+      }
+    },
     "Batch": {
       "localizations": {
         "ja": {
@@ -2465,6 +2593,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "限制下载速度，让网络上的其他事情还能正常使用。订阅自动抓取的剧集有单独的上限。"
+          }
+        }
+      }
+    },
+    "Catalogue number": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "品番"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "品番"
           }
         }
       }
@@ -3016,6 +3160,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "已完成"
+          }
+        }
+      }
+    },
+    "Concert": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ライブ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "演唱会"
+          }
+        }
+      }
+    },
+    "Concerts": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ライブ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "演唱会"
           }
         }
       }
@@ -4010,6 +4186,38 @@
         }
       }
     },
+    "Disc": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ディスク"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "碟片"
+          }
+        }
+      }
+    },
+    "Disc %lld": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disc %lld"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第 %lld 碟"
+          }
+        }
+      }
+    },
     "Discover": {
       "localizations": {
         "ja": {
@@ -4606,6 +4814,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "内封"
+          }
+        }
+      }
+    },
+    "Encore": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アンコール"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "安可"
           }
         }
       }
@@ -5733,6 +5957,22 @@
         }
       }
     },
+    "Genre": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ジャンル"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "类型"
+          }
+        }
+      }
+    },
     "Group": {
       "localizations": {
         "ja": {
@@ -6023,6 +6263,54 @@
           "stringUnit": {
             "state": "translated",
             "value": "IDs: AniList %1$@ · TMDB %2$@ · AniDB %3$@"
+          }
+        }
+      }
+    },
+    "Identified %lld discs": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 枚を識別しました"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已识别 %lld 张碟"
+          }
+        }
+      }
+    },
+    "Identify %lld Discs": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 枚を識別"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "识别 %lld 张碟"
+          }
+        }
+      }
+    },
+    "Identify Discs": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ディスクを識別"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "识别碟片"
           }
         }
       }
@@ -6325,6 +6613,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "关键词"
+          }
+        }
+      }
+    },
+    "Label": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "レーベル"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "厂牌"
           }
         }
       }
@@ -6641,6 +6945,86 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在加载弹幕…"
+          }
+        }
+      }
+    },
+    "Look This Disc Up": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このディスクを調べる"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查这张碟"
+          }
+        }
+      }
+    },
+    "Look This Disc Up Again": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このディスクを再検索"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新查这张碟"
+          }
+        }
+      }
+    },
+    "Looking discs up…": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ディスクを照合中…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在查碟片…"
+          }
+        }
+      }
+    },
+    "Looking up %@…": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ を照合中…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在查 %@…"
+          }
+        }
+      }
+    },
+    "Looks every disc in the library up by the catalogue number in its folder name, and moves the live ones into this section.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "フォルダ名の品番でライブラリのディスクを照合し、ライブ作品をこのセクションに移します。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用文件夹名里的品番去查库里的每张碟，把其中的演唱会移进这个板块。"
           }
         }
       }
@@ -8006,6 +8390,22 @@
         }
       }
     },
+    "No concerts yet": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ライブはまだありません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还没有演唱会"
+          }
+        }
+      }
+    },
     "No danmaku loaded for this episode.": {
       "localizations": {
         "ja": {
@@ -8166,6 +8566,54 @@
         }
       }
     },
+    "No setlist was found for this disc. The chapter list in the player is still the quickest way around it.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このディスクのセットリストは見つかりませんでした。プレーヤーのチャプター一覧が今でも一番手早い移動手段です。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有查到这张碟的曲目表。播放器里的章节列表仍然是最快的定位方式。"
+          }
+        }
+      }
+    },
+    "No source has a release under “%@”. The folder needs a catalogue number in its name — ANZX-10294, BRMM-10716 — for a disc to be looked up.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」に該当する作品はどのソースにもありません。照合するには、フォルダ名に品番（ANZX-10294、BRMM-10716 など）が必要です。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有任何来源收录「%@」。要能查到，文件夹名里需要带品番 —— ANZX-10294、BRMM-10716 这种。"
+          }
+        }
+      }
+    },
+    "No source publishes where a song starts, so the published song lengths were matched against the disc's chapter marks.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "曲の開始位置を公開しているソースはないため、公開されている曲の長さをディスクのチャプターマークに突き合わせて算出しています。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有任何来源会公布某首歌从哪里开始，所以这些时间是把公布的曲目时长和碟片自己的章节标记对齐算出来的。"
+          }
+        }
+      }
+    },
     "No subscriptions": {
       "extractionState": "stale",
       "localizations": {
@@ -8195,6 +8643,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "暂无简介。"
+          }
+        }
+      }
+    },
+    "No times": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "時間なし"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有时间"
           }
         }
       }
@@ -8291,6 +8755,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "未看"
+          }
+        }
+      }
+    },
+    "Not a Concert": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ライブではない"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不是演唱会"
           }
         }
       }
@@ -8487,6 +8967,22 @@
         }
       }
     },
+    "Nothing is known about it beyond the folder it arrived in, so there is no setlist to lay over it. Discs are matched by the catalogue number in the folder name — ANZX-10294, BRMM-10716.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このディスクについては、入っていたフォルダ以外に手がかりがないため、重ねるセットリストもありません。照合はフォルダ名の品番（ANZX-10294、BRMM-10716）で行います。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "除了它所在的文件夹，关于这张碟一无所知，所以也没有曲目表可以对上去。识别靠文件夹名里的品番 —— ANZX-10294、BRMM-10716。"
+          }
+        }
+      }
+    },
     "Nothing new was matched. %lld lookup(s) failed; cached metadata and the local library remain available.": {
       "localizations": {
         "ja": {
@@ -8611,6 +9107,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "默认关闭。分享是一个种子群能活下去的原因——这里的每一集都来自某个让自己的副本一直挂着的人——但只要 AnimeGod 开着，它就会占用上传带宽，所以开不开由你决定。正在分享什么、上传了多少，都在「做种」栏目里。"
+          }
+        }
+      }
+    },
+    "One chapter per song": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 チャプター 1 曲"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一章一首"
           }
         }
       }
@@ -8819,6 +9331,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "在其他 BT 客户端中打开"
+          }
+        }
+      }
+    },
+    "Open on %@": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ で開く"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 %@ 上打开"
           }
         }
       }
@@ -9454,6 +9982,38 @@
         }
       }
     },
+    "Plays from %@": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ から再生します"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从 %@ 开始播放"
+          }
+        }
+      }
+    },
+    "Plays this disc from the start — there is no time for this song.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このディスクを先頭から再生します（この曲の時間は不明です）。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从头播放这张碟 —— 这首歌没有时间点。"
+          }
+        }
+      }
+    },
     "Port %@ not mapped": {
       "localizations": {
         "ja": {
@@ -9981,6 +10541,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Release: %1$@ · %2$@ · %3$@"
+          }
+        }
+      }
+    },
+    "Released": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "発売日"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "发售日"
           }
         }
       }
@@ -11131,6 +11707,22 @@
         }
       }
     },
+    "Setlist": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "セットリスト"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "曲目"
+          }
+        }
+      }
+    },
     "Settings": {
       "localizations": {
         "ja": {
@@ -11191,6 +11783,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "分享中"
+          }
+        }
+      }
+    },
+    "Shift ↑": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 曲前へ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上移一首"
+          }
+        }
+      }
+    },
+    "Shift ↓": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 曲後へ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下移一首"
           }
         }
       }
@@ -12231,6 +12855,54 @@
         }
       }
     },
+    "The disc carries no chapter marks, so the songs are laid end to end. The talk between them is not accounted for.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このディスクにはチャプターマークがないため、曲を続けて並べています。MC の時間は考慮されていません。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这张碟没有章节标记，所以曲目是首尾相接排下来的，没有算上中间的谈话。"
+          }
+        }
+      }
+    },
+    "The disc has as many chapters as the setlist has songs, so each chapter was taken as a song. A disc that also marks its MC segments would be one song out.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "チャプター数が曲数と一致したため、各チャプターを 1 曲として扱いました。MC にもチャプターがあるディスクでは 1 曲ずれます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这张碟的章节数和曲目数一样，所以把每个章节当成一首歌。如果碟片也给 MC 段落打了章节，整份就会错一首。"
+          }
+        }
+      }
+    },
+    "The disc names its own chapters after the songs, so these times are the disc's.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このディスクはチャプター名が曲名そのものなので、これらの時間はディスク自身のものです。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这张碟的章节本来就是用歌名命名的，所以这些时间就是碟片自己的。"
+          }
+        }
+      }
+    },
     "The download engine could not start: %@": {
       "localizations": {
         "ja": {
@@ -12375,6 +13047,38 @@
         }
       }
     },
+    "There was nothing to work the times out from.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "時間を算出する手がかりがありませんでした。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有可以推算时间的依据。"
+          }
+        }
+      }
+    },
+    "This disc has not been identified": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このディスクは未識別です"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这张碟还没有识别"
+          }
+        }
+      }
+    },
     "This work is still downloading and has not been matched yet, so there is no artwork, synopsis or rating for it. Matching it now links every episode of it — and the scan that follows finds it already matched.": {
       "localizations": {
         "ja": {
@@ -12403,6 +13107,86 @@
           "stringUnit": {
             "state": "translated",
             "value": "超时"
+          }
+        }
+      }
+    },
+    "Times appear once the disc has been played: they come from its own chapter marks, which are inside the disc rather than in any catalogue.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "時間は一度再生すると表示されます。ディスク内部のチャプターマークから取得するもので、どのデータベースにもありません。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "播放过一次之后才会有时间：时间来自碟片自己的章节标记，那东西在碟里，不在任何数据库里。"
+          }
+        }
+      }
+    },
+    "Times are a guess": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "時間は推測です"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "时间是推测的"
+          }
+        }
+      }
+    },
+    "Times estimated": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "時間は概算"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "时间为估算"
+          }
+        }
+      }
+    },
+    "Times from the disc's chapters": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "時間はディスクのチャプターから"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "时间来自碟片章节"
+          }
+        }
+      }
+    },
+    "Times matched to the disc": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "時間をディスクに合わせました"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "时间已与碟片对齐"
           }
         }
       }
@@ -13960,6 +14744,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "· 已回馈 %@"
+          }
+        }
+      }
+    },
+    "· %lld discs": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "· %lld 枚"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "· %lld 碟"
+          }
+        }
+      }
+    },
+    "· %lld discs not identified": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "· 未識別 %lld 枚"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "· %lld 张碟未识别"
           }
         }
       }
