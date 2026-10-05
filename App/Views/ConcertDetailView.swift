@@ -16,6 +16,7 @@ struct ConcertDetailView: View {
 
     @State private var episodes: [EpisodeMedia] = []
     @State private var selectedDiscNumber: Int?
+    @State private var catalogNumberEntry = ""
 
     private var concert: LibraryConcert? {
         section.concerts.first { $0.id == animeID }
@@ -364,11 +365,31 @@ struct ConcertDetailView: View {
             Text("Nothing is known about it beyond the folder it arrived in, so there is no setlist to lay over it. Discs are matched by the catalogue number in the folder name — ANZX-10294, BRMM-10716.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
-            Button("Look This Disc Up") {
-                Task { await section.identify(animeID: animeID) }
+            HStack(spacing: 8) {
+                Button("Look This Disc Up") {
+                    Task { await section.identify(animeID: animeID) }
+                }
+                .disabled(section.isIdentifying)
+                Text("or")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                // The escape hatch for a release whose folder never carried the
+                // number — a BDRip, a folder someone renamed. It is the same key
+                // the automatic path uses, so it gives the same answer.
+                TextField("Catalogue number", text: $catalogNumberEntry)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 170)
+                    .onSubmit { lookUpByCatalogNumber() }
+                Button("Look Up", action: lookUpByCatalogNumber)
+                    .disabled(section.isIdentifying || catalogNumberEntry.isEmpty)
             }
-            .disabled(section.isIdentifying)
         }
+    }
+
+    private func lookUpByCatalogNumber() {
+        let entry = catalogNumberEntry
+        guard !entry.isEmpty else { return }
+        Task { await section.identify(animeID: animeID, catalogNumber: entry) }
     }
 }
 

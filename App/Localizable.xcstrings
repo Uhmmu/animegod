@@ -6981,6 +6981,22 @@
         }
       }
     },
+    "Look Up": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "検索"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查询"
+          }
+        }
+      }
+    },
     "Looking discs up…": {
       "localizations": {
         "ja": {
@@ -7556,6 +7572,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "移动到 %@"
+          }
+        }
+      }
+    },
+    "Move to Concerts": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ライブへ移動"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移到演唱会"
           }
         }
       }
@@ -8578,6 +8610,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "没有查到这张碟的曲目表。播放器里的章节列表仍然是最快的定位方式。"
+          }
+        }
+      }
+    },
+    "No source has a release under %@.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ に該当する作品はどのソースにもありません。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有任何来源收录 %@。"
           }
         }
       }
@@ -14649,6 +14697,22 @@
         }
       }
     },
+    "or": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "または"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "或"
+          }
+        }
+      }
+    },
     "playing": {
       "localizations": {
         "ja": {
@@ -15044,6 +15108,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "“%@”已在下载列表中。"
+          }
+        }
+      }
+    },
+    "“%@” is not a catalogue number. They look like ANZX-10294 or BRMM-10716.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」は品番ではありません。品番は ANZX-10294 や BRMM-10716 のような形式です。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」不是品番。品番长这样：ANZX-10294、BRMM-10716。"
           }
         }
       }

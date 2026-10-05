@@ -270,6 +270,14 @@ struct LibraryView: View {
             )
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            // A concert is moved in by hand when nothing could say so on its
+            // own — a BDRip whose folder never carried a catalogue number is
+            // the ordinary case, and there is no automatic answer for it.
+            Button("Move to Concerts") {
+                Task { await model.concertSection.markAsConcert(animeID: item.anime.id) }
+            }
+        }
     }
 
     var body: some View {

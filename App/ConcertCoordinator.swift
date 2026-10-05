@@ -114,6 +114,36 @@ final class ConcertCoordinator: ObservableObject {
         }
     }
 
+    /// Identifies a work from a catalogue number the viewer typed.
+    ///
+    /// The escape hatch for everything the folder name cannot answer: a BDRip
+    /// whose folder carries no catalogue number, a disc filed under a number the
+    /// reader did not recognise. It is the same key the automatic path uses, so
+    /// the answer is the same answer — it just arrives by hand.
+    func identify(animeID: UUID, catalogNumber text: String) async {
+        guard let database else { return }
+        guard let number = ConcertCatalogNumber.first(in: text) else {
+            errorMessage = String(localized: "“\(text)” is not a catalogue number. They look like ANZX-10294 or BRMM-10716.")
+            return
+        }
+        isIdentifying = true
+        defer { isIdentifying = false; progress = nil }
+        progress = String(localized: "Looking up \(number.description)…")
+        let found = await identifier().identify(folderName: number.description)
+        guard let release = found.release else {
+            errorMessage = found.failures.values.first
+                ?? String(localized: "No source has a release under \(number.description).")
+            return
+        }
+        do {
+            try await database.saveConcertRelease(release, forAnimeID: animeID)
+            try await database.markAnimeAsConcert(id: animeID)
+            await reload()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     private func identifier() -> ConcertIdentifier {
         ConcertIdentifier(
             discogs: CredentialStore.Concert.loadDiscogsCredentials()
