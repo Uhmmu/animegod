@@ -235,3 +235,95 @@ struct ConcertIdentifierLiveTests {
         #expect(release.catalogNumbers.contains { $0.contains("10294") })
     }
 }
+
+/// The path for a release with no catalogue number anywhere: a BDRip whose
+/// Blu-ray neither catalogue indexes. Bangumi is the only source that will
+/// answer a title, and it is only trusted when the title plainly matches.
+struct ConcertTitleIdentificationTests {
+    private actor Log {
+        var asked: [String] = []
+        func record(_ entry: String) { asked.append(entry) }
+    }
+
+    private struct FakeBangumi: ConcertReleaseSource {
+        let id: ConcertProviderID = .bangumi
+        var byTitle: [ConcertRelease] = []
+        var full: [String: ConcertRelease] = [:]
+        let log: Log
+
+        func releases(catalogNumber: ConcertCatalogNumber) async throws -> [ConcertRelease] { [] }
+        func releases(title: String, artist: String?) async throws -> [ConcertRelease] {
+            await log.record("title:\(title)")
+            return byTitle
+        }
+        func release(id externalID: String) async throws -> ConcertRelease {
+            await log.record("release:\(externalID)")
+            return full[externalID]!
+        }
+    }
+
+    private func subject(
+        _ id: String, _ title: String, performance: Bool, venue: String? = nil, score: Double? = nil
+    ) -> ConcertRelease {
+        ConcertRelease(
+            provider: .bangumi, externalID: id, title: title,
+            score: score, venue: venue,
+            isPerformanceRecord: performance, isLiveRecording: performance
+        )
+    }
+
+    @Test func takesTheHallFromAPlainlyMatchingTitle() async throws {
+        let log = Log()
+        let work = "MyGO!!!!! 6th LIVE「見つけた景色、たずさえて」"
+        let bangumi = FakeBangumi(
+            byTitle: [subject("492657", work, performance: true, venue: "ぴあアリーナMM", score: 8.7)],
+            full: ["492657": subject("492657", work, performance: true, venue: "ぴあアリーナMM", score: 8.7)],
+            log: log
+        )
+        let found = await ConcertIdentifier(bangumi: bangumi).identify(title: work)
+
+        let release = try #require(found.release)
+        #expect(release.venue == "ぴあアリーナMM")
+        #expect(release.score == 8.7)
+        // There is no setlist to be had this way, which is also why there is no
+        // setlist to get wrong.
+        #expect(release.discs.isEmpty)
+    }
+
+    /// Bangumi answers a loose query with the artist's other concerts. Taking
+    /// the top hit would put last year's tour on this year's page.
+    @Test func refusesANeighbouringConcert() async throws {
+        let log = Log()
+        let bangumi = FakeBangumi(
+            byTitle: [
+                subject("492671", "MyGO!!!!! ZEPP TOUR 2024「彷徨する渇望」", performance: true, venue: "Zepp"),
+                subject("492675", "MyGO!!!!! 5th LIVE「迷うことに迷わない」", performance: true, venue: "KT Zepp")
+            ],
+            log: log
+        )
+        let found = await ConcertIdentifier(bangumi: bangumi)
+            .identify(title: "MyGO!!!!! 6th LIVE「見つけた景色、たずさえて」")
+
+        #expect(found.release == nil)
+        #expect(await log.asked == ["title:MyGO!!!!! 6th LIVE「見つけた景色、たずさえて」"],
+                "nothing should have been fetched")
+    }
+
+    @Test func anEmptyTitleAsksNothing() async throws {
+        let log = Log()
+        let found = await ConcertIdentifier(bangumi: FakeBangumi(log: log)).identify(title: "")
+        #expect(found.release == nil)
+        #expect(await log.asked.isEmpty)
+    }
+
+    /// Against the real service, opt-in: this is the user's own disc, and the
+    /// point is that Bangumi has it while neither catalogue does.
+    @Test func liveTitleLookup() async throws {
+        guard ProcessInfo.processInfo.environment["ANIMEGOD_LIVE_TESTS"] == "1" else { return }
+        let found = await ConcertIdentifier(bangumi: BangumiConcertProvider())
+            .identify(title: "MyGO!!!!! 6th LIVE「見つけた景色、たずさえて」")
+        let release = try #require(found.release)
+        #expect(release.score != nil)
+        #expect(release.isLiveRecording)
+    }
+}

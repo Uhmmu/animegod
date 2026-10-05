@@ -73,6 +73,10 @@ public struct ConcertIdentifier: Sendable {
     /// first should not lose the real one behind it.
     static let catalogNumbersToTry = 3
 
+    /// How much of the longer title the shorter one has to be before a Bangumi
+    /// hit counts as the same concert.
+    static let titleMatchThreshold = 0.6
+
     private let discogs: (any ConcertReleaseSource)?
     private let musicBrainz: (any ConcertReleaseSource)?
     private let bangumi: (any ConcertReleaseSource)?
@@ -85,6 +89,41 @@ public struct ConcertIdentifier: Sendable {
         self.discogs = discogs
         self.musicBrainz = musicBrainz
         self.bangumi = bangumi
+    }
+
+    /// What can be learned about a concert with no catalogue number anywhere.
+    ///
+    /// For the release that is only ever a BDRip: no disc, no number in the
+    /// folder, and the Blu-ray not indexed by either catalogue — MyGO's
+    /// *6th LIVE「見つけた景色、たずさえて」* is in Bangumi and in neither of the
+    /// other two. There is no setlist to be had, so there is also no setlist to
+    /// get wrong; what Bangumi adds is the hall, the date, the cover and a
+    /// score, and losing those because the automatic path had nothing to go on
+    /// would leave a page with a folder name on it.
+    ///
+    /// Only on a title that plainly matches, and only from Bangumi. The
+    /// identifier still refuses to take a MusicBrainz title hit, because that
+    /// one answers with a different artist's release at a perfect score.
+    public func identify(title: String) async -> ConcertIdentification {
+        var result = ConcertIdentification()
+        guard let bangumi, !title.isEmpty else { return result }
+        let key = ConcertSetlistAligner.normalise(title)
+        guard !key.isEmpty else { return result }
+        do {
+            let subjects = try await bangumi.releases(title: title, artist: nil)
+                .filter { ConcertSetlistAligner.titlesMatch(ConcertSetlistAligner.normalise($0.title), key) }
+            var found: [ConcertRelease] = []
+            for subject in [
+                subjects.first(where: \.isPerformanceRecord),
+                subjects.first(where: { !$0.isPerformanceRecord })
+            ].compactMap({ $0 }) {
+                found.append(try await bangumi.release(id: subject.externalID))
+            }
+            result.release = ConcertReleaseMerge.merge(found)
+        } catch {
+            result.failures[bangumi.id] = error.localizedDescription
+        }
+        return result
     }
 
     public func identify(folderName: String) async -> ConcertIdentification {

@@ -160,6 +160,22 @@ final class ConcertCoordinator: ObservableObject {
         do {
             try await database.markAnimeAsConcert(id: animeID)
             await reload()
+            // A work moved in by hand is usually one nothing could identify: a
+            // BDRip, no disc, no catalogue number anywhere. Bangumi is the one
+            // source that will answer a title, and what it adds — the hall, the
+            // date, the cover, a score — is the difference between a page and a
+            // folder name.
+            guard try await database.concertRelease(animeID: animeID) == nil,
+                  let title = concerts.first(where: { $0.id == animeID })?.anime.title
+            else { return }
+            isIdentifying = true
+            defer { isIdentifying = false; progress = nil }
+            progress = String(localized: "Looking up \(title)…")
+            let found = await identifier().identify(title: title)
+            if let release = found.release {
+                try await database.saveConcertRelease(release, forAnimeID: animeID)
+                await reload()
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
