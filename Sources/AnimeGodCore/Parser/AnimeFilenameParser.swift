@@ -60,15 +60,53 @@ public struct AnimeFilenameParser: Sendable {
     public static let discStructureFileName = "index.bdmv"
     public static let discStructureFolderName = "BDMV"
 
-    /// The disc number a folder name carries — `DISC2`, `Disc_3`, `BD1`,
-    /// `ディスク2`. A box set puts each disc in one of these, and without a
-    /// number of its own every disc of a box would collapse into a single
-    /// entry holding three "versions" of the same thing.
+    /// How a release names one disc of a set: `DISC2`, `Disc_3`, `BD1`,
+    /// `ディスク2` — and, for a concert, `Day1`, `DAY.2`, `2日目`, `第1日`.
+    ///
+    /// A two-night tour is one work. Its nights ship as `Day1` and `Day2`, and
+    /// without this they are either one entry holding two "versions" of the same
+    /// thing or two unrelated works, depending on where the label sits.
+    static let discLabelPatterns = [
+        #"(?i)\b(?:disc|disk|dvd|bd)\s*[._\-]?\s*(\d{1,2})\b"#,
+        #"ディスク\s*[._\-]?\s*(\d{1,2})"#,
+        #"(?i)\bday\s*[._\-]?\s*(\d{1,2})\b"#,
+        #"(\d{1,2})\s*日目"#,
+        #"第\s*(\d{1,2})\s*日"#
+    ]
+
+    /// The disc number a name carries, if any.
     public static func discNumber(in folderName: String) -> Int? {
-        let pattern = #"(?i)(?:disc|disk|dvd|bd|ディスク|ディスク)\s*[_\-]?\s*(\d{1,2})\b"#
-        guard let range = folderName.range(of: pattern, options: .regularExpression) else { return nil }
-        let digits = folderName[range].filter(\.isNumber)
-        return Int(digits)
+        discLabel(in: folderName)?.number
+    }
+
+    /// The disc label and where it sits, so a caller can both read the number
+    /// and cut the name down to the work.
+    static func discLabel(in folderName: String) -> (number: Int, range: Range<String.Index>)? {
+        for pattern in discLabelPatterns {
+            guard let range = folderName.range(of: pattern, options: .regularExpression) else { continue }
+            let digits = folderName[range].filter(\.isNumber)
+            guard let number = Int(digits) else { continue }
+            return (number, range)
+        }
+        return nil
+    }
+
+    /// The name with its disc label and everything after it removed.
+    ///
+    /// Truncating rather than deleting, because the per-night part of a name
+    /// starts *at* the label: `BanG Dream! 10th☆LIVE DAY1:Returns` and
+    /// `… DAY2:Sing a Song` are two nights of one event, and merely dropping
+    /// `DAY1` would leave `:Returns` against `:Sing a Song` — two works again.
+    /// Falls back to the whole name when nothing meaningful would be left, so a
+    /// work actually called `Day 1` keeps its name.
+    public static func withoutDiscLabel(_ name: String) -> String {
+        guard let label = discLabel(in: name) else { return name }
+        let head = String(name[name.startIndex..<label.range.lowerBound])
+            // Separators and *opening* brackets only. A trailing `～` is the
+            // close of a pair — `～KU-RU-KU-RU Rock 'n' Roll～ Day2` — and
+            // belongs to the title.
+            .trimmingCharacters(in: CharacterSet(charactersIn: " \t　.-_:：/|·・、,，([【（「『"))
+        return head.count >= 2 ? head : name
     }
 
     /// Detects release part markers (前篇 / 後篇 / 上巻 / Part 2 …). A title

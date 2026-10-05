@@ -119,12 +119,31 @@ public actor LibraryScanner {
                 }
                 // Keep the filename's own title before the folder override:
                 // diverging titles inside one folder mean multiple works.
-                let fileTitle = parsed.title
+                var fileTitle = parsed.title
                 var topLevelFolder: String?
                 if let folder = components.dropFirst(rootComponents.count).dropLast().first {
                     topLevelFolder = folder
                     let collectionTitle = parser.collectionTitle(from: folder)
                     if !collectionTitle.isEmpty { parsed.title = collectionTitle }
+                    // A disc image is a disc, so a night or a disc number on
+                    // its folder means the same thing it means for an unpacked
+                    // one: same work, different disc.
+                    if DiscImageProbe.isDiscImage(url) {
+                        let work = AnimeFilenameParser.withoutDiscLabel(parsed.title)
+                        if work != parsed.title {
+                            parsed.title = work
+                            topLevelFolder = work
+                            // The night also has to come off the *file's* own
+                            // title, which is the key the work splitter reads:
+                            // `Day1.iso` and `Day2.iso` disagreeing there is
+                            // exactly what it treats as two works.
+                            fileTitle = AnimeFilenameParser.withoutDiscLabel(fileTitle)
+                            if let number = AnimeFilenameParser.discNumber(in: folder) {
+                                parsed.episode = Double(number)
+                                parsed.episodeText = String(number)
+                            }
+                        }
+                    }
                 }
                 pending.append(PendingScannedFile(
                     scanned: ScannedMediaFile(
@@ -177,22 +196,29 @@ public actor LibraryScanner {
         let enclosing = relative.dropLast(2)
         guard let work = enclosing.first else { return nil }
 
+        var title = parser.collectionTitle(from: work)
+        if title.isEmpty { title = work }
+        // A two-night tour and a three-disc box are both one work. The label
+        // naming the night or the disc may sit on the work's own folder — two
+        // folders side by side, `… DAY1:Returns` and `… DAY2:Sing a Song` — or
+        // on a subfolder of one. Either way the work is the name without it,
+        // and the number is the disc.
+        let discNameCandidates = enclosing.count > 1
+            ? [enclosing.last, work].compactMap { $0 }
+            : [work]
+        let number = discNameCandidates.lazy
+            .compactMap { AnimeFilenameParser.discNumber(in: $0) }
+            .first
+            ?? (enclosing.count > 1 ? enclosing.last.flatMap { Int($0.filter(\.isNumber)) } : nil)
+
         var parsed = ParsedAnimeFilename(
-            title: parser.collectionTitle(from: work),
-            episode: nil,
+            title: AnimeFilenameParser.withoutDiscLabel(title),
+            episode: number.map(Double.init),
+            episodeText: number.map(String.init),
             episodeKind: .regular,
             confidence: 0.9
         )
-        if parsed.title.isEmpty { parsed.title = work }
-        // A box set puts each disc in its own folder, and each needs an
-        // identity of its own or three discs collapse into one entry holding
-        // three "versions" of the same thing.
-        if enclosing.count > 1, let discName = enclosing.last,
-           let number = AnimeFilenameParser.discNumber(in: discName)
-               ?? Int(discName.filter(\.isNumber)) {
-            parsed.episode = Double(number)
-            parsed.episodeText = String(number)
-        }
+        if parsed.title.isEmpty { parsed.title = title }
 
         let values = try? folderURL.resourceValues(forKeys: [.contentModificationDateKey])
         return PendingScannedFile(
@@ -203,7 +229,10 @@ public actor LibraryScanner {
                 parsed: parsed
             ),
             fileTitle: parsed.title,
-            topLevelFolder: work
+            // The work's title, not its folder: two nights in two folders have
+            // to land in the same group, and the grouping key is what decides
+            // that.
+            topLevelFolder: parsed.title
         )
     }
 

@@ -97,7 +97,87 @@ struct ConcertDiscScanTests {
         #expect(files.map(\.parsed.episode) == [1, 2])
     }
 
-    @Test(arguments: [("DISC2", 2), ("Disc_3", 3), ("disc 1", 1), ("BD2", 2), ("ディスク3", 3)])
+    // MARK: - Two nights are one work
+
+    /// A two-night tour shipped as two subfolders of one work.
+    @Test func twoNightsInOneFolderAreOneWork() async throws {
+        let paths = (1...2).flatMap { day in
+            ["Aqours 6th LoveLive/Day\(day)/BDMV/index.bdmv",
+             "Aqours 6th LoveLive/Day\(day)/BDMV/STREAM/00001.m2ts"]
+        }
+        let files = try await scan(paths)
+        #expect(files.count == 2)
+        #expect(Set(files.map(\.parsed.title)).count == 1)
+        #expect(files.map(\.parsed.episode) == [1, 2])
+    }
+
+    /// The harder shape, and the one a download actually arrives in: two
+    /// folders side by side, each carrying its own night *and its own
+    /// subtitle*. Dropping just `DAY1` would leave `:Returns` against
+    /// `:Sing a Song`, which is two works again — the name has to be cut at
+    /// the label.
+    @Test func twoNightsInTwoFoldersAreOneWork() async throws {
+        let paths = [
+            "BanG Dream! 10th☆LIVE DAY1:Returns/BDMV/index.bdmv",
+            "BanG Dream! 10th☆LIVE DAY2:Sing a Song/BDMV/index.bdmv"
+        ]
+        let files = try await scan(paths)
+        #expect(files.count == 2)
+        #expect(Set(files.map(\.parsed.title)) == ["BanG Dream! 10th☆LIVE"])
+        #expect(files.map(\.parsed.episode).sorted { ($0 ?? 0) < ($1 ?? 0) } == [1, 2])
+    }
+
+    /// And the same thing with the day written the Japanese way.
+    @Test func readsAJapaneseDayMarker() async throws {
+        let paths = [
+            "ヨルシカ LIVE TOUR 1日目/BDMV/index.bdmv",
+            "ヨルシカ LIVE TOUR 2日目/BDMV/index.bdmv"
+        ]
+        let files = try await scan(paths)
+        #expect(Set(files.map(\.parsed.title)) == ["ヨルシカ LIVE TOUR"])
+        #expect(files.map(\.parsed.episode).sorted { ($0 ?? 0) < ($1 ?? 0) } == [1, 2])
+    }
+
+    /// A disc image is a disc too, so two nights shipped as two `.iso` files
+    /// group the same way an unpacked pair does.
+    @Test func twoNightsAsDiscImagesAreOneWork() async throws {
+        let paths = [
+            "Roselia Rausch Day1/Roselia Rausch Day1.iso",
+            "Roselia Rausch Day2/Roselia Rausch Day2.iso"
+        ]
+        let files = try await scan(paths)
+        #expect(files.count == 2)
+        #expect(Set(files.map(\.parsed.title)) == ["Roselia Rausch"])
+        #expect(files.map(\.parsed.episode).sorted { ($0 ?? 0) < ($1 ?? 0) } == [1, 2])
+    }
+
+    /// And an ordinary film on an image is untouched.
+    @Test func anOrdinaryDiscImageKeepsItsName() async throws {
+        let files = try await scan(["SENNEN_JYOYU/SENNEN_JYOYU.iso"])
+        #expect(files.first?.parsed.title == "SENNEN_JYOYU")
+        #expect(files.first?.parsed.episode == nil)
+    }
+
+    /// A work whose name really is a day keeps it, because cutting there would
+    /// leave nothing.
+    @Test func doesNotCutANameDownToNothing() {
+        #expect(AnimeFilenameParser.withoutDiscLabel("Day 1") == "Day 1")
+        #expect(AnimeFilenameParser.withoutDiscLabel("Day Break Illusion") == "Day Break Illusion")
+    }
+
+    @Test(arguments: [
+        ("BanG Dream! 10th☆LIVE DAY1:Returns", "BanG Dream! 10th☆LIVE"),
+        ("Aqours 6th LoveLive ～KU-RU-KU-RU Rock 'n' Roll～ Day2", "Aqours 6th LoveLive ～KU-RU-KU-RU Rock 'n' Roll～"),
+        ("ヨルシカ LIVE TOUR 2日目", "ヨルシカ LIVE TOUR"),
+        ("Kalafina Arena LIVE Disc_2", "Kalafina Arena LIVE"),
+        ("結束バンドLIVE-恒星-", "結束バンドLIVE-恒星-")
+    ])
+    func cutsTheNameDownToTheWork(_ pair: (String, String)) {
+        #expect(AnimeFilenameParser.withoutDiscLabel(pair.0) == pair.1)
+    }
+
+    @Test(arguments: [("DISC2", 2), ("Disc_3", 3), ("disc 1", 1), ("BD2", 2), ("ディスク3", 3),
+                      ("Day1", 1), ("DAY.2", 2), ("Day 3", 3), ("2日目", 2), ("第1日", 1)])
     func readsEveryWayADiscIsNumbered(_ pair: (String, Int)) {
         #expect(AnimeFilenameParser.discNumber(in: pair.0) == pair.1)
     }
