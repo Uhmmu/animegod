@@ -160,6 +160,15 @@ struct ConcertDetailView: View {
                         .foregroundStyle(.secondary)
                 }
                 timelineBadge(alignment: alignment, episode: episode)
+                // Unconditional, and it has to be: the first version put this
+                // behind "a timeline already exists" and behind "the disc has
+                // been played and had no chapters", which between them hid the
+                // escape hatch in exactly the state that needs it — a disc
+                // nobody has opened, with no times and no way to add any.
+                Button("Paste Times") { showingTimelinePaste = true }
+                    .buttonStyle(.link)
+                    .font(.caption)
+                    .help("Paste a setlist with times into this disc — for the concerts no source can place.")
             }
 
             // More than one night or disc: which one's setlist is on screen.
@@ -254,8 +263,6 @@ struct ConcertDetailView: View {
                     Button("Shift ↑") { Task { await nudge(episode: episode, by: -1) } }
                         .buttonStyle(.link)
                 }
-                Button("Paste Times") { showingTimelinePaste = true }
-                    .buttonStyle(.link)
             }
             .font(.caption)
             .foregroundStyle(alignment.isTrustworthy

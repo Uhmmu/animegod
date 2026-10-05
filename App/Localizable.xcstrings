@@ -9865,6 +9865,22 @@
         }
       }
     },
+    "Paste a setlist with times into this disc — for the concerts no source can place.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "時間付きのセットリストをこのディスクに貼り付けます。どのソースでも位置が分からないライブ向けです。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把带时间的曲目表粘贴到这张碟上 —— 给那些任何来源都定位不了的演唱会用。"
+          }
+        }
+      }
+    },
     "Pause": {
       "localizations": {
         "ja": {
@@ -12413,6 +12429,22 @@
         }
       }
     },
+    "Songs": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "曲"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "曲目"
+          }
+        }
+      }
+    },
     "Sort": {
       "localizations": {
         "ja": {
@@ -13679,6 +13711,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "过长"
+          }
+        }
+      }
+    },
+    "Track %lld": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "トラック %lld"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第 %lld 首"
           }
         }
       }

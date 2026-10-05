@@ -271,6 +271,8 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
         keepsUnwatched = false
         // Another disc's setlist is not this one's.
         setlistChapterNames = [:]
+        suppliedChapters = []
+        fileChapters = []
         setPosition(Self.startPosition(for: episode))
         duration = episode.progress?.duration ?? 0
         watchedDuration = 0
@@ -471,6 +473,13 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
     }
 
     func selectChapter(_ index: Int) {
+        // mpv knows nothing about a timeline the library supplied, so jumping
+        // to one is a seek rather than a chapter change.
+        if fileChapters.isEmpty, let chapter = chapters.first(where: { $0.index == index }) {
+            seek(to: chapter.startTime, exact: true)
+            currentChapter = index
+            return
+        }
         controller?.selectChapter(index)
     }
 
@@ -518,6 +527,13 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
             if !isWatched, !keepsUnwatched,
                WatchedWorkKind.isWatched(position: position, duration: duration ?? self.duration, tail: watchedTail) {
                 isWatched = true
+            }
+            // The highlighted song moves with playback when the timeline came
+            // from the library: mpv reports a chapter change only for chapters
+            // it knows about, and it knows about none of these.
+            if !suppliedChapters.isEmpty {
+                let index = chapterIndex(at: position)
+                if index != currentChapter { currentChapter = index }
             }
             // mpv reports `time-pos` on every rendered frame. The danmaku
             // clock above wants all of them, SwiftUI wants none of them:
@@ -662,8 +678,47 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
     }
 
     func playerDidUpdateChapters(_ chapters: [MediaChapter], current: Int?) {
-        self.chapters = Self.naming(chapters, with: setlistChapterNames)
-        self.currentChapter = current
+        fileChapters = chapters
+        refreshChapters()
+        // mpv's index counts the file's own chapters, which is not what is on
+        // screen when the library supplied the timeline instead.
+        currentChapter = suppliedChapters.isEmpty ? current : chapterIndex(at: livePosition)
+    }
+
+    /// This work is a concert.
+    ///
+    /// Three things follow, and all three are about not offering what a concert
+    /// does not have: no subtitles to search for, no danmaku to match, and a
+    /// timeline made of songs rather than of chapters.
+    @Published var isConcert = false
+
+    private var fileChapters: [MediaChapter] = []
+    /// A timeline the library supplied — a setlist with times, pasted in or
+    /// worked out — for a file that carries no chapter marks of its own.
+    ///
+    /// Supplying it as *chapters* is what makes the rest fall out for free: the
+    /// scrubber already cuts itself into segments at every chapter, the scrub
+    /// bubble already names the chapter under the pointer, and the chapter menu
+    /// is already a list to jump by. A concert gets all three by being honest
+    /// about what its songs are.
+    private var suppliedChapters: [MediaChapter] = []
+
+    func supplyChapters(_ chapters: [MediaChapter]) {
+        guard chapters != suppliedChapters else { return }
+        suppliedChapters = chapters
+        refreshChapters()
+        currentChapter = chapters.isEmpty ? currentChapter : chapterIndex(at: livePosition)
+    }
+
+    /// The file's own marks when it has them, the supplied ones when it does
+    /// not. A disc that kept its chapters is still described by its chapters.
+    private func refreshChapters() {
+        let base = fileChapters.isEmpty ? suppliedChapters : fileChapters
+        chapters = Self.naming(base, with: setlistChapterNames)
+    }
+
+    private func chapterIndex(at time: Double) -> Int? {
+        chapters.last { $0.startTime <= time + 0.25 }?.index
     }
 
     /// Song names to show in place of a disc's own chapter numbering, by chapter
@@ -1010,6 +1065,43 @@ struct PlayerScreen: View {
     /// is not offered for one.
     private var tracksWatchedState: Bool { watchedKind.tracksWatchedState }
 
+    /// The setlist as a chapter list, for a file that carries none.
+    ///
+    /// The scrubber cuts itself at every chapter, the scrub bubble names the one
+    /// under the pointer and the chapter menu jumps between them — so a concert
+    /// gets a segmented progress bar and a song picker by describing its songs
+    /// as what they are.
+    private func suppliedChapters(for alignment: ConcertSetlistAlignment?) -> [MediaChapter] {
+        guard let alignment, !alignment.placements.isEmpty else { return [] }
+        let titles = songNames(for: alignment)
+        let byPosition = Dictionary(
+            alignment.placements.map { ($0.trackPosition, $0) }, uniquingKeysWith: { first, _ in first }
+        )
+        return alignment.placements
+            .sorted { $0.startTime < $1.startTime }
+            .enumerated()
+            .map { index, placement in
+                MediaChapter(
+                    index: placement.chapterIndex ?? index,
+                    title: placement.chapterIndex.flatMap { titles[$0] }
+                        ?? songTitle(at: placement.trackPosition)
+                        ?? String(localized: "Track \(placement.trackPosition)"),
+                    startTime: placement.startTime
+                )
+            }
+            .filter { _ in !byPosition.isEmpty }
+    }
+
+    /// The song at a position on the disc being played.
+    private func songTitle(at position: Int) -> String? {
+        guard let release = model.concertSection.release(forAnimeID: state.currentEpisode.episode.animeID),
+              let disc = release.videoDisc(
+                  forDiscNumber: state.currentEpisode.episode.numberText.flatMap { Int($0) }
+              )
+        else { return nil }
+        return disc.songs.first { $0.position == position }?.title
+    }
+
     /// Which chapter each song starts on, as a name the menu can show.
     private func songNames(for alignment: ConcertSetlistAlignment?) -> [Int: String] {
         guard let alignment,
@@ -1226,6 +1318,9 @@ struct PlayerScreen: View {
                 duration: state.duration
             )
             state.nameChapters(songNames(for: alignment))
+            // A file with no marks of its own is described by the setlist
+            // instead — which is the whole point of pasting one in.
+            state.supplyChapters(suppliedChapters(for: alignment))
         }
         .onAppear {
             // The link needs to reach whatever is playing: a handoff has to
@@ -1235,11 +1330,20 @@ struct PlayerScreen: View {
             state.onFileFinished = { Task { await advanceAfterFinish() } }
             state.watchedTail = watchedTail
             state.startObservingDisplay()
-            state.updateDanmakuSearchContext(titleCandidates: danmakuTitleCandidates)
-            state.danmaku.attach(preferences: model.danmakuPreferences)
-            state.loadDanmakuIfNeeded(database: model.libraryDatabase)
-            state.subtitles.updateWorkContext(subtitleWorkContext)
-            state.subtitles.attach(preferences: model.subtitlePreferences, database: model.libraryDatabase)
+            // A concert has neither. Nobody comments on a live Blu-ray on
+            // dandanplay and nobody subtitles one, so matching and searching
+            // for them is a window opening over a concert to report that it
+            // found nothing — twice.
+            state.isConcert = model.concertSection.release(
+                forAnimeID: state.currentEpisode.episode.animeID
+            ) != nil
+            if !state.isConcert {
+                state.updateDanmakuSearchContext(titleCandidates: danmakuTitleCandidates)
+                state.danmaku.attach(preferences: model.danmakuPreferences)
+                state.loadDanmakuIfNeeded(database: model.libraryDatabase)
+                state.subtitles.updateWorkContext(subtitleWorkContext)
+                state.subtitles.attach(preferences: model.subtitlePreferences, database: model.libraryDatabase)
+            }
             arrowKeys.install(
                 window: { [state] in state.controller?.view.window },
                 isSuspended: { isTypingInDanmakuManager },
@@ -1448,15 +1552,26 @@ struct PlayerScreen: View {
                     Image(systemName: "waveform")
                 }
                 .help("Audio Track")
-                PlayerPanelButton(panel: .danmaku, openPanel: openPanel, toggle: togglePanel) {
-                    Image(systemName: "text.bubble")
-                        .opacity(danmakuPreferences.enabled ? 1 : 0.45)
+                if state.isConcert {
+                    // Where the danmaku and subtitle buttons would be, because
+                    // this is the one a concert is actually reached for: the
+                    // songs, to change at any moment.
+                    if !state.chapters.isEmpty {
+                        StableMenu(state.chapters, state.currentChapter) { chapterMenu }
+                            .equatable()
+                            .help("Songs")
+                    }
+                } else {
+                    PlayerPanelButton(panel: .danmaku, openPanel: openPanel, toggle: togglePanel) {
+                        Image(systemName: "text.bubble")
+                            .opacity(danmakuPreferences.enabled ? 1 : 0.45)
+                    }
+                    .help(danmakuPreferences.enabled ? "Danmaku" : "Danmaku (off)")
+                    PlayerPanelButton(panel: .subtitles, openPanel: openPanel, toggle: togglePanel) {
+                        Image(systemName: "captions.bubble")
+                    }
+                    .help("Subtitles")
                 }
-                .help(danmakuPreferences.enabled ? "Danmaku" : "Danmaku (off)")
-                PlayerPanelButton(panel: .subtitles, openPanel: openPanel, toggle: togglePanel) {
-                    Image(systemName: "captions.bubble")
-                }
-                .help("Subtitles")
                 Button { toggleFullscreen() } label: {
                     Image(systemName: isFullscreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
                 }
