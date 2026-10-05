@@ -157,6 +157,20 @@ extension CredentialStore {
             CredentialStore.save(discogsKey, account: discogsKeyAccount, service: service)
             CredentialStore.save(secret, account: discogsSecretAccount, service: service)
         }
+
+        static let setlistFMKeyAccount = "setlistfm-api-key"
+
+        /// setlist.fm's key. 2 requests a second, 1440 a day.
+        static func loadSetlistFMKey() -> String? {
+            let stored = CredentialStore.load(account: setlistFMKeyAccount, service: service)
+            let key = stored ?? ProcessInfo.processInfo.environment["ANIMEGOD_SETLISTFM_KEY"]
+            guard let key, !key.isEmpty else { return nil }
+            return key
+        }
+
+        static func save(setlistFMKey: String) {
+            CredentialStore.save(setlistFMKey, account: setlistFMKeyAccount, service: service)
+        }
     }
 }
 

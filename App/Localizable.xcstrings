@@ -1131,6 +1131,22 @@
     "00:01:56 1.迷星叫": {
       "shouldTranslate": false
     },
+    "A concert Blu-ray has no episodes and no anime index lists it, so its page is built from music catalogues instead. MusicBrainz and Bangumi need no key; the other two do.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ライブBlu-rayには話数がなく、アニメのデータベースにも載りません。だからページは音楽カタログから組み立てます。MusicBrainz と Bangumi はキー不要、残り二つは必要です。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "演唱会蓝光没有集数，任何动画索引也都不收录，所以它的页面是用音乐目录搭起来的。MusicBrainz 和 Bangumi 不需要密钥，另外两个需要。"
+          }
+        }
+      }
+    },
     "A folder of its own": {
       "localizations": {
         "ja": {
@@ -1289,6 +1305,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "整季一起开始时会自动排队：同时下载这么多个，其余的按顺序等待"
+          }
+        }
+      }
+    },
+    "API key": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "APIキー"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "API 密钥"
           }
         }
       }
@@ -3253,6 +3285,22 @@
         }
       }
     },
+    "Concert Sources": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ライブの情報源"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "演唱会数据来源"
+          }
+        }
+      }
+    },
     "Concerts": {
       "localizations": {
         "ja": {
@@ -3313,6 +3361,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "请连接硬盘“%@”后再播放——本集尚未缓存到这台 Mac。"
+          }
+        }
+      }
+    },
+    "Consumer key": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "コンシューマーキー"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Consumer key"
+          }
+        }
+      }
+    },
+    "Consumer secret": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "コンシューマーシークレット"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Consumer secret"
           }
         }
       }
@@ -4309,6 +4389,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "第 %lld 碟"
+          }
+        }
+      }
+    },
+    "Discogs": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Discogs"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Discogs"
           }
         }
       }
@@ -12093,6 +12189,22 @@
         }
       }
     },
+    "Setlists powered by": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "セットリスト提供"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "曲目数据来自"
+          }
+        }
+      }
+    },
     "Settings": {
       "localizations": {
         "ja": {
@@ -12857,6 +12969,22 @@
         }
       }
     },
+    "Stored in AnimeGod's own local settings, outside the library and outside the project.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AnimeGod 自身のローカル設定に保存されます。ライブラリの中でもプロジェクトの中でもありません。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存在 AnimeGod 自己的本地设置里，不在媒体库内，也不在项目里。"
+          }
+        }
+      }
+    },
     "Studio": {
       "localizations": {
         "ja": {
@@ -13237,6 +13365,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "这个文件还没有写入磁盘。"
+          }
+        }
+      }
+    },
+    "The catalogue number, the label, the barcode and the shape of the box. Without a key its search answers 200 with nothing at all, which looks exactly like “no such release”.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "品番、レーベル、バーコード、そしてボックスの構成。キーがないと検索は 200 を返して中身は空になり、「そんな作品はない」と区別がつきません。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "番号、厂牌、条码，以及这套盒装的构成。没有密钥时它的搜索会返回 200 和空结果，看起来和“没有这个版本”一模一样。"
           }
         }
       }
@@ -14565,6 +14709,22 @@
         }
       }
     },
+    "What was played on each night, in order, with the encore marked — the only source that is about the concert rather than a disc of it. No song lengths, and Japanese titles come back romanised.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "各公演で何を演奏したか、その順番と、アンコールの区切り——ディスクではなくライブ自体を記録している唯一の情報源です。曲の長さはなく、日本語の曲名はローマ字で返ります。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每一场演了什么、按顺序、标出安可 —— 唯一一个讲的是演唱会本身而不是它的碟片的来源。没有单曲时长，日文曲名返回的是罗马字。"
+          }
+        }
+      }
+    },
     "Where the episodes go": {
       "localizations": {
         "ja": {
@@ -15111,6 +15271,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在播放"
+          }
+        }
+      }
+    },
+    "setlist.fm": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "setlist.fm"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "setlist.fm"
           }
         }
       }

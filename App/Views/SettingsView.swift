@@ -15,6 +15,10 @@ struct SettingsView: View {
     @State private var subtitleSavedFeedback = false
     @State private var subtitleCacheBytes: Int64 = 0
     @State private var keychainImportResult: String?
+    @State private var discogsKey = ""
+    @State private var discogsSecret = ""
+    @State private var setlistFMKey = ""
+    @State private var concertKeysSaved = false
     @AppStorage(AppearanceMode.storageKey) private var appearance: AppearanceMode = .system
     @State private var language = AppLanguage.saved
 
@@ -144,6 +148,7 @@ struct SettingsView: View {
 
             downloadsSection
             subscriptionsSection
+            concertSourcesSection
 
             Section("Release Sources") {
                 ForEach(TorrentSourceID.allCases) { source in
@@ -167,6 +172,76 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .navigationTitle("Settings")
         .frame(minWidth: 560)
+    }
+
+    // MARK: - Concerts
+
+    /// The two keys the concert section needs, and what each one buys.
+    ///
+    /// Both are here rather than only in a file because the empty state of the
+    /// Concerts section says "add a key in Settings", and because a key is a
+    /// thing people replace — revoked, rotated, pasted wrong the first time.
+    private var concertSourcesSection: some View {
+        Section("Concert Sources") {
+            Text("A concert Blu-ray has no episodes and no anime index lists it, so its page is built from music catalogues instead. MusicBrainz and Bangumi need no key; the other two do.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            LabeledContent("Discogs") {
+                VStack(alignment: .trailing, spacing: 4) {
+                    SecureField("Consumer key", text: $discogsKey)
+                        .frame(width: 260)
+                    SecureField("Consumer secret", text: $discogsSecret)
+                        .frame(width: 260)
+                }
+            }
+            Text("The catalogue number, the label, the barcode and the shape of the box. Without a key its search answers 200 with nothing at all, which looks exactly like “no such release”.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            LabeledContent("setlist.fm") {
+                SecureField("API key", text: $setlistFMKey)
+                    .frame(width: 260)
+            }
+            Text("What was played on each night, in order, with the encore marked — the only source that is about the concert rather than a disc of it. No song lengths, and Japanese titles come back romanised.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            HStack {
+                Button("Save Keys") {
+                    CredentialStore.Concert.save(discogsKey: discogsKey, secret: discogsSecret)
+                    CredentialStore.Concert.save(setlistFMKey: setlistFMKey)
+                    concertKeysSaved = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { concertKeysSaved = false }
+                }
+                if concertKeysSaved {
+                    Label("Saved", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                        .transition(.opacity)
+                }
+                Spacer()
+                Text("Stored in AnimeGod's own local settings, outside the library and outside the project.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.trailing)
+            }
+
+            // The standing credit. A page whose setlist came from them also
+            // links to that night's own entry.
+            HStack(spacing: 4) {
+                Text("Setlists powered by")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Link("setlist.fm", destination: URL(string: "https://www.setlist.fm/")!)
+                    .font(.caption)
+            }
+        }
+        .onAppear {
+            let discogs = CredentialStore.Concert.loadDiscogsCredentials()
+            discogsKey = discogs?.consumerKey ?? ""
+            discogsSecret = discogs?.consumerSecret ?? ""
+            setlistFMKey = CredentialStore.Concert.loadSetlistFMKey() ?? ""
+        }
     }
 
     // MARK: - Downloads

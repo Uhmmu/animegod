@@ -4,6 +4,9 @@ public enum ConcertProviderID: String, Codable, CaseIterable, Sendable {
     case discogs
     case musicBrainz
     case bangumi
+    /// setlist.fm: what was played on the night, from the people who were
+    /// there. The only source that is about the concert rather than the disc.
+    case setlistFM
     /// The release's own folder — its scans, its cue sheet, its catalogue
     /// number. Not a service, but a source, and for artwork the best one.
     case localFiles
@@ -13,6 +16,7 @@ public enum ConcertProviderID: String, Codable, CaseIterable, Sendable {
         case .discogs: "Discogs"
         case .musicBrainz: "MusicBrainz"
         case .bangumi: "Bangumi"
+        case .setlistFM: "setlist.fm"
         case .localFiles: String(localized: "This release", bundle: .module)
         }
     }

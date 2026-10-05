@@ -262,14 +262,36 @@ struct ConcertTitleIdentificationTests {
         }
     }
 
+    /// setlist.fm's shape: asked by artist and date, never by a catalogue key.
+    private struct FakeEventSource: ConcertEventSource {
+        let id: ConcertProviderID = .setlistFM
+        var answer: ConcertRelease?
+        let log: Log
+
+        func concert(
+            artist: String,
+            isoDates: [String],
+            year: Int?,
+            fallbackTitle: String
+        ) async throws -> ConcertRelease? {
+            let dates = isoDates.joined(separator: ",")
+            await log.record("setlistFM:\(artist):\(dates):\(year.map(String.init) ?? "-")")
+            return answer
+        }
+    }
+
     private func subject(
-        _ id: String, _ title: String, performance: Bool, venue: String? = nil, score: Double? = nil
+        _ id: String, _ title: String, performance: Bool, venue: String? = nil, score: Double? = nil,
+        artist: String? = nil, performedOn: String? = nil
     ) -> ConcertRelease {
-        ConcertRelease(
+        var release = ConcertRelease(
             provider: .bangumi, externalID: id, title: title,
+            artistNames: [artist].compactMap { $0 },
             score: score, venue: venue,
             isPerformanceRecord: performance, isLiveRecording: performance
         )
+        release.performedOn = performedOn
+        return release
     }
 
     @Test func takesTheHallFromAPlainlyMatchingTitle() async throws {
@@ -369,5 +391,60 @@ struct ConcertTitleIdentificationTests {
             let found = await identifier.identify(title: title, requiringPerformance: true)
             #expect(found.release == nil, "\(title) is not a concert")
         }
+    }
+
+    // MARK: - setlist.fm, asked by what the others already answered
+
+    /// It indexes neither a catalogue number nor a title, so it can only be
+    /// asked once something else has supplied an artist and a date — and
+    /// Bangumi's 演出 subject supplies both, the date as a span that expands
+    /// into the two nights of a two-night live.
+    @Test func asksSetlistFMWithTheArtistAndDatesBangumiFound() async throws {
+        let log = Log()
+        let work = "MyGO!!!!! 6th LIVE「見つけた景色、たずさえて」"
+        let live = subject("492657", work, performance: true, venue: "武蔵野の森総合スポーツプラザ",
+                           score: 8.7, artist: "MyGO!!!!!", performedOn: "2024-07-27 – 2024-07-28")
+        let bangumi = FakeBangumi(byTitle: [live], full: ["492657": live], log: log)
+
+        var nights = ConcertRelease(
+            provider: .setlistFM, externalID: "63ab8213", title: #"MyGO!!!!! 6th LIVE "Mitsuketa Keshiki""#,
+            discs: [
+                ConcertDisc(position: 1, title: "2024-07-27", format: "Blu-ray",
+                            tracks: [ConcertTrack(position: 1, title: "Mayoi Uta")]),
+                ConcertDisc(position: 2, title: "2024-07-28", format: "Blu-ray",
+                            tracks: [ConcertTrack(position: 1, title: "Kokyuu")])
+            ]
+        )
+        nights.venue = "Musashino no Mori Sougou Sports Plaza, Choufu"
+        nights.isLiveRecording = true
+
+        let found = await ConcertIdentifier(
+            bangumi: bangumi,
+            setlistFM: FakeEventSource(answer: nights, log: log)
+        ).identify(title: work, requiringPerformance: true)
+
+        let release = try #require(found.release)
+        // Both nights' running orders, which nothing else here had — and
+        // Bangumi's score and hall are still there.
+        #expect(release.discs.count == 2)
+        #expect(release.score == 8.7)
+        // The hall with its city beats the hall on its own.
+        #expect(release.venue == "Musashino no Mori Sougou Sports Plaza, Choufu")
+        #expect(await log.asked.contains("setlistFM:MyGO!!!!!:2024-07-27,2024-07-28:2024"))
+    }
+
+    /// With no artist there is no question to ask, and asking anyway spends a
+    /// request from a small daily budget on nothing.
+    @Test func doesNotAskSetlistFMWithoutAnArtist() async throws {
+        let log = Log()
+        let live = subject("1", "Some Live", performance: true, performedOn: "2024-07-27")
+        let bangumi = FakeBangumi(byTitle: [live], full: ["1": live], log: log)
+
+        _ = await ConcertIdentifier(
+            bangumi: bangumi,
+            setlistFM: FakeEventSource(answer: nil, log: log)
+        ).identify(title: "Some Live", requiringPerformance: true)
+
+        #expect(await log.asked.allSatisfy { !$0.hasPrefix("setlistFM") })
     }
 }

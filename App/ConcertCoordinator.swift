@@ -44,6 +44,7 @@ final class ConcertCoordinator: ObservableObject {
     }
 
     var hasDiscogsKey: Bool { CredentialStore.Concert.loadDiscogsCredentials() != nil }
+    var hasSetlistFMKey: Bool { CredentialStore.Concert.loadSetlistFMKey() != nil }
 
     // MARK: - Loading
 
@@ -241,7 +242,9 @@ final class ConcertCoordinator: ObservableObject {
             discogs: CredentialStore.Concert.loadDiscogsCredentials()
                 .map { DiscogsConcertProvider(credentials: $0) },
             musicBrainz: MusicBrainzConcertProvider(),
-            bangumi: BangumiConcertProvider()
+            bangumi: BangumiConcertProvider(),
+            setlistFM: CredentialStore.Concert.loadSetlistFMKey()
+                .map { SetlistFMConcertProvider(apiKey: $0) }
         )
     }
 

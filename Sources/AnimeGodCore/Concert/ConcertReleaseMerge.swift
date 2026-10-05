@@ -10,6 +10,7 @@ import Foundation
 /// | Discogs | the catalogue number, the label, the barcode, the shape of the box — and a cover for everything it holds |
 /// | MusicBrainz | the setlist, the song lengths, and the names of the discs |
 /// | Bangumi | the hall, when the concert happened, and a score somebody voted on |
+/// | setlist.fm | what was played on each night, in the order it was played, with the encore marked |
 ///
 /// The merge is a pure function so the order of preference is testable without
 /// a network: getting it wrong is silent, and a field quietly taken from the
@@ -29,10 +30,14 @@ public enum ConcertReleaseMerge {
         /// The release's own folder: its scans, its cue sheet, its catalogue
         /// number. Not a service, and for artwork better than all of them.
         let local = sources.first { $0.provider == .localFiles }
+        /// What was played on the night. No lengths and romanised titles, so it
+        /// never leads a setlist — but it is the only source that knows the two
+        /// nights of a live apart.
+        let setlistFM = sources.first { $0.provider == .setlistFM }
 
         // Whichever source is leading decides the identity the record is
         // stored under, and that is the one with the setlist.
-        let lead = musicBrainz ?? discogs ?? bangumiDisc ?? performance ?? local!
+        let lead = musicBrainz ?? discogs ?? bangumiDisc ?? performance ?? setlistFM ?? local!
 
         var merged = ConcertRelease(
             provider: lead.provider,
@@ -40,7 +45,8 @@ public enum ConcertReleaseMerge {
             title: title(musicBrainz: musicBrainz, others: [discogs, bangumiDisc, performance]),
             artistNames: dedupe([
                 musicBrainz?.artistNames ?? [], discogs?.artistNames ?? [],
-                performance?.artistNames ?? [], local?.artistNames ?? []
+                performance?.artistNames ?? [], setlistFM?.artistNames ?? [],
+                local?.artistNames ?? []
             ].flatMap { $0 }),
             releaseDate: first([discogs?.releaseDate, musicBrainz?.releaseDate, bangumiDisc?.releaseDate]),
             country: first([discogs?.country, musicBrainz?.country, performance?.country]),
@@ -51,7 +57,8 @@ public enum ConcertReleaseMerge {
             ].flatMap { $0 }),
             barcode: first([discogs?.barcode, musicBrainz?.barcode, local?.barcode]),
             genres: dedupe([discogs?.genres ?? [], performance?.genres ?? []].flatMap { $0 }),
-            discs: discs(musicBrainz: musicBrainz, bangumi: bangumiDisc, discogs: discogs, local: local),
+            discs: discs(musicBrainz: musicBrainz, bangumi: bangumiDisc, setlistFM: setlistFM,
+                         discogs: discogs, local: local),
             coverImageURLs: covers(local: local, performance: performance, bangumiDisc: bangumiDisc,
                                    musicBrainz: musicBrainz, discogs: discogs),
             sourceURL: lead.sourceURL,
@@ -60,8 +67,10 @@ public enum ConcertReleaseMerge {
             score: rating(performance: performance, disc: bangumiDisc)?.score,
             ratingCount: rating(performance: performance, disc: bangumiDisc)?.count,
             summary: first([bangumiDisc?.summary, performance?.summary, discogs?.summary]),
-            venue: first([performance?.venue, bangumiDisc?.venue]),
-            performedOn: first([performance?.performedOn, bangumiDisc?.performedOn]),
+            // setlist.fm names the hall *and* the city, and it is the venue of
+            // the night rather than of the tour, so it leads here.
+            venue: first([setlistFM?.venue, performance?.venue, bangumiDisc?.venue]),
+            performedOn: first([performance?.performedOn, setlistFM?.performedOn, bangumiDisc?.performedOn]),
             officialSiteURL: first([performance?.officialSiteURL, bangumiDisc?.officialSiteURL]),
             isPerformanceRecord: false,
             // One source saying so is enough: none of them claims it falsely,
@@ -125,6 +134,7 @@ public enum ConcertReleaseMerge {
     static func discs(
         musicBrainz: ConcertRelease?,
         bangumi: ConcertRelease?,
+        setlistFM: ConcertRelease? = nil,
         discogs: ConcertRelease?,
         local: ConcertRelease? = nil
     ) -> [ConcertDisc] {
@@ -132,7 +142,10 @@ public enum ConcertReleaseMerge {
         // describes the bonus CD rather than the programme — twelve songs where
         // each night of the concert ran sixteen. It is still a setlist, and it
         // is the only one with durations on it, so it beats having none.
-        for candidate in [musicBrainz, bangumi, discogs, local] {
+        // setlist.fm ahead of Discogs: it has no lengths either, but it is a
+        // night's own running order with the encore marked, while Discogs'
+        // hand-entered lists are measurably wrong on these releases.
+        for candidate in [musicBrainz, bangumi, setlistFM, discogs, local] {
             guard let discs = candidate?.discs, !discs.isEmpty,
                   discs.contains(where: { !$0.songs.isEmpty })
             else { continue }

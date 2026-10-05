@@ -75,6 +75,10 @@ public struct ConcertIdentification: Sendable {
 /// 3. **Bangumi by the title the first two produced**, for the hall and the
 ///    score. By then the title is a real one from a real release rather than a
 ///    folder name, which is what makes that search worth making.
+/// 4. **setlist.fm by the artist and the dates Bangumi just supplied**, for
+///    what was played on each night. It indexes neither a catalogue number nor
+///    a title, so it can only be asked once something else has answered — and
+///    by then it is an exact question: who played, on which day.
 public struct ConcertIdentifier: Sendable {
     /// How many of a folder's catalogue numbers to try. A box lists its own
     /// number and each disc's, and they all name the same release, so the first
@@ -89,15 +93,46 @@ public struct ConcertIdentifier: Sendable {
     private let discogs: (any ConcertReleaseSource)?
     private let musicBrainz: (any ConcertReleaseSource)?
     private let bangumi: (any ConcertReleaseSource)?
+    /// setlist.fm, asked last and asked differently: by who played and when,
+    /// which only the others can tell it.
+    private let setlistFM: (any ConcertEventSource)?
 
     public init(
         discogs: (any ConcertReleaseSource)? = nil,
         musicBrainz: (any ConcertReleaseSource)? = nil,
-        bangumi: (any ConcertReleaseSource)? = nil
+        bangumi: (any ConcertReleaseSource)? = nil,
+        setlistFM: (any ConcertEventSource)? = nil
     ) {
         self.discogs = discogs
         self.musicBrainz = musicBrainz
         self.bangumi = bangumi
+        self.setlistFM = setlistFM
+    }
+
+    /// Asks setlist.fm what was played, from what the other sources have
+    /// already established.
+    ///
+    /// Last for a reason that is not politeness: it is indexed by artist and
+    /// date, and nothing in a folder name is either of those. By this point
+    /// Bangumi has usually supplied both — its 演出 subjects carry 主演 and a
+    /// 开始/结束 span, and a two-night live's span expands into the two queries
+    /// that find both nights.
+    private func askSetlistFM(about found: [ConcertRelease]) async -> ConcertRelease? {
+        guard let setlistFM, let merged = ConcertReleaseMerge.merge(found) else { return nil }
+        guard let artist = merged.artistNames.first, !artist.isEmpty else { return nil }
+        // A disc's release date is not the night, so only a performance date
+        // becomes a query; the year is a wider net and is allowed to come from
+        // either, since a live is released in the year it happened or the next.
+        let dates = ConcertEventDates.dates(in: merged.performedOn ?? "")
+        let year = ConcertEventDates.year(in: merged.performedOn ?? "")
+            ?? ConcertEventDates.year(in: merged.releaseDate ?? "")
+        guard !dates.isEmpty || year != nil else { return nil }
+        return try? await setlistFM.concert(
+            artist: artist,
+            isoDates: dates,
+            year: year,
+            fallbackTitle: merged.title
+        )
     }
 
     /// What can be learned about a concert with no catalogue number anywhere.
@@ -134,6 +169,7 @@ public struct ConcertIdentifier: Sendable {
             ].compactMap({ $0 }) {
                 found.append(try await bangumi.release(id: subject.externalID))
             }
+            if let night = await askSetlistFM(about: found) { found.append(night) }
             result.release = ConcertReleaseMerge.merge(found)
         } catch {
             result.failures[bangumi.id] = error.localizedDescription
@@ -211,6 +247,10 @@ public struct ConcertIdentifier: Sendable {
                 result.failures[bangumi.id] = error.localizedDescription
             }
         }
+
+        // And last, what was played: by now the artist and the dates are known,
+        // which is the only way in that setlist.fm has.
+        if let night = await askSetlistFM(about: found) { found.append(night) }
 
         result.release = ConcertReleaseMerge.merge(found)
         return result

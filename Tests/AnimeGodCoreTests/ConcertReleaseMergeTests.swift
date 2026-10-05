@@ -218,4 +218,67 @@ struct ConcertReleaseMergeTests {
         #expect(merged.songCount == 2)
         #expect(merged.totalSongDuration == 472)
     }
+
+    /// setlist.fm: what was played on the night, with no lengths on it.
+    private func setlistFM() -> ConcertRelease {
+        var release = ConcertRelease(
+            provider: .setlistFM,
+            externalID: "63ab8213",
+            title: #"Kessoku Band LIVE "Kosei""#,
+            artistNames: ["Kessoku Band"],
+            discs: [ConcertDisc(position: 1, title: "2023-05-21", format: "Blu-ray", tracks: [
+                ConcertTrack(position: 1, title: "Hitoribocchi Tokyo"),
+                ConcertTrack(position: 2, title: "Guitar to Kodoku to Aoi Hoshi"),
+                ConcertTrack(position: 3, title: "Love Song ga Utaenai"),
+                ConcertTrack(position: 4, title: "Seishun Complex", isEncore: true)
+            ])]
+        )
+        release.venue = "Zepp Haneda (TOKYO), Ota"
+        release.performedOn = "2023-05-21"
+        release.isLiveRecording = true
+        return release
+    }
+
+    /// Ahead of Discogs and behind the two that publish the songs in Japanese.
+    ///
+    /// Discogs' list for this release is measurably wrong — `ひみつ基地` twice and
+    /// `ラブソングが歌えない` missing — and setlist.fm's is a night's own running
+    /// order. Neither has lengths, so neither can beat MusicBrainz.
+    @Test func setlistFMSitsBetweenBangumiAndDiscogs() throws {
+        let withEverything = try #require(ConcertReleaseMerge.merge([
+            musicBrainz(), discogs(), bangumiDisc(), setlistFM()
+        ]))
+        #expect(withEverything.discs.first?.tracks.first?.title == "ひとりぼっち東京")
+        #expect(withEverything.discs.first?.tracks.first?.duration == 233)
+
+        // Without MusicBrainz or Bangumi, it answers instead of Discogs.
+        let withoutTheJapanese = try #require(ConcertReleaseMerge.merge([discogs(), setlistFM()]))
+        #expect(withoutTheJapanese.discs.first?.tracks.map(\.title) == [
+            "Hitoribocchi Tokyo", "Guitar to Kodoku to Aoi Hoshi",
+            "Love Song ga Utaenai", "Seishun Complex"
+        ])
+        #expect(withoutTheJapanese.discs.first?.tracks.last?.isEncore == true)
+    }
+
+    /// The venue of the night, with its city, beats the hall on its own — and
+    /// it is the one field where setlist.fm leads outright.
+    @Test func setlistFMLeadsTheVenue() throws {
+        let merged = try #require(ConcertReleaseMerge.merge([
+            musicBrainz(), bangumiPerformance(), setlistFM()
+        ]))
+        #expect(merged.venue == "Zepp Haneda (TOKYO), Ota")
+        // Bangumi still owns the date it published and the score people voted.
+        #expect(merged.performedOn == "2023年5月21日")
+        #expect(merged.score == 7.7)
+    }
+
+    /// A page can be built out of setlist.fm alone: it is the only source that
+    /// answers for a live nothing pressed to disc.
+    @Test func setlistFMAloneIsStillARelease() throws {
+        let merged = try #require(ConcertReleaseMerge.merge([setlistFM()]))
+        #expect(merged.provider == .setlistFM)
+        #expect(merged.title == #"Kessoku Band LIVE "Kosei""#)
+        #expect(merged.songCount == 4)
+        #expect(merged.isLiveRecording)
+    }
 }
