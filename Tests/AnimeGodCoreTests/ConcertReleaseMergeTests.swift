@@ -341,9 +341,12 @@ struct ConcertAttributionTests {
         #expect(merged.attribution[.setlist] == .musicBrainz)
         #expect(merged.attribution[.rating] == .bangumi)
         #expect(merged.attribution[.performedOn] == .bangumi)
-        // The scans beat every service's cover, and only the folder knows the
-        // box.
-        #expect(merged.attribution[.covers] == .localFiles)
+        // The cover is credited to whoever curated the image on screen. The
+        // folder's contribution here is `Scans/01.png`, which is where the
+        // scanner started rather than the front of the jacket, so Bangumi's
+        // leads and is credited — see `aCuratedCoverBeatsTheFirstScan`.
+        #expect(merged.attribution[.covers] == .bangumi)
+        // Only the folder knows what came in the box.
         #expect(merged.attribution[.extras] == .localFiles)
         #expect(merged.attribution[.catalogNumbers] == .musicBrainz)
     }
@@ -387,5 +390,94 @@ struct ConcertAttributionTests {
         let decoded = try JSONDecoder()
             .decode([ConcertReleaseField: ConcertProviderID].self, from: data)
         #expect(decoded == merged.attribution)
+    }
+}
+
+/// What a concert page calls itself, and which image it leads with. Both used
+/// to come from the catalogue, and a live Blu-ray is usually a disc inside an
+/// album — so both were frequently about the wrong thing.
+@Suite("The name and the face of a concert")
+struct ConcertPresentationTests {
+    private func anime(_ title: String) -> Anime {
+        Anime(title: title, kind: .live)
+    }
+
+    private func concert(_ workTitle: String, _ release: ConcertRelease?) -> LibraryConcert {
+        LibraryConcert(anime: anime(workTitle), release: release, discCount: 1)
+    }
+
+    /// Four real ones from this library. Each release title is the CD the
+    /// Blu-ray was bundled with, and each was on the card.
+    @Test(arguments: [
+        ("MyGO!!!!! 1st LIVE「僕たちはここで叫ぶ」", "音一会"),
+        ("MyGO!!!!! 3rd LIVE「声を抱えて生きる」", "壱雫空"),
+        ("Ave Mujica 2nd LIVE 「Quaerere Lumina」", "ELEMENTS"),
+    ])
+    func theWorkKeepsItsOwnName(_ workTitle: String, _ releaseTitle: String) {
+        let item = concert(workTitle, ConcertRelease(
+            provider: .musicBrainz, externalID: "1", title: releaseTitle
+        ))
+        #expect(item.displayTitle == workTitle)
+        // The album is not thrown away; it is just not the name of the concert.
+        #expect(item.releasedOn == releaseTitle)
+    }
+
+    /// When the catalogue is spelling the same concert, there is no album to
+    /// mention — and the page does not invent one.
+    @Test func sayingTheSameThingIsNotAnAlbum() {
+        let item = concert("MyGO!!!!! 5th LIVE「迷うことに迷わない」", ConcertRelease(
+            provider: .musicBrainz, externalID: "1", title: "MyGO!!!!! 5th LIVE「迷うことに迷わない」"
+        ))
+        #expect(item.releasedOn == nil)
+    }
+
+    @Test func withNoReleaseThereIsStillAName() {
+        let item = concert("MyGO!!!!! 7th LIVE「こたえなんてなくても」", nil)
+        #expect(item.displayTitle == "MyGO!!!!! 7th LIVE「こたえなんてなくても」")
+        #expect(item.releasedOn == nil)
+    }
+
+    // MARK: - The face
+
+    private func local(_ names: [String]) -> ConcertRelease {
+        ConcertRelease(
+            provider: .localFiles, externalID: "folder", title: "folder",
+            coverImageURLs: names.map { URL(fileURLWithPath: "/Volumes/T7/x/Scans/\($0)") }
+        )
+    }
+
+    private func bangumi() -> ConcertRelease {
+        ConcertRelease(
+            provider: .bangumi, externalID: "1", title: "live",
+            coverImageURLs: [URL(string: "https://lain.bgm.tv/pic/cover/l/1.jpg")!]
+        )
+    }
+
+    /// A scanner's first file is not the jacket. In this library `IMG-01.png`
+    /// was a lottery application ticket, and it was the card.
+    @Test func aCuratedCoverBeatsTheFirstScan() {
+        let merged = try! #require(ConcertReleaseMerge.merge([
+            local(["IMG-01.png", "IMG-02.png", "IMG-03.png"]), bangumi()
+        ]))
+        #expect(merged.coverImageURLs.first?.host() == "lain.bgm.tv")
+        #expect(merged.attribution[.covers] == .bangumi)
+        // The scans are still there, as the rest of the artwork and as the
+        // fallback for a URL that will not load.
+        #expect(merged.coverImageURLs.count == 4)
+    }
+
+    /// But a file somebody *named* `cover.jpg` is a statement, and it wins.
+    @Test func aNamedCoverStillLeads() {
+        let merged = try! #require(ConcertReleaseMerge.merge([
+            local(["cover.jpg", "IMG-01.png"]), bangumi()
+        ]))
+        #expect(merged.coverImageURLs.first?.lastPathComponent == "cover.jpg")
+        #expect(merged.attribution[.covers] == .localFiles)
+    }
+
+    /// With nothing curated anywhere, the scans are still better than nothing.
+    @Test func scansAreTheFallback() {
+        let merged = try! #require(ConcertReleaseMerge.merge([local(["IMG-01.png"])]))
+        #expect(merged.coverImageURLs.first?.lastPathComponent == "IMG-01.png")
     }
 }

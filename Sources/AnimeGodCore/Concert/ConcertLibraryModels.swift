@@ -16,10 +16,32 @@ public struct LibraryConcert: Identifiable, Hashable, Sendable {
 
     public var id: UUID { anime.id }
 
-    /// What the card shows. The release's own title is better than the folder's
-    /// — the folder is named by whoever ripped it — but there may not be one
-    /// yet.
-    public var displayTitle: String { release?.title ?? anime.title }
+    /// What the card shows: **the library's own name for the work**.
+    ///
+    /// It used to be the release's title, on the reasoning that a catalogue
+    /// knows better than whoever named the folder. Measured against this
+    /// library, that is wrong more often than it is right, because **a live
+    /// Blu-ray is usually a disc inside an album**: MyGO's 1st and 2nd LIVE
+    /// both came back as *音一会*, the 3rd as *壱雫空*, Ave Mujica's 2nd as
+    /// *ELEMENTS*, and the 4th as *「Adventus」特典CD ドロリス ver.* — four
+    /// concerts wearing the name of the CD they were bundled with. The folder
+    /// is named after the concert because that is what somebody went looking
+    /// for.
+    public var displayTitle: String {
+        anime.title.isEmpty ? (release?.title ?? "") : anime.title
+    }
+
+    /// The release this concert came in, when that is a different thing — the
+    /// album the Blu-ray was bundled with. Nil when the catalogue is simply
+    /// spelling the same concert, which is most of the time.
+    public var releasedOn: String? {
+        guard let title = release?.title, !title.isEmpty, !anime.title.isEmpty else { return nil }
+        let left = ConcertSetlistAligner.normalise(title)
+        let right = ConcertSetlistAligner.normalise(anime.title)
+        guard !left.isEmpty, !right.isEmpty, !ConcertSetlistAligner.titlesMatch(left, right)
+        else { return nil }
+        return title
+    }
 
     public var songCount: Int { release?.songCount ?? 0 }
 

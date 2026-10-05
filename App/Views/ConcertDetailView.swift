@@ -580,6 +580,11 @@ struct ConcertDetailView: View {
 
     private func releaseFactPairs(_ release: ConcertRelease) -> [(String, String)] {
         var pairs: [(String, String)] = []
+        // The album the Blu-ray was bundled with. It used to *be* the title of
+        // this page, which is how four concerts ended up named after a CD.
+        if let album = concert?.releasedOn {
+            pairs.append((String(localized: "Part of"), album))
+        }
         if let label = release.labels.first {
             pairs.append((String(localized: "Label"), label))
         }

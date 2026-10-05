@@ -9984,6 +9984,22 @@
         }
       }
     },
+    "Part of": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "収録"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "收录于"
+          }
+        }
+      }
+    },
     "Paste Times": {
       "localizations": {
         "ja": {

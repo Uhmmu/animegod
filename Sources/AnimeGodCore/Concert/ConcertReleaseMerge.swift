@@ -197,13 +197,24 @@ public enum ConcertReleaseMerge {
         return ([], nil)
     }
 
-    /// Covers, best first.
+    /// Covers, best first — and "best" is **curated**, not biggest.
     ///
-    /// Bangumi's `lain.bgm.tv` images are full-size cover scans; the Cover Art
-    /// Archive is next when it has anything at all — two of six real concert
-    /// Blu-rays had none; and Discogs is last because every image it had for
-    /// these releases was a `secondary` one around 500px, which is as likely to
-    /// be the back of the case as the front.
+    /// The scans used to lead outright, on the grounds that a three-megabyte
+    /// jacket scan beats Discogs' 445×600 photograph of the case. Resolution is
+    /// worth nothing if the image is the wrong one: a `Scans/` folder holds the
+    /// obi, the booklet, the inserts and the lottery application ticket as well
+    /// as the jacket, and `IMG-01.png` is wherever the scanner happened to
+    /// start. In this library that put a ticket application form on the card for
+    /// Ave Mujica's 3rd LIVE.
+    ///
+    /// So: a file somebody **named** `cover.jpg` is a statement about which
+    /// image is the front and still leads; then the services, each of which
+    /// publishes one curated front image — Bangumi's `lain.bgm.tv` cover, then
+    /// the Cover Art Archive, which has nothing at all for two of six real
+    /// concert Blu-rays; then the scans, which are the rest of the artwork and
+    /// the fallback when a URL will not load; and Discogs last, because every
+    /// image it had for these releases was a `secondary` one as likely to be
+    /// the back of the case as the front.
     static func covers(
         local: ConcertRelease? = nil,
         performance: ConcertRelease?,
@@ -211,17 +222,24 @@ public enum ConcertReleaseMerge {
         musicBrainz: ConcertRelease?,
         discogs: ConcertRelease?
     ) -> (urls: [URL], provider: ConcertProviderID?) {
+        let scans = local?.coverImageURLs ?? []
+        let named = scans.filter {
+            ConcertReleaseFileReader.coverFileStems
+                .contains($0.deletingPathExtension().lastPathComponent.lowercased())
+        }
+        var groups: [(provider: ConcertProviderID, urls: [URL])] = []
+        if !named.isEmpty { groups.append((.localFiles, named)) }
+        for case let source? in [bangumiDisc, performance, musicBrainz]
+        where !source.coverImageURLs.isEmpty {
+            groups.append((source.provider, source.coverImageURLs))
+        }
+        if !scans.isEmpty { groups.append((.localFiles, scans)) }
+        if let discogs, !discogs.coverImageURLs.isEmpty {
+            groups.append((.discogs, discogs.coverImageURLs))
+        }
         var seen = Set<URL>()
-        // The release's own scans first and by a long way: three-megabyte
-        // jacket scans against Discogs' 445×600 photograph of the case.
-        let ordered = [local, bangumiDisc, performance, musicBrainz, discogs].compactMap { $0 }
-        let urls = ordered
-            .flatMap(\.coverImageURLs)
-            .filter { seen.insert($0).inserted }
-        // Credited to whichever one the cover on screen came from, which is the
-        // first in that order with an image — the rest are fallbacks for a URL
-        // that fails to load.
-        return (urls, ordered.first { !$0.coverImageURLs.isEmpty }?.provider)
+        let urls = groups.flatMap(\.urls).filter { seen.insert($0).inserted }
+        return (urls, groups.first?.provider)
     }
 
     /// The first of these sources that has this field, and which one it was.
