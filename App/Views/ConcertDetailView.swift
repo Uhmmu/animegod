@@ -17,6 +17,7 @@ struct ConcertDetailView: View {
     @State private var episodes: [EpisodeMedia] = []
     @State private var selectedDiscNumber: Int?
     @State private var catalogNumberEntry = ""
+    @State private var showingTimelinePaste = false
 
     private var concert: LibraryConcert? {
         section.concerts.first { $0.id == animeID }
@@ -45,6 +46,12 @@ struct ConcertDetailView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .navigationTitle(concert?.displayTitle ?? String(localized: "Concert"))
+        .sheet(isPresented: $showingTimelinePaste) {
+            ConcertTimelinePasteSheet(section: section, animeID: animeID) {
+                showingTimelinePaste = false
+                Task { await load() }
+            }
+        }
         .task(id: animeID) { await load() }
         .task(id: model.libraryRevision) { await load() }
     }
@@ -201,9 +208,12 @@ struct ConcertDetailView: View {
             // a promise nothing can keep.
             if let disc, !disc.songs.isEmpty, alignment?.placements.isEmpty != false, let episode {
                 if section.discHasNoChapters(forEpisodeID: episode.episode.id) {
-                    Text("This file carries no chapter marks, so there is nothing to place the songs on. No catalogue publishes where a song starts either — the marks live inside the disc, and this encode dropped them.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("This file carries no chapter marks, so there is nothing to place the songs on. No catalogue publishes where a song starts either — the marks live inside the disc, and this encode dropped them.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Button("Paste a Timeline") { showingTimelinePaste = true }
+                    }
                 } else if section.setlistNotLookedAtYet(forEpisodeID: episode.episode.id) {
                     Text("Times appear once the disc has been played: they come from its own chapter marks, which are inside the disc rather than in any catalogue.")
                         .font(.caption)
@@ -244,6 +254,8 @@ struct ConcertDetailView: View {
                     Button("Shift ↑") { Task { await nudge(episode: episode, by: -1) } }
                         .buttonStyle(.link)
                 }
+                Button("Paste Times") { showingTimelinePaste = true }
+                    .buttonStyle(.link)
             }
             .font(.caption)
             .foregroundStyle(alignment.isTrustworthy

@@ -463,6 +463,44 @@
         }
       }
     },
+    "%lld entries": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 件"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 条"
+          }
+        }
+      }
+    },
+    "%lld entries over %lld discs": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$lld entries over %2$lld discs"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 件・%lld 枚分"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 条，分 %lld 张碟"
+          }
+        }
+      }
+    },
     "%lld episodes": {
       "localizations": {
         "en": {
@@ -1089,6 +1127,9 @@
           }
         }
       }
+    },
+    "00:01:56 1.迷星叫": {
+      "shouldTranslate": false
     },
     "A folder of its own": {
       "localizations": {
@@ -8825,6 +8866,22 @@
         }
       }
     },
+    "No times found in that": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "時間が見つかりません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没从里面读到时间"
+          }
+        }
+      }
+    },
     "No verified torrent file is available for this release. Use its magnet link instead.": {
       "localizations": {
         "ja": {
@@ -9305,6 +9362,22 @@
         }
       }
     },
+    "One line per song, each with the time it starts. A `DAY1` or `Disc 2` line splits the nights, and `Encore` marks what follows it — but none of that is required, and a list that simply starts over at a lower time is read as the next disc.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 行 1 曲、それぞれ開始時間を添えてください。`DAY1` や `Disc 2` だけの行で公演を分け、`Encore` 以降はアンコール扱いになります。いずれも必須ではなく、時間が巻き戻った箇所は次のディスクとして読みます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一行一首，每行带它开始的时间。单独一行写 `DAY1` 或 `Disc 2` 可以分开场次，`Encore` 之后的算安可 —— 但这些都不是必须的，时间突然变小的地方会被当作下一张碟。"
+          }
+        }
+      }
+    },
     "Online": {
       "localizations": {
         "ja": {
@@ -9756,6 +9829,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "配对于 %@"
+          }
+        }
+      }
+    },
+    "Paste Times": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "時間を貼り付け"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "粘贴时间"
+          }
+        }
+      }
+    },
+    "Paste a Timeline": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "タイムラインを貼り付け"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "粘贴时间轴"
           }
         }
       }
@@ -14060,6 +14165,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "使用此文件夹"
+          }
+        }
+      }
+    },
+    "Use This": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "これを使う"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "就用这个"
           }
         }
       }

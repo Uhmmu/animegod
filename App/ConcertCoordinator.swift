@@ -345,6 +345,93 @@ final class ConcertCoordinator: ObservableObject {
         }
     }
 
+    /// What a pasted timeline would do, before it does it.
+    struct PastedTimelinePreview: Sendable {
+        var discs: [ConcertTimelineParser.Disc]
+        var discCount: Int { discs.count }
+        var entryCount: Int { discs.reduce(0) { $0 + $1.entries.count } }
+        var isUsable: Bool { !discs.isEmpty }
+    }
+
+    func previewPastedTimeline(_ text: String) -> PastedTimelinePreview {
+        PastedTimelinePreview(discs: ConcertTimelineParser.parse(text))
+    }
+
+    /// Takes a timeline somebody found and pasted in, and makes it the setlist.
+    ///
+    /// Not an overlay on the setlist that is already there: the paste *is* the
+    /// programme, in the order it happened, including the parts no catalogue
+    /// lists — the encore, the curtain call. It is stored as a hand-made
+    /// correction, so nothing computed may overwrite it.
+    ///
+    /// A disc matches by the number the paste gave it, and by order when the
+    /// paste gave none.
+    @discardableResult
+    func applyPastedTimeline(_ text: String, forAnimeID animeID: UUID) async -> Int {
+        guard let database else { return 0 }
+        let parsed = ConcertTimelineParser.parse(text)
+        guard !parsed.isEmpty else { return 0 }
+        let episodes = (try? await database.episodes(animeID: animeID)) ?? []
+        guard !episodes.isEmpty else { return 0 }
+
+        var release = (try? await database.concertRelease(animeID: animeID))
+        var applied = 0
+
+        for (index, disc) in parsed.enumerated() {
+            let number = disc.number ?? index + 1
+            let episode = episodes.first { $0.episode.numberText.flatMap { Int($0) } == number }
+                ?? (episodes.indices.contains(index) ? episodes[index] : nil)
+            guard let episode else { continue }
+
+            let (tracks, placements) = disc.programme()
+            let alignment = ConcertSetlistAlignment(
+                placements: placements, method: .chapterTitles, confidence: 1
+            )
+            try? await database.saveConcertSetlist(StoredConcertSetlist(
+                episodeID: episode.episode.id, alignment: alignment,
+                chapters: chaptersByEpisode[episode.episode.id] ?? [], isManual: true
+            ))
+            setlists[episode.episode.id] = alignment
+            release = replacing(disc: number, in: release, with: tracks, animeID: animeID)
+            applied += 1
+        }
+
+        if let release {
+            try? await database.saveConcertRelease(release, forAnimeID: animeID)
+        }
+        await reload()
+        return applied
+    }
+
+    /// Writes a pasted disc into the stored release, creating one when no
+    /// service ever answered — which is the case this exists for.
+    private func replacing(
+        disc number: Int,
+        in release: ConcertRelease?,
+        with tracks: [ConcertTrack],
+        animeID: UUID
+    ) -> ConcertRelease? {
+        var release = release ?? ConcertRelease(
+            provider: .localFiles,
+            externalID: animeID.uuidString,
+            title: concerts.first { $0.id == animeID }?.displayTitle ?? "",
+            isLiveRecording: true
+        )
+        let videoPositions = release.videoDiscs.map(\.position)
+        if videoPositions.indices.contains(number - 1) {
+            let position = videoPositions[number - 1]
+            if let slot = release.discs.firstIndex(where: { $0.position == position }) {
+                release.discs[slot].tracks = tracks
+                return release
+            }
+        }
+        release.discs.append(ConcertDisc(
+            position: (release.discs.map(\.position).max() ?? 0) + 1,
+            title: nil, format: "Blu-ray", tracks: tracks
+        ))
+        return release
+    }
+
     /// Moves the whole timeline along by a chapter, for the viewer who can see
     /// it is one song out. Stored as a correction, which nothing computed may
     /// overwrite afterwards.
