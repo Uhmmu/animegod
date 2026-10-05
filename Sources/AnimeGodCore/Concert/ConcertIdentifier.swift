@@ -117,22 +117,35 @@ public struct ConcertIdentifier: Sendable {
     /// Bangumi has usually supplied both — its 演出 subjects carry 主演 and a
     /// 开始/结束 span, and a two-night live's span expands into the two queries
     /// that find both nights.
-    private func askSetlistFM(about found: [ConcertRelease]) async -> ConcertRelease? {
-        guard let setlistFM, let merged = ConcertReleaseMerge.merge(found) else { return nil }
-        guard let artist = merged.artistNames.first, !artist.isEmpty else { return nil }
+    /// - Returns: what it said, and why it said nothing when it threw.
+    ///
+    ///   The failure is reported rather than swallowed, for the same reason the
+    ///   other three sources report theirs: a `try?` here turned a service
+    ///   being busy into "this concert has no setlist", which is indis-
+    ///   tinguishable from the truth and stays on the page for ever.
+    private func askSetlistFM(
+        about found: [ConcertRelease]
+    ) async -> (release: ConcertRelease?, failure: String?) {
+        guard let setlistFM, let merged = ConcertReleaseMerge.merge(found) else { return (nil, nil) }
+        guard let artist = merged.artistNames.first, !artist.isEmpty else { return (nil, nil) }
         // A disc's release date is not the night, so only a performance date
         // becomes a query; the year is a wider net and is allowed to come from
         // either, since a live is released in the year it happened or the next.
         let dates = ConcertEventDates.dates(in: merged.performedOn ?? "")
         let year = ConcertEventDates.year(in: merged.performedOn ?? "")
             ?? ConcertEventDates.year(in: merged.releaseDate ?? "")
-        guard !dates.isEmpty || year != nil else { return nil }
-        return try? await setlistFM.concert(
-            artist: artist,
-            isoDates: dates,
-            year: year,
-            fallbackTitle: merged.title
-        )
+        guard !dates.isEmpty || year != nil else { return (nil, nil) }
+        do {
+            let night = try await setlistFM.concert(
+                artist: artist,
+                isoDates: dates,
+                year: year,
+                fallbackTitle: merged.title
+            )
+            return (night, nil)
+        } catch {
+            return (nil, error.localizedDescription)
+        }
     }
 
     /// What can be learned about a concert with no catalogue number anywhere.
@@ -169,7 +182,9 @@ public struct ConcertIdentifier: Sendable {
             ].compactMap({ $0 }) {
                 found.append(try await bangumi.release(id: subject.externalID))
             }
-            if let night = await askSetlistFM(about: found) { found.append(night) }
+            let night = await askSetlistFM(about: found)
+            if let release = night.release { found.append(release) }
+            if let failure = night.failure, let setlistFM { result.failures[setlistFM.id] = failure }
             result.release = ConcertReleaseMerge.merge(found)
         } catch {
             result.failures[bangumi.id] = error.localizedDescription
@@ -250,7 +265,9 @@ public struct ConcertIdentifier: Sendable {
 
         // And last, what was played: by now the artist and the dates are known,
         // which is the only way in that setlist.fm has.
-        if let night = await askSetlistFM(about: found) { found.append(night) }
+        let night = await askSetlistFM(about: found)
+        if let release = night.release { found.append(release) }
+        if let failure = night.failure, let setlistFM { result.failures[setlistFM.id] = failure }
 
         result.release = ConcertReleaseMerge.merge(found)
         return result

@@ -36,6 +36,7 @@ struct ConcertDetailView: View {
                         inTheBox(release)
                         scans(release)
                         releaseFacts(release)
+                        credits(release)
                     } else {
                         programme(nil)
                         unidentified
@@ -169,6 +170,17 @@ struct ConcertDetailView: View {
                     .buttonStyle(.link)
                     .font(.caption)
                     .help("Paste a setlist with times into this disc — for the concerts no source can place.")
+            }
+
+            // Where the songs on screen came from. Said here rather than only
+            // in the credits at the bottom, because a setlist is the one thing
+            // on this page somebody might copy out — and because the lists
+            // disagree with each other: the romanised one is not the one with
+            // the lengths.
+            if let source = release.attribution[.setlist] {
+                Text("Setlist from \(source.displayName)")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
             }
 
             // More than one night or disc: which one's setlist is on screen.
@@ -516,6 +528,52 @@ struct ConcertDetailView: View {
                     Link(String(localized: "Open on \(release.provider.displayName)"), destination: source)
                         .font(.caption)
                 }
+            }
+        }
+    }
+
+    /// Who answered what.
+    ///
+    /// Grouped by source rather than annotated onto every row: four services
+    /// and the folder on disk answer a page between them, and a line per field
+    /// would be longer than the facts it credits. It is also the honest form of
+    /// the attribution some of these ask for — setlist.fm's terms want its data
+    /// credited where it is shown, and it very often gives one field.
+    @ViewBuilder
+    private func credits(_ release: ConcertRelease) -> some View {
+        let credits = release.credits
+        if !credits.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Where this came from")
+                    .font(.title3.weight(.semibold))
+                ForEach(credits, id: \.provider) { credit in
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text(credit.provider.displayName)
+                            .font(.caption.weight(.medium))
+                            .frame(width: 92, alignment: .leading)
+                        Text(credit.fields.map(\.displayName).joined(separator: " · "))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+        } else {
+            // A record stored before the column existed. Naming the lead
+            // provider here would be a guess dressed as a credit, so the page
+            // says what it actually knows and offers the way to fix it.
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Where this came from")
+                    .font(.title3.weight(.semibold))
+                Text("This record was stored before each field kept its source. Look the concert up again to record them.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Button("Look This Concert Up Again") {
+                    Task { await section.identify(animeID: animeID) }
+                }
+                .buttonStyle(.link)
+                .font(.caption)
+                .disabled(section.isIdentifying)
             }
         }
     }

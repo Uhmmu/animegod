@@ -282,3 +282,110 @@ struct ConcertReleaseMergeTests {
         #expect(merged.isLiveRecording)
     }
 }
+
+/// Who answered what. A concert page is four services and a folder, no two of
+/// them answering the same question — and setlist.fm asks to be credited where
+/// its data is shown, which a credit that only appears when it led the whole
+/// record would not do.
+@Suite("Per-field attribution")
+struct ConcertAttributionTests {
+    private func musicBrainz() -> ConcertRelease {
+        ConcertRelease(
+            provider: .musicBrainz, externalID: "295db787", title: "跡暖空",
+            artistNames: ["結束バンド"], releaseDate: "2023-11-22", country: "JP",
+            labels: ["Aniplex"], catalogNumbers: ["ANZX-10294"], barcode: "4534530147127",
+            discs: [ConcertDisc(position: 1, title: "結束バンドLIVE-恒星-", format: "Blu-ray", tracks: [
+                ConcertTrack(position: 1, title: "ひとりぼっち東京", duration: 233)
+            ])]
+        )
+    }
+
+    private func bangumi() -> ConcertRelease {
+        ConcertRelease(
+            provider: .bangumi, externalID: "466281", title: "結束バンドLIVE-恒星-",
+            coverImageURLs: [URL(string: "https://lain.bgm.tv/pic/cover/l/466281.jpg")!],
+            score: 7.7, ratingCount: 120, venue: "Zepp Haneda（TOKYO）",
+            performedOn: "2023年5月21日", isPerformanceRecord: true, isLiveRecording: true
+        )
+    }
+
+    private func setlistFM() -> ConcertRelease {
+        var release = ConcertRelease(
+            provider: .setlistFM, externalID: "63ab8213", title: "Kessoku Band LIVE",
+            discs: [ConcertDisc(position: 1, format: "Blu-ray", tracks: [
+                ConcertTrack(position: 1, title: "Hitoribocchi Tokyo")
+            ])]
+        )
+        release.venue = "Zepp Haneda (TOKYO), Ota"
+        release.isLiveRecording = true
+        return release
+    }
+
+    private func local() -> ConcertRelease {
+        ConcertRelease(
+            provider: .localFiles, externalID: "folder", title: "folder",
+            coverImageURLs: [URL(fileURLWithPath: "/Volumes/T7/x/Scans/01.png")],
+            extras: [ConcertExtra(name: "Scans", itemCount: 27)]
+        )
+    }
+
+    /// The case the whole thing exists for: setlist.fm gave only the venue, and
+    /// is credited for exactly that.
+    @Test func creditsASourceThatOnlyGaveOneField() throws {
+        let merged = try #require(ConcertReleaseMerge.merge([
+            musicBrainz(), bangumi(), setlistFM(), local()
+        ]))
+        #expect(merged.attribution[.venue] == .setlistFM)
+        #expect(merged.venue == "Zepp Haneda (TOKYO), Ota")
+        // And it is not credited with the setlist, which MusicBrainz won.
+        #expect(merged.attribution[.setlist] == .musicBrainz)
+        #expect(merged.attribution[.rating] == .bangumi)
+        #expect(merged.attribution[.performedOn] == .bangumi)
+        // The scans beat every service's cover, and only the folder knows the
+        // box.
+        #expect(merged.attribution[.covers] == .localFiles)
+        #expect(merged.attribution[.extras] == .localFiles)
+        #expect(merged.attribution[.catalogNumbers] == .musicBrainz)
+    }
+
+    /// Nothing is credited for a field nobody answered — an absent entry says
+    /// "not known", which is not the same as crediting a source with a blank.
+    @Test func doesNotCreditAnUnansweredField() throws {
+        let merged = try #require(ConcertReleaseMerge.merge([musicBrainz()]))
+        #expect(merged.attribution[.venue] == nil)
+        #expect(merged.attribution[.rating] == nil)
+        #expect(merged.attribution[.summary] == nil)
+        #expect(merged.attribution[.extras] == nil)
+        #expect(merged.attribution[.setlist] == .musicBrainz)
+    }
+
+    /// Grouped for the page, most generous source first and the folder last,
+    /// because the folder is not a service and the credit is about services.
+    @Test func groupsCreditsBySource() throws {
+        let merged = try #require(ConcertReleaseMerge.merge([
+            musicBrainz(), bangumi(), setlistFM(), local()
+        ]))
+        let credits = merged.credits
+        #expect(credits.first?.provider == .musicBrainz)
+        #expect(credits.last?.provider == .localFiles)
+        #expect(credits.contains { $0.provider == .setlistFM && $0.fields == [.venue] })
+        // Every credited field appears exactly once across the groups.
+        let all = credits.flatMap(\.fields)
+        #expect(Set(all).count == all.count)
+        #expect(Set(all) == Set(merged.attribution.keys))
+    }
+
+    /// The map has to survive the round trip through the database, where it is
+    /// one JSON column — and as an object, not as a flat array of alternating
+    /// keys and values, which is what `Dictionary`'s own coding would give.
+    @Test func encodesAsAnObject() throws {
+        let merged = try #require(ConcertReleaseMerge.merge([musicBrainz(), setlistFM()]))
+        let data = try JSONEncoder().encode(merged.attribution)
+        let text = try #require(String(data: data, encoding: .utf8))
+        #expect(text.contains("\"venue\":\"setlistFM\""))
+
+        let decoded = try JSONDecoder()
+            .decode([ConcertReleaseField: ConcertProviderID].self, from: data)
+        #expect(decoded == merged.attribution)
+    }
+}

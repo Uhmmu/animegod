@@ -447,4 +447,33 @@ struct ConcertTitleIdentificationTests {
 
         #expect(await log.asked.allSatisfy { !$0.hasPrefix("setlistFM") })
     }
+
+    /// The whole chain against the real services, for the one concert in this
+    /// library: Bangumi for the hall, the date and the score, and setlist.fm —
+    /// asked with what Bangumi just said — for what was played.
+    ///
+    /// Opt-in: `ANIMEGOD_LIVE_TESTS=1` plus `ANIMEGOD_SETLISTFM_KEY`.
+    @Test func liveAttributionAcrossBothSources() async throws {
+        guard ProcessInfo.processInfo.environment["ANIMEGOD_LIVE_TESTS"] == "1",
+              let key = ProcessInfo.processInfo.environment["ANIMEGOD_SETLISTFM_KEY"]
+        else { return }
+
+        let found = await ConcertIdentifier(
+            bangumi: BangumiConcertProvider(),
+            setlistFM: SetlistFMConcertProvider(apiKey: key)
+        ).identify(title: "MyGO!!!!! 6th LIVE「見つけた景色、たずさえて」", requiringPerformance: true)
+
+        let release = try #require(found.release)
+        // Bangumi has no track list for a 演出 subject, so every song on this
+        // page is setlist.fm's — and both nights of it.
+        #expect(release.attribution[.setlist] == .setlistFM)
+        #expect(release.discs.count == 2)
+        #expect(release.discs.map { $0.songs.count } == [16, 16])
+        // The hall with its city beats the hall alone, and the date and the
+        // score are Bangumi's.
+        #expect(release.attribution[.venue] == .setlistFM)
+        #expect(release.attribution[.performedOn] == .bangumi)
+        #expect(release.attribution[.rating] == .bangumi)
+        #expect(release.score == 8.7)
+    }
 }

@@ -158,14 +158,15 @@ public extension LibraryDatabase {
     func saveConcertRelease(_ release: ConcertRelease, forAnimeID animeID: UUID) throws {
         let discs = try JSONEncoder().encode(release.discs)
         let extras = try JSONEncoder().encode(release.extras)
+        let attribution = try JSONEncoder().encode(release.attribution)
         try database.write { db in
             try db.execute(sql: """
                 INSERT INTO concertRelease (
                     animeID, provider, externalID, title, artistNames, releaseDate, country,
                     labels, catalogNumbers, barcode, genres, coverImageURLs, sourceURL,
                     score, ratingCount, summary, venue, performedOn, officialSiteURL,
-                    discs, extras, updatedAt
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    discs, extras, attribution, updatedAt
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(animeID) DO UPDATE SET
                     provider = excluded.provider, externalID = excluded.externalID,
                     title = excluded.title, artistNames = excluded.artistNames,
@@ -177,7 +178,7 @@ public extension LibraryDatabase {
                     summary = excluded.summary, venue = excluded.venue,
                     performedOn = excluded.performedOn, officialSiteURL = excluded.officialSiteURL,
                     discs = excluded.discs, extras = excluded.extras,
-                    updatedAt = excluded.updatedAt
+                    attribution = excluded.attribution, updatedAt = excluded.updatedAt
                 """, arguments: [
                     animeID.uuidString, release.provider.rawValue, release.externalID,
                     release.title, Self.joined(release.artistNames), release.releaseDate,
@@ -187,7 +188,7 @@ public extension LibraryDatabase {
                     Self.joined(release.coverImageURLs.map(\.absoluteString)),
                     release.sourceURL?.absoluteString, release.score, release.ratingCount,
                     release.summary, release.venue, release.performedOn,
-                    release.officialSiteURL?.absoluteString, discs, extras, Date()
+                    release.officialSiteURL?.absoluteString, discs, extras, attribution, Date()
                 ])
         }
     }
@@ -317,7 +318,12 @@ extension LibraryDatabase {
             performedOn: row["performedOn"],
             officialSiteURL: (row["officialSiteURL"] as String?).flatMap(URL.init(string:)),
             extras: (row["extras"] as Data?)
-                .flatMap { try? JSONDecoder().decode([ConcertExtra].self, from: $0) } ?? []
+                .flatMap { try? JSONDecoder().decode([ConcertExtra].self, from: $0) } ?? [],
+            // Absent on a record stored before the column existed, which the
+            // page reads as "not recorded" rather than as "nobody answered".
+            attribution: (row["attribution"] as Data?)
+                .flatMap { try? JSONDecoder().decode([ConcertReleaseField: ConcertProviderID].self, from: $0) }
+                ?? [:]
         )
     }
 

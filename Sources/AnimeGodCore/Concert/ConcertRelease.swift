@@ -22,6 +22,76 @@ public enum ConcertProviderID: String, Codable, CaseIterable, Sendable {
     }
 }
 
+/// A field of a concert record, for saying which source answered it.
+///
+/// A concert page is assembled from four services and the folder on disk, and
+/// no two of them answer the same question — so "where did this come from" has
+/// no single answer and the page should not pretend otherwise. It is also a
+/// condition of using some of them: setlist.fm asks that its data be credited
+/// where it is shown, and a credit that appears only when it happens to have
+/// led the whole record is not a credit.
+///
+/// Declared in the order a page should list them: what was played first,
+/// because that is what a concert is.
+public enum ConcertReleaseField: String, Codable, CaseIterable, Sendable {
+    case setlist
+    case venue
+    case performedOn
+    case rating
+    case artists
+    case title
+    case summary
+    case covers
+    case extras
+    case labels
+    case catalogNumbers
+    case barcode
+    case releaseDate
+    case country
+    case genres
+    case officialSite
+
+    public var displayName: String {
+        switch self {
+        case .setlist: String(localized: "Setlist", bundle: .module)
+        case .venue: String(localized: "Venue", bundle: .module)
+        case .performedOn: String(localized: "Performance date", bundle: .module)
+        case .rating: String(localized: "Rating", bundle: .module)
+        case .artists: String(localized: "Artist", bundle: .module)
+        case .title: String(localized: "Title", bundle: .module)
+        case .summary: String(localized: "Description", bundle: .module)
+        case .covers: String(localized: "Artwork", bundle: .module)
+        case .extras: String(localized: "What came in the box", bundle: .module)
+        case .labels: String(localized: "Label", bundle: .module)
+        case .catalogNumbers: String(localized: "Catalogue number", bundle: .module)
+        case .barcode: String(localized: "Barcode", bundle: .module)
+        case .releaseDate: String(localized: "Release date", bundle: .module)
+        case .country: String(localized: "Country", bundle: .module)
+        case .genres: String(localized: "Genre", bundle: .module)
+        case .officialSite: String(localized: "Official site", bundle: .module)
+        }
+    }
+}
+
+/// So the map encodes as `{"venue": "setlistFM"}` rather than as a flat array
+/// of alternating keys and values, which is what `Dictionary`'s own `Codable`
+/// does for a key it cannot use as a coding key.
+extension ConcertReleaseField: CodingKeyRepresentable {
+    public var codingKey: any CodingKey { StringCodingKey(rawValue) }
+
+    public init?<Key: CodingKey>(codingKey: Key) {
+        self.init(rawValue: codingKey.stringValue)
+    }
+
+    private struct StringCodingKey: CodingKey {
+        let stringValue: String
+        var intValue: Int? { nil }
+        init(_ value: String) { stringValue = value }
+        init?(stringValue: String) { self.stringValue = stringValue }
+        init?(intValue: Int) { nil }
+    }
+}
+
 /// One disc of a release.
 ///
 /// A concert box is not one disc and its discs are not interchangeable: the
@@ -122,6 +192,34 @@ public struct ConcertRelease: Codable, Hashable, Sendable, Identifiable {
     /// that can say "and five bonus CDs and 27 scans" is describing what the
     /// viewer owns rather than what a catalogue happens to list.
     public var extras: [ConcertExtra] = []
+    /// Which source answered each field, filled in by the merge.
+    ///
+    /// Empty on a provider's own answer — there it would say the same thing
+    /// about every field — and empty on a record stored before this existed,
+    /// which the page treats as "not recorded" rather than as "nobody".
+    public var attribution: [ConcertReleaseField: ConcertProviderID] = [:]
+
+    /// The sources that answered something, each with what it gave, in the
+    /// order a page should list them: most fields first, and the folder on disk
+    /// last because it is not a service.
+    public var credits: [(provider: ConcertProviderID, fields: [ConcertReleaseField])] {
+        var byProvider: [ConcertProviderID: [ConcertReleaseField]] = [:]
+        for field in ConcertReleaseField.allCases {
+            guard let provider = attribution[field] else { continue }
+            byProvider[provider, default: []].append(field)
+        }
+        return byProvider
+            .map { (provider: $0.key, fields: $0.value) }
+            .sorted { first, second in
+                if (first.provider == .localFiles) != (second.provider == .localFiles) {
+                    return second.provider == .localFiles
+                }
+                if first.fields.count != second.fields.count {
+                    return first.fields.count > second.fields.count
+                }
+                return first.provider.rawValue < second.provider.rawValue
+            }
+    }
 
     public var id: String { "\(provider.rawValue):\(externalID)" }
 
@@ -147,7 +245,8 @@ public struct ConcertRelease: Codable, Hashable, Sendable, Identifiable {
         officialSiteURL: URL? = nil,
         isPerformanceRecord: Bool = false,
         isLiveRecording: Bool = false,
-        extras: [ConcertExtra] = []
+        extras: [ConcertExtra] = [],
+        attribution: [ConcertReleaseField: ConcertProviderID] = [:]
     ) {
         self.provider = provider
         self.externalID = externalID
@@ -171,6 +270,7 @@ public struct ConcertRelease: Codable, Hashable, Sendable, Identifiable {
         self.isPerformanceRecord = isPerformanceRecord
         self.isLiveRecording = isLiveRecording
         self.extras = extras
+        self.attribution = attribution
     }
 
     /// The discs worth playing, in order.

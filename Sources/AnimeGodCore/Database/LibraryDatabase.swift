@@ -2228,6 +2228,13 @@ public actor LibraryDatabase {
                 table.add(column: "extras", .blob)
             }
         }
+        migrator.registerMigration("v16_concert_attribution") { db in
+            // Which source answered each field. Its own migration rather than
+            // an edit to `v14` or `v15`, both of which are in a real library.
+            try db.alter(table: "concertRelease") { table in
+                table.add(column: "attribution", .blob)
+            }
+        }
         return migrator
     }
 }

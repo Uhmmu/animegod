@@ -7188,6 +7188,22 @@
         }
       }
     },
+    "Look This Concert Up Again": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このライブをもう一度調べる"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新查这场演唱会"
+          }
+        }
+      }
+    },
     "Look This Disc Up": {
       "localizations": {
         "ja": {
@@ -12206,6 +12222,22 @@
         }
       }
     },
+    "Setlist from %@": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "セットリスト：%@ 提供"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "曲目来自 %@"
+          }
+        }
+      }
+    },
     "Setlists powered by": {
       "localizations": {
         "ja": {
@@ -13642,6 +13674,22 @@
         }
       }
     },
+    "This record was stored before each field kept its source. Look the concert up again to record them.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この記録は、項目ごとに情報源を残すようになる前に保存されたものです。もう一度調べると記録されます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这条记录保存的时候还没有逐字段记来源。重新查一次就会记上。"
+          }
+        }
+      }
+    },
     "This work is still downloading and has not been matched yet, so there is no artwork, synopsis or rating for it. Matching it now links every episode of it — and the scan that follows finds it already matched.": {
       "localizations": {
         "ja": {
@@ -14754,6 +14802,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "剧集保存位置"
+          }
+        }
+      }
+    },
+    "Where this came from": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この情報の出どころ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这些信息来自哪里"
           }
         }
       }

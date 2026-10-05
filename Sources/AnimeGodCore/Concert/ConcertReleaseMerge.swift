@@ -39,45 +39,80 @@ public enum ConcertReleaseMerge {
         // stored under, and that is the one with the setlist.
         let lead = musicBrainz ?? discogs ?? bangumiDisc ?? performance ?? setlistFM ?? local!
 
+        // Each field keeps the source that answered it. Written as a pick
+        // rather than a `??` chain so the provenance cannot drift out of step
+        // with the preference: the two are now the same expression.
+        let name = title(musicBrainz: musicBrainz, others: [discogs, bangumiDisc, performance])
+        let artists = gather([musicBrainz, discogs, performance, setlistFM, local], \.artistNames)
+        let released = pick([discogs, musicBrainz, bangumiDisc], \.releaseDate)
+        let country = pick([discogs, musicBrainz, performance], \.country)
+        let labels = gather([discogs, musicBrainz], \.labels)
+        let numbers = gather([musicBrainz, discogs, local], \.catalogNumbers)
+        let barcode = pick([discogs, musicBrainz, local], \.barcode)
+        let genres = gather([discogs, performance], \.genres)
+        let setlist = discs(musicBrainz: musicBrainz, bangumi: bangumiDisc, setlistFM: setlistFM,
+                            discogs: discogs, local: local)
+        let artwork = covers(local: local, performance: performance, bangumiDisc: bangumiDisc,
+                             musicBrainz: musicBrainz, discogs: discogs)
+        // Bangumi is the only source here with a rating a person left, and it
+        // has two of them.
+        let score = rating(performance: performance, disc: bangumiDisc)
+        let summary = pick([bangumiDisc, performance, discogs], \.summary)
+        // setlist.fm names the hall *and* the city, and it is the venue of the
+        // night rather than of the tour, so it leads here.
+        let venue = pick([setlistFM, performance, bangumiDisc], \.venue)
+        let performedOn = pick([performance, setlistFM, bangumiDisc], \.performedOn)
+        let officialSite = pick([performance, bangumiDisc], \.officialSiteURL)
+
+        var attribution: [ConcertReleaseField: ConcertProviderID] = [:]
+        func credit(_ field: ConcertReleaseField, _ provider: ConcertProviderID?) {
+            guard let provider else { return }
+            attribution[field] = provider
+        }
+        credit(.title, name.provider)
+        credit(.artists, artists.provider)
+        credit(.releaseDate, released.provider)
+        credit(.country, country.provider)
+        credit(.labels, labels.provider)
+        credit(.catalogNumbers, numbers.provider)
+        credit(.barcode, barcode.provider)
+        credit(.genres, genres.provider)
+        credit(.setlist, setlist.provider)
+        credit(.covers, artwork.provider)
+        credit(.rating, score == nil ? nil : .bangumi)
+        credit(.summary, summary.provider)
+        credit(.venue, venue.provider)
+        credit(.performedOn, performedOn.provider)
+        credit(.officialSite, officialSite.provider)
+        credit(.extras, local?.extras.isEmpty == false ? .localFiles : nil)
+
         var merged = ConcertRelease(
             provider: lead.provider,
             externalID: lead.externalID,
-            title: title(musicBrainz: musicBrainz, others: [discogs, bangumiDisc, performance]),
-            artistNames: dedupe([
-                musicBrainz?.artistNames ?? [], discogs?.artistNames ?? [],
-                performance?.artistNames ?? [], setlistFM?.artistNames ?? [],
-                local?.artistNames ?? []
-            ].flatMap { $0 }),
-            releaseDate: first([discogs?.releaseDate, musicBrainz?.releaseDate, bangumiDisc?.releaseDate]),
-            country: first([discogs?.country, musicBrainz?.country, performance?.country]),
-            labels: dedupe([discogs?.labels ?? [], musicBrainz?.labels ?? []].flatMap { $0 }),
-            catalogNumbers: dedupe([
-                musicBrainz?.catalogNumbers ?? [], discogs?.catalogNumbers ?? [],
-                local?.catalogNumbers ?? []
-            ].flatMap { $0 }),
-            barcode: first([discogs?.barcode, musicBrainz?.barcode, local?.barcode]),
-            genres: dedupe([discogs?.genres ?? [], performance?.genres ?? []].flatMap { $0 }),
-            discs: discs(musicBrainz: musicBrainz, bangumi: bangumiDisc, setlistFM: setlistFM,
-                         discogs: discogs, local: local),
-            coverImageURLs: covers(local: local, performance: performance, bangumiDisc: bangumiDisc,
-                                   musicBrainz: musicBrainz, discogs: discogs),
+            title: name.value,
+            artistNames: artists.values,
+            releaseDate: released.value,
+            country: country.value,
+            labels: labels.values,
+            catalogNumbers: numbers.values,
+            barcode: barcode.value,
+            genres: genres.values,
+            discs: setlist.discs,
+            coverImageURLs: artwork.urls,
             sourceURL: lead.sourceURL,
-            // Bangumi is the only one of the three with a rating a person left,
-            // and it has two of them.
-            score: rating(performance: performance, disc: bangumiDisc)?.score,
-            ratingCount: rating(performance: performance, disc: bangumiDisc)?.count,
-            summary: first([bangumiDisc?.summary, performance?.summary, discogs?.summary]),
-            // setlist.fm names the hall *and* the city, and it is the venue of
-            // the night rather than of the tour, so it leads here.
-            venue: first([setlistFM?.venue, performance?.venue, bangumiDisc?.venue]),
-            performedOn: first([performance?.performedOn, setlistFM?.performedOn, bangumiDisc?.performedOn]),
-            officialSiteURL: first([performance?.officialSiteURL, bangumiDisc?.officialSiteURL]),
+            score: score?.score,
+            ratingCount: score?.count,
+            summary: summary.value,
+            venue: venue.value,
+            performedOn: performedOn.value,
+            officialSiteURL: officialSite.value,
             isPerformanceRecord: false,
             // One source saying so is enough: none of them claims it falsely,
-            // and only MusicBrainz and Bangumi claim it at all.
+            // and only three of them claim it at all.
             isLiveRecording: sources.contains(where: \.isLiveRecording),
             // Only the folder knows what is in the box.
-            extras: local?.extras ?? []
+            extras: local?.extras ?? [],
+            attribution: attribution
         )
         if merged.title.isEmpty { merged.title = lead.title }
         return merged
@@ -91,15 +126,23 @@ public enum ConcertReleaseMerge {
     /// on `ANZX-10294`, the media are titled `結束バンドLIVE-恒星-`,
     /// `ぼっち・ざ・ろっく！です。` and nothing, while the release is
     /// `結束バンドLIVE-恒星-`; on a mixed release only the medium gets it right.
-    static func title(musicBrainz: ConcertRelease?, others: [ConcertRelease?]) -> String {
+    static func title(
+        musicBrainz: ConcertRelease?,
+        others: [ConcertRelease?]
+    ) -> (value: String, provider: ConcertProviderID?) {
         if let discTitle = musicBrainz?.videoDiscs.first?.title, !discTitle.isEmpty {
             // The medium is one night of the concert and is titled as such —
             // `… 見つけた景色、たずさえて」DAY1`. The concert is both nights, so the
             // night comes off the name the same way it comes off a folder's.
-            return AnimeFilenameParser.withoutDiscLabel(discTitle)
+            return (AnimeFilenameParser.withoutDiscLabel(discTitle), .musicBrainz)
         }
-        if let releaseTitle = musicBrainz?.title, !releaseTitle.isEmpty { return releaseTitle }
-        return others.compactMap { $0?.title }.first { !$0.isEmpty } ?? ""
+        if let releaseTitle = musicBrainz?.title, !releaseTitle.isEmpty {
+            return (releaseTitle, .musicBrainz)
+        }
+        for case let source? in others where !source.title.isEmpty {
+            return (source.title, source.provider)
+        }
+        return ("", nil)
     }
 
     /// Which of Bangumi's two ratings to show.
@@ -137,7 +180,7 @@ public enum ConcertReleaseMerge {
         setlistFM: ConcertRelease? = nil,
         discogs: ConcertRelease?,
         local: ConcertRelease? = nil
-    ) -> [ConcertDisc] {
+    ) -> (discs: [ConcertDisc], provider: ConcertProviderID?) {
         // The folder's own cue sheet comes last among track lists, because it
         // describes the bonus CD rather than the programme — twelve songs where
         // each night of the concert ran sixteen. It is still a setlist, and it
@@ -145,13 +188,13 @@ public enum ConcertReleaseMerge {
         // setlist.fm ahead of Discogs: it has no lengths either, but it is a
         // night's own running order with the encore marked, while Discogs'
         // hand-entered lists are measurably wrong on these releases.
-        for candidate in [musicBrainz, bangumi, setlistFM, discogs, local] {
-            guard let discs = candidate?.discs, !discs.isEmpty,
-                  discs.contains(where: { !$0.songs.isEmpty })
+        for case let candidate? in [musicBrainz, bangumi, setlistFM, discogs, local] {
+            guard !candidate.discs.isEmpty,
+                  candidate.discs.contains(where: { !$0.songs.isEmpty })
             else { continue }
-            return discs
+            return (candidate.discs, candidate.provider)
         }
-        return []
+        return ([], nil)
     }
 
     /// Covers, best first.
@@ -167,31 +210,57 @@ public enum ConcertReleaseMerge {
         bangumiDisc: ConcertRelease?,
         musicBrainz: ConcertRelease?,
         discogs: ConcertRelease?
-    ) -> [URL] {
+    ) -> (urls: [URL], provider: ConcertProviderID?) {
         var seen = Set<URL>()
         // The release's own scans first and by a long way: three-megabyte
         // jacket scans against Discogs' 445×600 photograph of the case.
-        return [local, bangumiDisc, performance, musicBrainz, discogs]
-            .compactMap { $0?.coverImageURLs }
-            .flatMap { $0 }
+        let ordered = [local, bangumiDisc, performance, musicBrainz, discogs].compactMap { $0 }
+        let urls = ordered
+            .flatMap(\.coverImageURLs)
             .filter { seen.insert($0).inserted }
+        // Credited to whichever one the cover on screen came from, which is the
+        // first in that order with an image — the rest are fallbacks for a URL
+        // that fails to load.
+        return (urls, ordered.first { !$0.coverImageURLs.isEmpty }?.provider)
     }
 
-    private static func first(_ candidates: [String?]) -> String? {
-        candidates.compactMap { $0 }.first { !$0.isEmpty }
+    /// The first of these sources that has this field, and which one it was.
+    ///
+    /// By key path rather than by passing the values in, so that a preference
+    /// order and the credit for it cannot be written down differently.
+    private static func pick(
+        _ sources: [ConcertRelease?],
+        _ field: KeyPath<ConcertRelease, String?>
+    ) -> (value: String?, provider: ConcertProviderID?) {
+        for case let source? in sources {
+            guard let value = source[keyPath: field], !value.isEmpty else { continue }
+            return (value, source.provider)
+        }
+        return (nil, nil)
     }
 
-    private static func first(_ candidates: [Double?]) -> Double? {
-        candidates.compactMap { $0 }.first
+    private static func pick(
+        _ sources: [ConcertRelease?],
+        _ field: KeyPath<ConcertRelease, URL?>
+    ) -> (value: URL?, provider: ConcertProviderID?) {
+        for case let source? in sources {
+            guard let value = source[keyPath: field] else { continue }
+            return (value, source.provider)
+        }
+        return (nil, nil)
     }
 
-    private static func first(_ candidates: [Int?]) -> Int? {
-        candidates.compactMap { $0 }.first
+    /// Everything every source has, deduped — credited to the first that had
+    /// anything, since that is the one whose spelling leads.
+    private static func gather(
+        _ sources: [ConcertRelease?],
+        _ field: KeyPath<ConcertRelease, [String]>
+    ) -> (values: [String], provider: ConcertProviderID?) {
+        let present = sources.compactMap { $0 }.filter { !$0[keyPath: field].isEmpty }
+        return (dedupe(present.flatMap { $0[keyPath: field] }), present.first?.provider)
     }
 
-    private static func first(_ candidates: [URL?]) -> URL? {
-        candidates.compactMap { $0 }.first
-    }
+
 
     private static func dedupe(_ values: [String]) -> [String] {
         var seen = Set<String>()
