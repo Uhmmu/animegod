@@ -279,7 +279,8 @@ private extension MusicBrainzConcertProvider {
                 barcode: barcode,
                 genres: [],
                 discs: discs,
-                sourceURL: URL(string: "https://musicbrainz.org/release/\(id)")
+                sourceURL: URL(string: "https://musicbrainz.org/release/\(id)"),
+                isLiveRecording: isLive
             )
         }
 

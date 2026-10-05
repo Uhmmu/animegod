@@ -162,7 +162,10 @@ private extension BangumiConcertProvider {
                 venue: Self.value(in: infobox, keys: ["演出地点", "会场", "会場", "场地"]),
                 performedOn: isPerformance ? (Self.value(in: infobox, keys: ["开始", "開始", "日期"]) ?? date) : nil,
                 officialSiteURL: Self.value(in: infobox, keys: ["官方网站", "公式サイト"]).flatMap(URL.init(string:)),
-                isPerformanceRecord: isPerformance
+                isPerformanceRecord: isPerformance,
+                // A 演出 subject *is* a concert, and a disc entry says so in
+                // its 类型 or 版本特性 — `Live`, `Live Event`, `演唱会`.
+                isLiveRecording: isPerformance || Self.saysLive(infobox)
             )
         }
 
@@ -178,6 +181,14 @@ private extension BangumiConcertProvider {
         var discCount: Int? {
             Self.value(in: infobox ?? [], keys: ["碟片数量", "枚数", "ディスク枚数"])
                 .flatMap { Int($0.filter(\.isNumber)) }
+        }
+
+        static func saysLive(_ infobox: [InfoboxEntry]) -> Bool {
+            let markers = ["live", "ライブ", "演唱会", "演唱會", "演出", "コンサート", "concert"]
+            return values(in: infobox, keys: ["类型", "ジャンル", "版本特性", "版本"]).contains { value in
+                let folded = value.lowercased()
+                return markers.contains { folded.contains($0) }
+            }
         }
 
         static func value(in infobox: [InfoboxEntry], keys: [String]) -> String? {

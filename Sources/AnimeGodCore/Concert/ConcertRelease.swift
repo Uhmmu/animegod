@@ -102,6 +102,14 @@ public struct ConcertRelease: Codable, Hashable, Sendable, Identifiable {
     /// like a release with no discs, which is also what a failed lookup looks
     /// like.
     public var isPerformanceRecord: Bool = false
+    /// The source says this is a live recording.
+    ///
+    /// The only machine-readable "this is a concert" any of the three
+    /// publishes: MusicBrainz marks the release group `Live` as a secondary
+    /// type, and Bangumi writes `类型: Live` on a 演出 subject. Discogs says
+    /// nothing of the sort. It is what moves a work into the concert section
+    /// without anyone having to say so.
+    public var isLiveRecording: Bool = false
 
     public var id: String { "\(provider.rawValue):\(externalID)" }
 
@@ -125,7 +133,8 @@ public struct ConcertRelease: Codable, Hashable, Sendable, Identifiable {
         venue: String? = nil,
         performedOn: String? = nil,
         officialSiteURL: URL? = nil,
-        isPerformanceRecord: Bool = false
+        isPerformanceRecord: Bool = false,
+        isLiveRecording: Bool = false
     ) {
         self.provider = provider
         self.externalID = externalID
@@ -147,6 +156,7 @@ public struct ConcertRelease: Codable, Hashable, Sendable, Identifiable {
         self.performedOn = performedOn
         self.officialSiteURL = officialSiteURL
         self.isPerformanceRecord = isPerformanceRecord
+        self.isLiveRecording = isLiveRecording
     }
 
     /// The discs worth playing, in order.
