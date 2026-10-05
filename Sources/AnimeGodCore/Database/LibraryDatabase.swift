@@ -2213,15 +2213,6 @@ public actor LibraryDatabase {
                 table.column("isManual", .boolean).notNull().defaults(to: false)
                 table.column("updatedAt", .datetime).notNull()
             }
-            // Per-song watch state. A concert is not watched the way an
-            // episode is: people come back for three songs out of sixteen.
-            try db.create(table: "concertSongProgress") { table in
-                table.column("episodeID", .text).notNull().references("episode", onDelete: .cascade)
-                table.column("songPosition", .integer).notNull()
-                table.column("isWatched", .boolean).notNull().defaults(to: false)
-                table.column("lastPlayedAt", .datetime)
-                table.primaryKey(["episodeID", "songPosition"])
-            }
             try db.create(index: "concertRelease_catalog", on: "concertRelease", columns: ["catalogNumbers"])
         }
         return migrator

@@ -21,7 +21,6 @@ public extension LibraryDatabase {
             let rows = try Row.fetchAll(db, sql: """
                 SELECT anime.*,
                        COUNT(DISTINCT mediaFile.id) AS discCount,
-                       COUNT(DISTINCT CASE WHEN playbackProgress.isWatched = 1 THEN episode.id END) AS watchedDiscCount,
                        MAX(playbackProgress.updatedAt) AS lastPlayedAt
                 FROM anime
                 JOIN episode ON episode.animeID = anime.id
@@ -39,7 +38,6 @@ public extension LibraryDatabase {
                     anime: anime,
                     release: releases[anime.id],
                     discCount: row["discCount"],
-                    watchedDiscCount: row["watchedDiscCount"],
                     lastPlayedAt: row["lastPlayedAt"]
                 )
             }
@@ -153,60 +151,6 @@ public extension LibraryDatabase {
                     setlist.isManual,
                     setlist.updatedAt
                 ])
-        }
-    }
-
-    // MARK: - Per-song watch state
-
-    /// Which songs of this disc have been seen, by position.
-    func concertSongProgress(episodeID: UUID) throws -> [Int: ConcertSongProgress] {
-        try database.read { db in
-            let rows = try Row.fetchAll(
-                db, sql: "SELECT * FROM concertSongProgress WHERE episodeID = ?",
-                arguments: [episodeID.uuidString]
-            )
-            return Dictionary(uniqueKeysWithValues: rows.map { row in
-                let position: Int = row["songPosition"]
-                return (position, ConcertSongProgress(
-                    songPosition: position,
-                    isWatched: row["isWatched"],
-                    lastPlayedAt: row["lastPlayedAt"]
-                ))
-            })
-        }
-    }
-
-    /// Marks a song.
-    ///
-    /// `isWatched` only ever rises on its own, the same rule the episode
-    /// progress follows: playing a concert again from the top must not unmark
-    /// the songs already seen, and the player's autosave would otherwise do
-    /// exactly that every ten seconds.
-    func markConcertSong(
-        episodeID: UUID,
-        songPosition: Int,
-        isWatched: Bool,
-        playedAt: Date = .now
-    ) throws {
-        try database.write { db in
-            try db.execute(sql: """
-                INSERT INTO concertSongProgress (episodeID, songPosition, isWatched, lastPlayedAt)
-                VALUES (?, ?, ?, ?)
-                ON CONFLICT(episodeID, songPosition) DO UPDATE SET
-                    isWatched = MAX(concertSongProgress.isWatched, excluded.isWatched),
-                    lastPlayedAt = excluded.lastPlayedAt
-                """, arguments: [episodeID.uuidString, songPosition, isWatched, playedAt])
-        }
-    }
-
-    /// The viewer's own mark, which is the one thing allowed to lower the flag.
-    func setConcertSongWatched(episodeID: UUID, songPosition: Int, isWatched: Bool) throws {
-        try database.write { db in
-            try db.execute(sql: """
-                INSERT INTO concertSongProgress (episodeID, songPosition, isWatched, lastPlayedAt)
-                VALUES (?, ?, ?, ?)
-                ON CONFLICT(episodeID, songPosition) DO UPDATE SET isWatched = excluded.isWatched
-                """, arguments: [episodeID.uuidString, songPosition, isWatched, Date()])
         }
     }
 

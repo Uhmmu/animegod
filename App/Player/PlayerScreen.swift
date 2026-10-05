@@ -967,8 +967,16 @@ struct PlayerScreen: View {
     /// How close to the end counts as watched for the work being played: five
     /// minutes into a series' credits, ten into a film's.
     private var watchedTail: Double {
-        model.watchedKind(forAnimeID: state.currentEpisode.episode.animeID).completionTail
+        watchedKind.completionTail
     }
+
+    private var watchedKind: WatchedWorkKind {
+        model.watchedKind(forAnimeID: state.currentEpisode.episode.animeID)
+    }
+
+    /// Whether this work can be finished at all. A concert cannot, so the mark
+    /// is not offered for one.
+    private var tracksWatchedState: Bool { watchedKind.tracksWatchedState }
 
     private var episodeLabel: String {
         let episode = state.currentEpisode.episode
@@ -1270,8 +1278,9 @@ struct PlayerScreen: View {
             // Sometimes the file is on only for the ED. The tail rule cannot
             // tell that apart from watching it, so this is how you say so —
             // and saying it also stops the rule marking it again a moment
-            // later. A file outside the library has nothing to mark.
-            if !state.isDirectPlayback {
+            // later. A file outside the library has nothing to mark, and a
+            // concert has nothing to mark it as: there is no finishing one.
+            if !state.isDirectPlayback, tracksWatchedState {
                 Button { toggleWatched() } label: {
                     Image(systemName: state.isWatched ? "checkmark.circle.fill" : "checkmark.circle")
                         .contentTransition(.symbolEffect(.replace))

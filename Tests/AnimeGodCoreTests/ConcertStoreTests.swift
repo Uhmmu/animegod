@@ -71,8 +71,9 @@ struct ConcertStoreTests {
     // MARK: - Leaving the grid
 
     /// The one thing asked for outright: a concert does not appear on the home
-    /// screen. It also must not appear on the continue shelf, because both open
-    /// the anime page, which a concert does not use.
+    /// screen. It also must not appear on the continue shelf — both open the
+    /// anime page, which a concert does not use, and a concert has nothing to
+    /// continue *towards*.
     @Test func aConcertLeavesTheGridAndTheContinueShelf() async throws {
         let (database, root) = try await library()
         let disc = try await importDisc(into: database, root: root)
@@ -222,36 +223,6 @@ struct ConcertStoreTests {
             .alignment.placements.first?.startTime == 0)
     }
 
-    // MARK: - Per-song watch state
-
-    /// The same trap the episode progress had: the player autosaves every ten
-    /// seconds, so if a replay could lower the flag, watching a concert again
-    /// from the top would unmark every song as it went past.
-    @Test func replayingAConcertDoesNotUnmarkSongsAlreadySeen() async throws {
-        let (database, root) = try await library()
-        let disc = try await importDisc(into: database, root: root)
-
-        try await database.markConcertSong(episodeID: disc.episodeID, songPosition: 1, isWatched: true)
-        try await database.markConcertSong(episodeID: disc.episodeID, songPosition: 2, isWatched: true)
-        // Playing it again: the first song is passed through, not finished.
-        try await database.markConcertSong(episodeID: disc.episodeID, songPosition: 1, isWatched: false)
-
-        let progress = try await database.concertSongProgress(episodeID: disc.episodeID)
-        #expect(progress[1]?.isWatched == true)
-        #expect(progress[2]?.isWatched == true)
-        #expect(progress[3] == nil)
-    }
-
-    /// The viewer's own mark is the one thing allowed to lower it.
-    @Test func theViewersOwnMarkMayUnwatchASong() async throws {
-        let (database, root) = try await library()
-        let disc = try await importDisc(into: database, root: root)
-        try await database.markConcertSong(episodeID: disc.episodeID, songPosition: 5, isWatched: true)
-        try await database.setConcertSongWatched(episodeID: disc.episodeID, songPosition: 5, isWatched: false)
-
-        #expect(try await database.concertSongProgress(episodeID: disc.episodeID)[5]?.isWatched == false)
-    }
-
     /// The concert rows hang off the work and the episode by foreign key, so
     /// removing the work takes them with it rather than leaving them to be
     /// matched against the next disc that lands in the same folder.
@@ -259,7 +230,6 @@ struct ConcertStoreTests {
         let (database, root) = try await library()
         let disc = try await importDisc(into: database, root: root)
         try await database.saveConcertRelease(release(discs: [liveDisc()]), forAnimeID: disc.animeID)
-        try await database.markConcertSong(episodeID: disc.episodeID, songPosition: 1, isWatched: true)
         try await database.saveConcertSetlist(StoredConcertSetlist(
             episodeID: disc.episodeID,
             alignment: ConcertSetlistAlignment(placements: [], method: .oneToOne, confidence: 0.6)
@@ -270,7 +240,6 @@ struct ConcertStoreTests {
         }
 
         #expect(try await database.concertRelease(animeID: disc.animeID) == nil)
-        #expect(try await database.concertSongProgress(episodeID: disc.episodeID).isEmpty)
         #expect(try await database.concertSetlist(episodeID: disc.episodeID) == nil)
     }
 }

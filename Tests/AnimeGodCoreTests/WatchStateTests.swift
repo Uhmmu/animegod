@@ -167,3 +167,33 @@ struct WatchStatePersistenceTests {
         #expect(entry.lastPlayedAt != nil)
     }
 }
+
+/// A concert has no watched state, and the absence has to hold at every caller
+/// — the one that passes a kind and the one that passes only a tail.
+struct ConcertWatchStateTests {
+    @Test func aConcertIsNeverFinished() {
+        let kind = WatchedWorkKind.classify(reportedKind: .live, mainEpisodeCount: 1)
+        #expect(kind == .untracked)
+        #expect(!kind.tracksWatchedState)
+        // A single disc has one "main episode", which is what would otherwise
+        // have made it a film.
+        #expect(!WatchedWorkKind.isWatched(position: 5_599, duration: 5_600, kind: kind))
+        #expect(!WatchedWorkKind.isWatched(position: 5_600, duration: 5_600, kind: kind))
+    }
+
+    /// The player marks from a tail rather than a kind, and an infinite tail
+    /// has to survive the quarter-of-the-runtime cap — capping infinity would
+    /// turn "never" into "three quarters of the way through".
+    @Test func anInfiniteTailIsNotCappedIntoAVerdict() {
+        #expect(!WatchedWorkKind.isWatched(position: 4_500, duration: 5_600, tail: .infinity))
+        #expect(!WatchedWorkKind.isWatched(position: 5_600, duration: 5_600, tail: .infinity))
+        #expect(WatchedWorkKind.untracked.completionTail == .infinity)
+    }
+
+    /// Everything else is unchanged.
+    @Test func filmsAndSeriesStillFinish() {
+        #expect(WatchedWorkKind.classify(reportedKind: .movie, mainEpisodeCount: 1) == .film)
+        #expect(WatchedWorkKind.classify(reportedKind: .tv, mainEpisodeCount: 12) == .series)
+        #expect(WatchedWorkKind.isWatched(position: 1_380, duration: 1_440, kind: .series))
+    }
+}

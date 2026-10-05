@@ -10,7 +10,8 @@ public struct LibraryConcert: Identifiable, Hashable, Sendable {
     public let release: ConcertRelease?
     /// How many playable discs of this work are on disk.
     public let discCount: Int
-    public let watchedDiscCount: Int
+    /// When any disc of it was last played. A position, not a verdict: there is
+    /// no finishing a concert, so nothing here counts how much is left.
     public let lastPlayedAt: Date?
 
     public var id: UUID { anime.id }
@@ -26,13 +27,11 @@ public struct LibraryConcert: Identifiable, Hashable, Sendable {
         anime: Anime,
         release: ConcertRelease?,
         discCount: Int,
-        watchedDiscCount: Int = 0,
         lastPlayedAt: Date? = nil
     ) {
         self.anime = anime
         self.release = release
         self.discCount = discCount
-        self.watchedDiscCount = watchedDiscCount
         self.lastPlayedAt = lastPlayedAt
     }
 }
@@ -56,18 +55,5 @@ public struct StoredConcertSetlist: Hashable, Sendable {
         self.alignment = alignment
         self.isManual = isManual
         self.updatedAt = updatedAt
-    }
-}
-
-/// Which songs of one disc have been seen.
-public struct ConcertSongProgress: Hashable, Sendable {
-    public let songPosition: Int
-    public var isWatched: Bool
-    public var lastPlayedAt: Date?
-
-    public init(songPosition: Int, isWatched: Bool, lastPlayedAt: Date? = nil) {
-        self.songPosition = songPosition
-        self.isWatched = isWatched
-        self.lastPlayedAt = lastPlayedAt
     }
 }

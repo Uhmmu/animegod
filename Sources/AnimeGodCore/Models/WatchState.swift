@@ -15,14 +15,28 @@ import Foundation
 public enum WatchedWorkKind: String, Sendable, Hashable, CaseIterable {
     case series
     case film
+    /// A work with no "watched" state at all.
+    ///
+    /// A concert disc is the case this exists for: there is nothing to finish.
+    /// Nobody works through a live Blu-ray to get to the end of it, and a disc
+    /// that went grey once the credits rolled would be telling the viewer
+    /// something they did not ask and that is not true of how anyone watches a
+    /// concert. Where it got to is still recorded — coming back to the song you
+    /// left off on is useful — but it is a position, not a verdict.
+    case untracked
 
-    /// How close to the end counts as watched.
+    /// How close to the end counts as watched. Infinite for a work that has no
+    /// such point, which is what stops every tail-based caller marking one.
     public var completionTail: Double {
         switch self {
         case .series: 5 * 60
         case .film: 10 * 60
+        case .untracked: .infinity
         }
     }
+
+    /// Whether this work can be finished at all.
+    public var tracksWatchedState: Bool { self != .untracked }
 
     /// What a work is watched as.
     ///
@@ -34,10 +48,8 @@ public enum WatchedWorkKind: String, Sendable, Hashable, CaseIterable {
     public static func classify(reportedKind: AnimeKind?, mainEpisodeCount: Int?) -> WatchedWorkKind {
         switch reportedKind {
         case .movie: return .film
-        // A concert disc is one long programme with a credit roll on the end,
-        // so it finishes the way a film does rather than the way an episode
-        // does.
-        case .live: return .film
+        // There is no finishing a concert, so there is nothing to mark.
+        case .live: return .untracked
         case .tv, .ova, .ona, .special: return .series
         case .unknown, nil: break
         }
@@ -56,7 +68,10 @@ public enum WatchedWorkKind: String, Sendable, Hashable, CaseIterable {
     /// four-minute creditless opening is before it started, and the file would
     /// be marked watched the moment it opened.
     public static func isWatched(position: Double, duration: Double, tail: Double) -> Bool {
-        guard duration > 0, position > 0 else { return false }
+        // An infinite tail means the work has no watched state. The cap below
+        // would otherwise turn it into three quarters of the way through, so
+        // the check has to come before it.
+        guard duration > 0, position > 0, tail.isFinite else { return false }
         return position >= duration - min(tail, duration * 0.25)
     }
 }
