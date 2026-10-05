@@ -184,6 +184,22 @@ final class AppModel: ObservableObject {
             try? await Task.sleep(for: .seconds(2))
             await self?.enrichLibraryMetadata(isAutomatic: true)
         }
+        identifyConcertsInBackground()
+    }
+
+    /// Looks up any disc the library has not identified yet, on its own.
+    ///
+    /// The same reasoning that made the metadata pass automatic: a toolbar
+    /// button nobody presses is a feature nobody has. Detached and quiet,
+    /// because a pass over a library of discs takes minutes at one request a
+    /// second and the usual reason one fails is a busy service, which the next
+    /// pass will get.
+    private func identifyConcertsInBackground() {
+        guard !concertSection.isIdentifying else { return }
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(4))
+            await self?.concertSection.identifyAll(isAutomatic: true)
+        }
     }
 
     func scan(_ root: LibraryRoot, managesScanningState: Bool = true) async {
