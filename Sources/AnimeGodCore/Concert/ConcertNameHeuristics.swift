@@ -138,12 +138,21 @@ public enum ConcertNameHeuristics {
         needles.contains { haystack.contains($0) }
     }
 
-    /// A `live` token that is not part of a longer word (`alive`, `delivery`)
-    /// and not part of a title or a phrase that means something else.
+    /// A live word that is not part of a longer word, not part of a title, and
+    /// not a phrase that means something else.
+    ///
+    /// **Latin and Japanese are matched differently and have to be.** `live`
+    /// needs a word boundary or `alive` and `delivery` are concerts. `ライブ`
+    /// must *not* have one, because Japanese does not put spaces anywhere: the
+    /// real queue in this library holds
+    /// `MyGO!!!!!×Ave Mujica 合同ライブ「わかれ道の、その先へ」`, and requiring a
+    /// boundary there recognised nothing at all. `ワンマンライブ` and `単独ライブ`
+    /// are the same shape. The one Japanese string that contains `ライブ` and is
+    /// not a concert is `ラブライブ`, which the negations already hold.
     private static func hasLiveWord(_ folded: String) -> Bool {
         if containsAny(folded, liveNegations) { return false }
-        for word in liveWords where hasToken(word, in: folded) { return true }
-        return false
+        if containsAny(folded, compoundLiveWords) { return true }
+        return latinLiveWords.contains { hasToken($0, in: folded) }
     }
 
     private static func hasToken(_ token: String, in folded: String) -> Bool {
@@ -210,7 +219,12 @@ public enum ConcertNameHeuristics {
         "演唱会", "演唱會", "コンサート", "concert", "音乐会", "音樂會", "ライブツアー", "live tour",
         "livetour", "演奏会", "リサイタル", "recital",
     ]
-    private static let liveWords = ["live", "ライブ", "ライヴ", "现场", "現場", "라이브"]
+    private static let latinLiveWords = ["live"]
+    /// Written without separators, so a word boundary would hide them.
+    /// Deliberately **not** `現場` / `现场`: the Japanese word means the site or
+    /// the scene of something, not a concert, and `LIVE` or `演唱会` carries the
+    /// cases it would have caught.
+    private static let compoundLiveWords = ["ライブ", "ライヴ"]
     /// Phrases in which `live` is not a concert. `live a live` is a game,
     /// `live action` is a film, and `love live` is a series — the series only
     /// loses the bare word, because its own concerts are titled with an

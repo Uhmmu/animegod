@@ -105,3 +105,29 @@ struct ConcertNameHeuristicsTests {
         #expect(verdict.isConcert)
     }
 }
+
+/// The nine downloads that were actually in flight in this library when the
+/// recogniser shipped — read off the running app, not invented. Every one is a
+/// concert, and every one used to raise the "which anime is this?" sheet.
+@Suite("The concerts in the queue")
+struct ConcertNameHeuristicsRealQueueTests {
+    @Test(arguments: [
+        "[DBD-Raws][Ave Mujica 4th LIVE 「Adventus」][1080P][BDRip][HEVC-10bit][FLAC][MKV]",
+        "[DBD-Raws][Ave Mujica 3rd LIVE 「Veritas」][1080P][BDRip][HEVC-10bit][FLAC][MKV]",
+        "[DBD-Raws][Ave Mujica 1st LIVE 「Perdere Omnia」][1080P][BDRip][HEVC-10bit][FLAC][MKV]",
+        // `0th` — a zeroth live is a real thing and a numeric ordinal has to
+        // allow it.
+        "[DBD-Raws][Ave Mujica 0th LIVE 「Primo die in scaena」][1080P][BDRip][HEVC-10bit][FLAC][MKV]",
+        // Two acts, both nights and the bonus disc in one folder.
+        "[DBD-Raws][MyGO!!!!!×Ave Mujica 合同ライブ「わかれ道の、その先へ」][DAY1+2+特典][1080P][BDRip][HEVC-10bit][FLAC][MKV]",
+        "[DBD-Raws][MyGO!!!!! ZEPP TOUR 2024「彷徨する渇望」愛知公演][1080P][BDRip][HEVC-10bit][FLAC][MKV]",
+        // A bare file name, no group bracket, the ordinal punctuated with ☆.
+        "BanG Dream! 12th☆LIVE DAY2 : MyGO!!!!!「ちいさな一瞬」.mkv",
+        "[DBD-Raws][MyGO!!!!! 7th LIVE「こたえなんてなくても」+Extra Studio Live][1080P][BDRip][HEVC-10bit][FLAC][MKV]",
+        "[DBD-Raws][MyGO!!!!! 3rd LIVE「声を抱えて生きる」][1080P][BDRip][HEVC-10bit][FLAC][MKV]",
+    ])
+    func everyOneInTheQueueIsRecognised(_ name: String) {
+        let verdict = ConcertNameHeuristics.verdict(for: name)
+        #expect(verdict.isConcert, "\(name) scored \(verdict.score) from \(verdict.signals)")
+    }
+}
