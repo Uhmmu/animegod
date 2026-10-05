@@ -269,3 +269,31 @@ struct ConcertSetlistAlignerTests {
         #expect(ConcertSetlistAligner.shifting(alignment, by: 0, chapters: chapters) == alignment)
     }
 }
+
+/// Which chapter each song lands on is also what renames the disc's chapters in
+/// the player, so the mapping has to be recoverable from the alignment alone.
+struct ConcertChapterNamingTests {
+    @Test func everySongReportsTheChapterItStartsOn() {
+        let songs = (1...3).map { ConcertTrack(position: $0, title: "Song \($0)", duration: 240) }
+        // Three four-minute songs with a marked one-minute MC after the first
+        // two. The MC being *shorter* than a song is what the alignment has to
+        // go on: with MC segments the same length as the songs, pinning the
+        // songs to the MC marks costs exactly the same and nothing could tell
+        // the two apart.
+        let marks = [0.0, 240, 300, 540, 600].enumerated().map {
+            ConcertChapterMark(index: $0.offset, startTime: $0.element)
+        }
+        let alignment = ConcertSetlistAligner.align(tracks: songs, chapters: marks, duration: 900)
+
+        #expect(alignment.method == .durations)
+        let byChapter = Dictionary(
+            uniqueKeysWithValues: alignment.placements.compactMap { placement in
+                placement.chapterIndex.map { ($0, placement.trackPosition) }
+            }
+        )
+        // The songs claim chapters 0, 2 and 4; the MC marks at 1 and 3 are not
+        // claimed, and in the player those keep their own titles because
+        // calling them anything would be a guess.
+        #expect(byChapter == [0: 1, 2: 2, 4: 3])
+    }
+}

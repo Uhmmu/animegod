@@ -201,3 +201,37 @@ struct ConcertIdentifierTests {
         #expect(!found.isConcert)
     }
 }
+
+/// The whole chain against the real services, opt-in.
+///
+/// The fakes above prove the order; this proves the order still describes what
+/// the services do. Needs `ANIMEGOD_LIVE_TESTS=1`, and `ANIMEGOD_DISCOGS_KEY` /
+/// `ANIMEGOD_DISCOGS_SECRET` for the half of it Discogs answers.
+struct ConcertIdentifierLiveTests {
+    @Test func identifiesARealDiscEndToEnd() async throws {
+        guard ProcessInfo.processInfo.environment["ANIMEGOD_LIVE_TESTS"] == "1" else { return }
+        let discogs = {
+            guard let key = ProcessInfo.processInfo.environment["ANIMEGOD_DISCOGS_KEY"],
+                  let secret = ProcessInfo.processInfo.environment["ANIMEGOD_DISCOGS_SECRET"]
+            else { return DiscogsConcertProvider?.none }
+            return DiscogsConcertProvider(credentials: .init(consumerKey: key, consumerSecret: secret))
+        }()
+
+        let found = await ConcertIdentifier(
+            discogs: discogs,
+            musicBrainz: MusicBrainzConcertProvider(),
+            bangumi: BangumiConcertProvider()
+        ).identify(folderName: "[ANZX-10294~10296] 結束バンドLIVE-恒星- [BDMV][1080P][x264][FLAC]")
+
+        let release = try #require(found.release, "a real catalogue number must resolve")
+        #expect(found.catalogNumber?.description == "ANZX-10294")
+        // Named after the disc, not the release it may sit inside.
+        #expect(release.title.contains("恒星"))
+        // The setlist and its lengths, which only MusicBrainz publishes.
+        #expect(release.songCount == 16)
+        #expect(abs((release.totalSongDuration ?? 0) - 4239) < 2)
+        // The live flag is what moves it into the section without being asked.
+        #expect(found.isConcert)
+        #expect(release.catalogNumbers.contains { $0.contains("10294") })
+    }
+}

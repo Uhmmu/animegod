@@ -269,6 +269,8 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
         currentIndex = index
         isWatched = episode.progress?.isWatched ?? false
         keepsUnwatched = false
+        // Another disc's setlist is not this one's.
+        setlistChapterNames = [:]
         setPosition(Self.startPosition(for: episode))
         duration = episode.progress?.duration ?? 0
         watchedDuration = 0
@@ -660,8 +662,36 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
     }
 
     func playerDidUpdateChapters(_ chapters: [MediaChapter], current: Int?) {
-        self.chapters = chapters
+        self.chapters = Self.naming(chapters, with: setlistChapterNames)
         self.currentChapter = current
+    }
+
+    /// Song names to show in place of a disc's own chapter numbering, by chapter
+    /// index.
+    ///
+    /// A concert disc numbers its chapters and names none of them, so the
+    /// chapter menu reads `Chapter 1`, `Chapter 2` on the one kind of disc where
+    /// every mark has an actual name. Renaming the chapters themselves rather
+    /// than building a second list means the menu, the scrub bubble and the
+    /// segment cuts in the timeline all say the same thing, since all three read
+    /// `chapters`.
+    private var setlistChapterNames: [Int: String] = [:]
+
+    /// The marks a setlist did *not* claim keep their own titles: those are the
+    /// MC segments and the opening film, and calling them anything would be a
+    /// guess.
+    static func naming(_ chapters: [MediaChapter], with names: [Int: String]) -> [MediaChapter] {
+        guard !names.isEmpty else { return chapters }
+        return chapters.map { chapter in
+            guard let name = names[chapter.index], !name.isEmpty else { return chapter }
+            return MediaChapter(index: chapter.index, title: name, startTime: chapter.startTime)
+        }
+    }
+
+    func nameChapters(_ names: [Int: String]) {
+        guard names != setlistChapterNames else { return }
+        setlistChapterNames = names
+        chapters = Self.naming(chapters, with: names)
     }
 
     func playerDidUpdatePlaybackState(speed: Double?, volume: Double?, subtitleDelay: Double?, audioDelay: Double?) {
@@ -980,6 +1010,23 @@ struct PlayerScreen: View {
     /// is not offered for one.
     private var tracksWatchedState: Bool { watchedKind.tracksWatchedState }
 
+    /// Which chapter each song starts on, as a name the menu can show.
+    private func songNames(for alignment: ConcertSetlistAlignment?) -> [Int: String] {
+        guard let alignment,
+              let release = model.concertSection.release(forAnimeID: state.currentEpisode.episode.animeID),
+              let disc = release.videoDisc(
+                  forDiscNumber: state.currentEpisode.episode.numberText.flatMap { Int($0) }
+              )
+        else { return [:] }
+        let titles = Dictionary(disc.songs.map { ($0.position, $0.title) }, uniquingKeysWith: { first, _ in first })
+        var names: [Int: String] = [:]
+        for placement in alignment.placements {
+            guard let index = placement.chapterIndex, let title = titles[placement.trackPosition] else { continue }
+            names[index] = title
+        }
+        return names
+    }
+
     /// Re-runs the setlist alignment only when something it depends on moved.
     /// `duration` is rounded to the second: mpv refines it as the file loads,
     /// and a fractional change would recompute the whole alignment.
@@ -1168,13 +1215,14 @@ struct PlayerScreen: View {
             guard !state.isDirectPlayback, state.duration > 0, !state.chapters.isEmpty,
                   model.concertSection.release(forAnimeID: state.currentEpisode.episode.animeID) != nil
             else { return }
-            await model.concertSection.resolveSetlist(
+            let alignment = await model.concertSection.resolveSetlist(
                 for: state.currentEpisode,
                 chapters: state.chapters.map {
                     ConcertChapterMark(index: $0.index, title: $0.title, startTime: $0.startTime)
                 },
                 duration: state.duration
             )
+            state.nameChapters(songNames(for: alignment))
         }
         .onAppear {
             // The link needs to reach whatever is playing: a handoff has to
