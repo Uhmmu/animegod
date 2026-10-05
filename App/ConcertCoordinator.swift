@@ -82,11 +82,44 @@ final class ConcertCoordinator: ObservableObject {
                 if found.isConcert { try await database.markAnimeAsConcert(id: work.animeID) }
                 identified += 1
             }
+            identified += await identifyConcertsNoProviderKnows(isAutomatic: isAutomatic)
             progress = identified == 0 ? nil : String(localized: "Identified \(identified) discs")
             await reload()
         } catch {
             if !isAutomatic { errorMessage = error.localizedDescription }
         }
+    }
+
+    /// Picks up the concerts that are not discs.
+    ///
+    /// A live Blu-ray ripped to MKV has no disc structure and usually no
+    /// catalogue number, so nothing above would ever offer it — and **no anime
+    /// index lists a concert**, so the match review asks about it at every
+    /// launch and can never be satisfied. That is what this is for: a work no
+    /// provider has heard of, which Bangumi files as a 演出, is a concert.
+    ///
+    /// Requiring the 演出 subject is what keeps it safe to point at every
+    /// unmatched work. A 音乐 subject would also match an album, and a loose
+    /// title would match the artist's other concerts; a performance subject
+    /// whose title plainly matches is an event that happened in a hall.
+    private func identifyConcertsNoProviderKnows(isAutomatic: Bool) async -> Int {
+        guard let database, let works = try? await database.worksWithNoMetadata(), !works.isEmpty else {
+            return 0
+        }
+        var moved = 0
+        for work in works {
+            progress = String(localized: "Looking up \(work.title)…")
+            let found = await identifier().identify(title: work.title, requiringPerformance: true)
+            guard let release = found.release, release.isLiveRecording else { continue }
+            do {
+                try await database.saveConcertRelease(release, forAnimeID: work.animeID)
+                try await database.markAnimeAsConcert(id: work.animeID)
+                moved += 1
+            } catch {
+                if !isAutomatic { errorMessage = error.localizedDescription }
+            }
+        }
+        return moved
     }
 
     /// Looks one disc up again, for the disc that was added while a service was

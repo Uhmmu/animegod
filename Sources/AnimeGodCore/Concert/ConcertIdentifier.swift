@@ -104,7 +104,12 @@ public struct ConcertIdentifier: Sendable {
     /// Only on a title that plainly matches, and only from Bangumi. The
     /// identifier still refuses to take a MusicBrainz title hit, because that
     /// one answers with a different artist's release at a perfect score.
-    public func identify(title: String) async -> ConcertIdentification {
+    /// - Parameter requiringPerformance: accept the answer only when Bangumi
+    ///   files this as a 演出 — an event that happened in a hall. That is the
+    ///   test for "is this a concert at all", as opposed to "tell me more about
+    ///   this concert", and it is what makes the automatic pass safe to point at
+    ///   every work no provider could match.
+    public func identify(title: String, requiringPerformance: Bool = false) async -> ConcertIdentification {
         var result = ConcertIdentification()
         guard let bangumi, !title.isEmpty else { return result }
         let key = ConcertSetlistAligner.normalise(title)
@@ -112,6 +117,7 @@ public struct ConcertIdentifier: Sendable {
         do {
             let subjects = try await bangumi.releases(title: title, artist: nil)
                 .filter { ConcertSetlistAligner.titlesMatch(ConcertSetlistAligner.normalise($0.title), key) }
+            if requiringPerformance, !subjects.contains(where: \.isPerformanceRecord) { return result }
             var found: [ConcertRelease] = []
             for subject in [
                 subjects.first(where: \.isPerformanceRecord),

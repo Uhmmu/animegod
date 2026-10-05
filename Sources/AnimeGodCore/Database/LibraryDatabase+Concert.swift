@@ -76,6 +76,30 @@ public extension LibraryDatabase {
         }
     }
 
+    /// Works no metadata provider has ever answered about.
+    ///
+    /// A concert is the usual reason: no anime index lists one, so the match
+    /// review asks about it at every launch and can never be satisfied. This is
+    /// what lets the concert lookup pick those up — the question is "has any
+    /// provider heard of this at all", not "is this a disc".
+    func worksWithNoMetadata() throws -> [(animeID: UUID, title: String)] {
+        try database.read { db in
+            let rows = try Row.fetchAll(db, sql: """
+                SELECT anime.id AS animeID, anime.title AS title
+                FROM anime
+                JOIN episode ON episode.animeID = anime.id
+                JOIN mediaFile ON mediaFile.episodeID = episode.id
+                LEFT JOIN animeMetadata ON animeMetadata.animeID = anime.id
+                WHERE anime.kind <> ? AND animeMetadata.animeID IS NULL
+                GROUP BY anime.id
+                """, arguments: [AnimeKind.live.rawValue])
+            return rows.compactMap { row in
+                guard let id = (row["animeID"] as String?).flatMap(UUID.init(uuidString:)) else { return nil }
+                return (id, row["title"])
+            }
+        }
+    }
+
     /// Takes a work back out of the concert section.
     @discardableResult
     func unmarkAnimeAsConcert(id: UUID, becoming kind: AnimeKind = .unknown) throws -> Bool {

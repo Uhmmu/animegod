@@ -309,6 +309,36 @@ struct ConcertTitleIdentificationTests {
                 "nothing should have been fetched")
     }
 
+    /// The automatic pass points this at every work no provider could match, so
+    /// it has to be able to say no. A 音乐 subject is an album as easily as a
+    /// concert; only a 演出 is an event that happened in a hall.
+    @Test func requiringAPerformanceRefusesAnAlbum() async throws {
+        let log = Log()
+        let album = subject("512098", "跡暖空", performance: false)
+        let bangumi = FakeBangumi(byTitle: [album], full: ["512098": album], log: log)
+
+        let loose = await ConcertIdentifier(bangumi: bangumi).identify(title: "跡暖空")
+        #expect(loose.release != nil, "asked about a concert, the album still answers")
+
+        let strict = await ConcertIdentifier(bangumi: bangumi)
+            .identify(title: "跡暖空", requiringPerformance: true)
+        #expect(strict.release == nil, "asked whether this is a concert, an album is not one")
+    }
+
+    /// And it has to be able to say yes, for the case it exists for: a work no
+    /// anime index lists, which Bangumi files as a performance.
+    @Test func requiringAPerformanceAcceptsOne() async throws {
+        let log = Log()
+        let work = "MyGO!!!!! 6th LIVE「見つけた景色、たずさえて」"
+        let live = subject("492657", work, performance: true, venue: "ぴあアリーナMM", score: 8.7)
+        let bangumi = FakeBangumi(byTitle: [live], full: ["492657": live], log: log)
+
+        let found = await ConcertIdentifier(bangumi: bangumi)
+            .identify(title: work, requiringPerformance: true)
+        #expect(found.release?.venue == "ぴあアリーナMM")
+        #expect(found.isConcert)
+    }
+
     @Test func anEmptyTitleAsksNothing() async throws {
         let log = Log()
         let found = await ConcertIdentifier(bangumi: FakeBangumi(log: log)).identify(title: "")
@@ -320,10 +350,24 @@ struct ConcertTitleIdentificationTests {
     /// point is that Bangumi has it while neither catalogue does.
     @Test func liveTitleLookup() async throws {
         guard ProcessInfo.processInfo.environment["ANIMEGOD_LIVE_TESTS"] == "1" else { return }
-        let found = await ConcertIdentifier(bangumi: BangumiConcertProvider())
-            .identify(title: "MyGO!!!!! 6th LIVE「見つけた景色、たずさえて」")
-        let release = try #require(found.release)
-        #expect(release.score != nil)
-        #expect(release.isLiveRecording)
+        let identifier = ConcertIdentifier(bangumi: BangumiConcertProvider())
+
+        // The title as the library actually holds it, nights and all.
+        for title in ["MyGO!!!!! 6th LIVE「見つけた景色、たずさえて」DAY1",
+                      "MyGO!!!!! 6th LIVE「見つけた景色、たずさえて」"] {
+            let found = await identifier.identify(title: title, requiringPerformance: true)
+            let release = try #require(found.release, "\(title) is a concert")
+            #expect(release.venue?.isEmpty == false)
+            #expect(release.score != nil)
+            #expect(found.isConcert)
+        }
+
+        // And the works in the same library that are not concerts. The pass is
+        // pointed at every unmatched work, so a false positive here would file
+        // an anime under the wrong thing entirely.
+        for title in ["Ave Mujica", "Domestic na Kanojo", "SENNEN_JYOYU"] {
+            let found = await identifier.identify(title: title, requiringPerformance: true)
+            #expect(found.release == nil, "\(title) is not a concert")
+        }
     }
 }
