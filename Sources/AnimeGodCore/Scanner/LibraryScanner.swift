@@ -145,6 +145,25 @@ public actor LibraryScanner {
                         }
                     }
                 }
+                // A night in the file's own name is not an episode number, it
+                // is which night of one concert this is. Measured on a real
+                // download: `[…][DAY1][1080P][BDRip].mkv` beside `[…][DAY2]…`
+                // in one folder became two separate works, and with no episode
+                // number between them merging the works would have collapsed
+                // them into one entry holding two "versions" of the same thing.
+                //
+                // Only when nothing else numbered the file. An ordinary episode
+                // that happens to say `[Disc 1]` already has its own number, and
+                // that number is the one that means something.
+                if parsed.episode == nil,
+                   let label = AnimeFilenameParser.discLabel(in: fileTitle) {
+                    parsed.episode = Double(label.number)
+                    parsed.episodeText = String(label.number)
+                    // The label also comes off the key the work splitter reads,
+                    // or the two nights are still two works.
+                    fileTitle = AnimeFilenameParser.withoutDiscLabel(fileTitle)
+                }
+
                 pending.append(PendingScannedFile(
                     scanned: ScannedMediaFile(
                         relativePath: relativePath,

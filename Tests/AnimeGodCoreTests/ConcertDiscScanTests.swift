@@ -223,3 +223,52 @@ struct ConcertDiscRootTests {
         #expect(DiscImageProbe.discRoot(forStructureFile: iso) == nil)
     }
 }
+
+/// The shape a two-night live actually arrives in, taken from a real download:
+/// one release folder, two MKVs, the night in the *filename*. Both files were
+/// becoming separate works, and neither carried an episode number — so merging
+/// the works alone would have collapsed two nights into one entry holding two
+/// "versions" of the same thing.
+struct ConcertRemuxDayTests {
+    private let parser = AnimeFilenameParser()
+
+    private func scan(_ paths: [String]) async throws -> [ScannedMediaFile] {
+        let rootURL = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+        for path in paths {
+            let fileURL = rootURL.appending(path: path)
+            try FileManager.default.createDirectory(
+                at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true
+            )
+            try Data([0x01]).write(to: fileURL)
+        }
+        let root = LibraryRoot(displayName: "Video", lastKnownPath: rootURL.path)
+        return try await LibraryScanner(parser: parser).scan(root: root, resolvedURL: rootURL).files
+    }
+
+    @Test func twoNightsInOneReleaseFolderAreOneWork() async throws {
+        let work = "MyGO!!!!! 6th LIVE「見つけた景色、たずさえて」"
+        let release = "[DBD-Raws][\(work)][1080P][BDRip][HEVC-10bit][FLAC][MKV]"
+        let files = try await scan([
+            "\(work)/\(release)/[DBD-Raws][\(work)][DAY1][1080P][BDRip][HEVC-10bit][FLAC].mkv",
+            "\(work)/\(release)/[DBD-Raws][\(work)][DAY2][1080P][BDRip][HEVC-10bit][FLAC].mkv"
+        ])
+
+        #expect(files.count == 2)
+        #expect(Set(files.map(\.parsed.title)).count == 1, "one work, not two")
+        // And two entries inside it rather than two versions of one.
+        #expect(files.map(\.parsed.episode).sorted { ($0 ?? 0) < ($1 ?? 0) } == [1, 2])
+    }
+
+    /// An ordinary episode that mentions a disc already has a number of its
+    /// own, and that number is the one that means something.
+    @Test func doesNotRenumberAnOrdinaryEpisode() async throws {
+        let files = try await scan([
+            "[Sakurato] Ave Mujica [Disc 1]/[Sakurato] Ave Mujica [01][1080p].mkv",
+            "[Sakurato] Ave Mujica [Disc 1]/[Sakurato] Ave Mujica [02][1080p].mkv"
+        ])
+        #expect(files.map(\.parsed.episode) == [1, 2])
+        #expect(Set(files.map(\.parsed.title)).count == 1)
+    }
+}
