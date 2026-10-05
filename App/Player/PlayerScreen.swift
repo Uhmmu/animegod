@@ -1212,7 +1212,10 @@ struct PlayerScreen: View {
         .task(id: SetlistKey(episodeID: state.currentEpisode.episode.id,
                              chapters: state.chapters.count,
                              duration: Int(state.duration))) {
-            guard !state.isDirectPlayback, state.duration > 0, !state.chapters.isEmpty,
+            // A disc with no chapter marks is recorded too, as an answer of
+            // none: plenty of rips have had theirs stripped, and the page has to
+            // be able to tell that apart from a disc nobody has opened yet.
+            guard !state.isDirectPlayback, state.duration > 0,
                   model.concertSection.release(forAnimeID: state.currentEpisode.episode.animeID) != nil
             else { return }
             let alignment = await model.concertSection.resolveSetlist(

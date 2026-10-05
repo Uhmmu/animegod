@@ -188,6 +188,13 @@ final class AppModel: ObservableObject {
             // answer. Moving it out of the library *before* the metadata pass
             // runs is what stops the question being asked even once.
             await self?.concertSection.identifyAll(isAutomatic: true)
+            // And the library has to be re-read before the metadata pass, not
+            // just the concert section. `library` is a published array, the
+            // metadata pass walks that array, and marking a work as a concert
+            // changes a row the array was built from — so without this the pass
+            // still sees the concerts it was meant to stop seeing, and asks
+            // about them exactly as before.
+            await self?.reloadLibrary()
             await self?.enrichLibraryMetadata(isAutomatic: true)
         }
     }

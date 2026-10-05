@@ -13290,6 +13290,22 @@
         }
       }
     },
+    "This file carries no chapter marks, so there is nothing to place the songs on. No catalogue publishes where a song starts either — the marks live inside the disc, and this encode dropped them.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このファイルにはチャプターマークがないため、曲を並べる手がかりがありません。曲の開始位置を公開しているデータベースもありません。マークはディスク内部にあるもので、このエンコードでは削除されています。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个文件没有章节标记，所以没有东西可以把曲目定位上去。也没有任何数据库会公布某首歌从哪里开始 —— 标记本来在碟里，这个压制把它去掉了。"
+          }
+        }
+      }
+    },
     "This work is still downloading and has not been matched yet, so there is no artwork, synopsis or rating for it. Matching it now links every episode of it — and the scan that follows finds it already matched.": {
       "localizations": {
         "ja": {

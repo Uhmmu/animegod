@@ -193,13 +193,22 @@ struct ConcertDetailView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
-            // The songs are known before the times are: where each one starts
-            // comes from the disc's own chapter marks, and those only reach the
-            // app once mpv has opened the disc.
-            if let disc, !disc.songs.isEmpty, alignment == nil {
-                Text("Times appear once the disc has been played: they come from its own chapter marks, which are inside the disc rather than in any catalogue.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            // The songs are known before the times are, and sometimes the times
+            // never come. Where a song starts is read off the disc's own chapter
+            // marks, which only reach the app once mpv has opened the disc — and
+            // plenty of rips have had their marks stripped, in which case no
+            // source has them and saying "play it and they will appear" would be
+            // a promise nothing can keep.
+            if let disc, !disc.songs.isEmpty, alignment?.placements.isEmpty != false, let episode {
+                if section.discHasNoChapters(forEpisodeID: episode.episode.id) {
+                    Text("This file carries no chapter marks, so there is nothing to place the songs on. No catalogue publishes where a song starts either — the marks live inside the disc, and this encode dropped them.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else if section.setlistNotLookedAtYet(forEpisodeID: episode.episode.id) {
+                    Text("Times appear once the disc has been played: they come from its own chapter marks, which are inside the disc rather than in any catalogue.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
     }

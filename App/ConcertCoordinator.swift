@@ -301,13 +301,17 @@ final class ConcertCoordinator: ObservableObject {
             let alignment = ConcertSetlistAligner.align(
                 tracks: disc.tracks, chapters: chapters, duration: duration
             )
-            guard !alignment.placements.isEmpty else { return nil }
+            // Stored even when it places nothing. "We looked and there was
+            // nothing to go on" is a different state from "nobody has looked
+            // yet", and only the first one lets the page stop promising times
+            // that are never coming — a rip whose chapter marks were stripped
+            // has no source for them at all.
             try await database.saveConcertSetlist(
                 StoredConcertSetlist(episodeID: episodeID, alignment: alignment, chapters: chapters)
             )
             setlists[episodeID] = alignment
             chaptersByEpisode[episodeID] = chapters
-            return alignment
+            return alignment.placements.isEmpty ? nil : alignment
         } catch {
             errorMessage = error.localizedDescription
             return nil
@@ -318,6 +322,18 @@ final class ConcertCoordinator: ObservableObject {
     /// it was made from.
     func canNudgeSetlist(forEpisodeID episodeID: UUID) -> Bool {
         !(chaptersByEpisode[episodeID] ?? []).isEmpty
+    }
+
+    /// The disc has been opened and carried no chapter marks, so there is
+    /// nothing to place the songs on and nothing further to wait for.
+    func discHasNoChapters(forEpisodeID episodeID: UUID) -> Bool {
+        guard let alignment = setlists[episodeID] else { return false }
+        return alignment.placements.isEmpty && (chaptersByEpisode[episodeID] ?? []).isEmpty
+    }
+
+    /// Nobody has opened this disc yet, so its chapter marks have not been read.
+    func setlistNotLookedAtYet(forEpisodeID episodeID: UUID) -> Bool {
+        setlists[episodeID] == nil
     }
 
     /// Loads whatever timeline is already stored, without a player.
