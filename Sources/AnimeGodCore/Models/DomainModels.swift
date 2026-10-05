@@ -6,6 +6,13 @@ public enum AnimeKind: String, Codable, CaseIterable, Sendable {
     case ova
     case ona
     case special
+    /// A concert disc — a live Blu-ray.
+    ///
+    /// Its own kind rather than a flag, because almost nothing an anime page
+    /// does applies to it: it has no episodes, no synopsis worth showing, and
+    /// no provider that rates it as a work. It is also what keeps concerts out
+    /// of the library grid, which is the one thing the viewer asked for.
+    case live
     case unknown
 
     public var displayName: String {
@@ -15,9 +22,14 @@ public enum AnimeKind: String, Codable, CaseIterable, Sendable {
         case .ova: "OVA"
         case .ona: "ONA"
         case .special: String(localized: "Special", bundle: .module)
+        case .live: String(localized: "Live", bundle: .module)
         case .unknown: ""
         }
     }
+
+    /// Whether works of this kind belong in the library grid and the continue
+    /// shelf. Both route to the anime page, which a concert does not use.
+    public var belongsInAnimeLibrary: Bool { self != .live }
 }
 
 public enum EpisodeKind: String, Codable, CaseIterable, Sendable {

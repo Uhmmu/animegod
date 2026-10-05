@@ -3,7 +3,10 @@ import Foundation
 import GRDB
 
 public actor LibraryDatabase {
-    private let database: any DatabaseWriter
+    /// Not `private`: the concert store lives in its own extension file, and
+    /// a new subsystem is easier to read beside the schema it adds than buried
+    /// in a two-thousand-line file.
+    let database: any DatabaseWriter
 
     public init(url: URL) throws {
         var configuration = Configuration()
@@ -287,12 +290,17 @@ public actor LibraryDatabase {
                 JOIN episode ON episode.animeID = anime.id
                 JOIN mediaFile ON mediaFile.episodeID = episode.id
                 LEFT JOIN playbackProgress ON playbackProgress.episodeID = episode.id
+                WHERE anime.kind <> ?
                 GROUP BY anime.id
                 ORDER BY anime.sortTitle COLLATE NOCASE
                 """, arguments: [
                     EpisodeKind.regular.rawValue,
                     EpisodeKind.regular.rawValue,
-                    EpisodeKind.regular.rawValue
+                    EpisodeKind.regular.rawValue,
+                    // A concert has its own section. Both the grid and the
+                    // continue shelf open the anime page, which a concert does
+                    // not use.
+                    AnimeKind.live.rawValue
                 ])
             return rows.map { row in
                 let regularCount: Int = row["episodeCount"]
@@ -343,10 +351,12 @@ public actor LibraryDatabase {
                 FROM playbackProgress
                 JOIN episode ON episode.id = playbackProgress.episodeID
                 JOIN mediaFile ON mediaFile.episodeID = episode.id
+                JOIN anime ON anime.id = episode.animeID
                 WHERE playbackProgress.position > 0 AND playbackProgress.isWatched = 0
+                      AND anime.kind <> ?
                 ORDER BY playbackProgress.updatedAt DESC
                 LIMIT ?
-                """, arguments: [limit])
+                """, arguments: [AnimeKind.live.rawValue, limit])
             return Self.deduplicateVersions(rows.map(Self.decodeEpisodeMedia))
         }
     }
@@ -1692,7 +1702,7 @@ public actor LibraryDatabase {
         )
     }
 
-    private static func decodeAnime(_ row: Row) -> Anime {
+    static func decodeAnime(_ row: Row) -> Anime {
         Anime(
             id: UUID(uuidString: row["id"])!,
             title: row["title"],
@@ -2160,6 +2170,59 @@ public actor LibraryDatabase {
                     arguments: [precomposed, sortTitle.precomposedStringWithCanonicalMapping, key, id]
                 )
             }
+        }
+        migrator.registerMigration("v14_concert_discs") { db in
+            // A concert disc is stored beside the work rather than inside it:
+            // nothing about it fits the anime tables. It has no episodes, its
+            // "chapters" are songs, and the facts worth keeping — the hall, the
+            // catalogue number, the setlist — have no column anywhere.
+            try db.create(table: "concertRelease") { table in
+                table.column("animeID", .text).primaryKey().references("anime", onDelete: .cascade)
+                table.column("provider", .text).notNull()
+                table.column("externalID", .text).notNull()
+                table.column("title", .text).notNull()
+                table.column("artistNames", .text).notNull()
+                table.column("releaseDate", .text)
+                table.column("country", .text)
+                table.column("labels", .text).notNull()
+                table.column("catalogNumbers", .text).notNull()
+                table.column("barcode", .text)
+                table.column("genres", .text).notNull()
+                table.column("coverImageURLs", .text).notNull()
+                table.column("sourceURL", .text)
+                table.column("score", .double)
+                table.column("ratingCount", .integer)
+                table.column("summary", .text)
+                table.column("venue", .text)
+                table.column("performedOn", .text)
+                table.column("officialSiteURL", .text)
+                // The discs and their tracks, encoded. They are read whole and
+                // never queried by field, and the same file already stores
+                // metadata, danmaku caches and community posts this way.
+                table.column("discs", .blob).notNull()
+                table.column("updatedAt", .datetime).notNull()
+            }
+            // Where each song starts, once it has been worked out — and once
+            // the viewer has corrected it. A correction that did not survive
+            // closing the window would be worse than no correction at all.
+            try db.create(table: "concertSetlist") { table in
+                table.column("episodeID", .text).primaryKey().references("episode", onDelete: .cascade)
+                table.column("method", .text).notNull()
+                table.column("confidence", .double).notNull()
+                table.column("placements", .blob).notNull()
+                table.column("isManual", .boolean).notNull().defaults(to: false)
+                table.column("updatedAt", .datetime).notNull()
+            }
+            // Per-song watch state. A concert is not watched the way an
+            // episode is: people come back for three songs out of sixteen.
+            try db.create(table: "concertSongProgress") { table in
+                table.column("episodeID", .text).notNull().references("episode", onDelete: .cascade)
+                table.column("songPosition", .integer).notNull()
+                table.column("isWatched", .boolean).notNull().defaults(to: false)
+                table.column("lastPlayedAt", .datetime)
+                table.primaryKey(["episodeID", "songPosition"])
+            }
+            try db.create(index: "concertRelease_catalog", on: "concertRelease", columns: ["catalogNumbers"])
         }
         return migrator
     }

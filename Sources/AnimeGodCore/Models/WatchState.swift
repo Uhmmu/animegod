@@ -34,6 +34,10 @@ public enum WatchedWorkKind: String, Sendable, Hashable, CaseIterable {
     public static func classify(reportedKind: AnimeKind?, mainEpisodeCount: Int?) -> WatchedWorkKind {
         switch reportedKind {
         case .movie: return .film
+        // A concert disc is one long programme with a credit roll on the end,
+        // so it finishes the way a film does rather than the way an episode
+        // does.
+        case .live: return .film
         case .tv, .ova, .ona, .special: return .series
         case .unknown, nil: break
         }

@@ -1,12 +1,12 @@
 import Foundation
 
 /// Where each song of a setlist starts in the disc's own timeline.
-public struct ConcertSetlistAlignment: Hashable, Sendable {
+public struct ConcertSetlistAlignment: Codable, Hashable, Sendable {
     /// How the timeline was arrived at. The page says this out loud, because
     /// the methods are not equally trustworthy and a viewer who knows the
     /// timeline was inferred will correct it instead of distrusting the
     /// whole feature.
-    public enum Method: String, Hashable, Sendable {
+    public enum Method: String, Codable, Hashable, Sendable {
         /// The disc named its own chapters after the songs. Nothing to infer.
         case chapterTitles
         /// Song lengths matched against the spans between chapter marks.
@@ -22,7 +22,7 @@ public struct ConcertSetlistAlignment: Hashable, Sendable {
         case none
     }
 
-    public struct Placement: Hashable, Sendable {
+    public struct Placement: Codable, Hashable, Sendable {
         public let trackID: UUID
         public let trackPosition: Int
         public var startTime: TimeInterval
