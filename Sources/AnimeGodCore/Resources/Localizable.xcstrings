@@ -1,6 +1,22 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Add a Discogs API key in Settings to look concert discs up." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ライブディスクを調べるには、設定で Discogs の API キーを登録してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在设置里填入 Discogs API 密钥，才能查演唱会碟片。"
+          }
+        }
+      }
+    },
     "Anime" : {
       "localizations" : {
         "ja" : {
@@ -467,6 +483,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "最大"
+          }
+        }
+      }
+    },
+    "Live" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ライブ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "演唱会"
           }
         }
       }

@@ -2210,6 +2210,11 @@ public actor LibraryDatabase {
                 table.column("method", .text).notNull()
                 table.column("confidence", .double).notNull()
                 table.column("placements", .blob).notNull()
+                // The marks the alignment was made from. Kept so the page can
+                // offer the correction: chapter marks exist only while mpv has
+                // the disc open, and a "shift the list by one" button that only
+                // works during playback is a button nobody can reach.
+                table.column("chapters", .blob).notNull().defaults(to: Data())
                 table.column("isManual", .boolean).notNull().defaults(to: false)
                 table.column("updatedAt", .datetime).notNull()
             }

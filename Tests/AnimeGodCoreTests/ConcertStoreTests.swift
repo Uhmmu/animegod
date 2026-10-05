@@ -243,3 +243,36 @@ struct ConcertStoreTests {
         #expect(try await database.concertSetlist(episodeID: disc.episodeID) == nil)
     }
 }
+
+/// The chapter marks travel with the timeline, which is what makes the
+/// correction reachable: marks only exist while a player has the disc open, so a
+/// page that did not store them could show a timeline it has no way to fix.
+struct ConcertSetlistChapterTests {
+    @Test func keepsTheMarksTheTimelineWasMadeFrom() async throws {
+        let database = try LibraryDatabase(inMemory: true)
+        let root = LibraryRoot(displayName: "Concerts", lastKnownPath: "/Volumes/T7/concerts")
+        try await database.save(root: root)
+        try await database.importScan(LibraryScanResult(root: root, files: [
+            ScannedMediaFile(
+                relativePath: "Live/BDMV/index.bdmv", fileSize: 1, modifiedAt: .now,
+                parsed: ParsedAnimeFilename(title: "Live", episode: nil, confidence: 0.9)
+            )
+        ], skippedUnreadableCount: 0))
+        let animeID = try #require(try await database.library().first?.id)
+        let episodeID = try #require(try await database.episodes(animeID: animeID).first?.episode.id)
+
+        let chapters = (0..<4).map { ConcertChapterMark(index: $0, startTime: Double($0) * 240) }
+        let tracks = (1...3).map { ConcertTrack(position: $0, title: "Song \($0)", duration: 235) }
+        let alignment = ConcertSetlistAligner.align(tracks: tracks, chapters: chapters, duration: 1000)
+
+        try await database.saveConcertSetlist(StoredConcertSetlist(
+            episodeID: episodeID, alignment: alignment, chapters: chapters
+        ))
+
+        let stored = try #require(try await database.concertSetlist(episodeID: episodeID))
+        #expect(stored.chapters.map(\.startTime) == [0, 240, 480, 720])
+        // Which is enough to shift it without a player.
+        let moved = ConcertSetlistAligner.shifting(stored.alignment, by: 1, chapters: stored.chapters)
+        #expect(moved.placements.first?.startTime == 240)
+    }
+}

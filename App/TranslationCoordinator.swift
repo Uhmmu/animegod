@@ -135,6 +135,32 @@ enum CredentialStore {
 }
 
 extension CredentialStore {
+    /// The Discogs application key pair, used to look concert discs up.
+    ///
+    /// Not optional in practice: an unauthenticated Discogs search answers 200
+    /// with zero results, which is indistinguishable from "no such release", so
+    /// without this every disc looks unknown.
+    enum Concert {
+        static let service = "com.uhmmu.AnimeGod.concert"
+        static let discogsKeyAccount = "discogs-consumer-key"
+        static let discogsSecretAccount = "discogs-consumer-secret"
+
+        static func loadDiscogsCredentials() -> DiscogsCredentials? {
+            guard let key = CredentialStore.load(account: discogsKeyAccount, service: service),
+                  let secret = CredentialStore.load(account: discogsSecretAccount, service: service),
+                  !key.isEmpty, !secret.isEmpty
+            else { return nil }
+            return DiscogsCredentials(consumerKey: key, consumerSecret: secret)
+        }
+
+        static func save(discogsKey: String, secret: String) {
+            CredentialStore.save(discogsKey, account: discogsKeyAccount, service: service)
+            CredentialStore.save(secret, account: discogsSecretAccount, service: service)
+        }
+    }
+}
+
+extension CredentialStore {
     /// Online subtitle provider credentials. Each value can also come from
     /// an environment variable (for development builds launched from a
     /// terminal); the stored value wins when both exist. Nothing here is

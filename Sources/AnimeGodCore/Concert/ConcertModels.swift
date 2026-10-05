@@ -60,7 +60,7 @@ public struct ConcertTrack: Codable, Hashable, Sendable, Identifiable {
 /// The core's own value type rather than the player's `MediaChapter`: the
 /// alignment is pure logic and has to be testable without a player, and
 /// `AnimeGodCore` imports no AppKit.
-public struct ConcertChapterMark: Hashable, Sendable, Identifiable {
+public struct ConcertChapterMark: Codable, Hashable, Sendable, Identifiable {
     public let index: Int
     public let title: String
     public let startTime: TimeInterval

@@ -4,6 +4,7 @@ import SwiftUI
 private enum SidebarItem: String, Hashable, CaseIterable {
     case library
     case continueWatching
+    case concerts
     case bangumiCharts
     case releases
     case rankings
@@ -30,6 +31,10 @@ struct RootView: View {
                 Section("Library") {
                     Label("All Anime", systemImage: "square.grid.2x2").tag(SidebarItem.library)
                     Label("Continue Watching", systemImage: "play.circle").tag(SidebarItem.continueWatching)
+                    // Its own row rather than a filter on the grid: a concert is
+                    // not something anyone is partway through a season of, and
+                    // the viewer asked for it off the home screen.
+                    Label("Concerts", systemImage: "music.mic").tag(SidebarItem.concerts)
                 }
                 Section("Discover") {
                     Label("Bangumi Charts", systemImage: "chart.bar.doc.horizontal").tag(SidebarItem.bangumiCharts)
@@ -65,6 +70,11 @@ struct RootView: View {
                 switch selection {
                 case .library: LibraryView(downloads: model.downloads, subscriptions: model.subscriptions)
                 case .continueWatching: ContinueWatchingView()
+                case .concerts:
+                    ConcertsView(section: model.concertSection, navigationPath: $navigationPath)
+                        .navigationDestination(for: ConcertRoute.self) { route in
+                            ConcertDetailView(section: model.concertSection, animeID: route.animeID)
+                        }
                 case .bangumiCharts: BangumiChartsView()
                 case .releases: ReleaseSearchView(search: model.releaseSearch, downloads: model.downloads, subscriptions: model.subscriptions)
                         .navigationTitle("Find Releases")

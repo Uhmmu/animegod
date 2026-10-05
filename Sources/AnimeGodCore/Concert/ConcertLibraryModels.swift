@@ -41,6 +41,12 @@ public struct LibraryConcert: Identifiable, Hashable, Sendable {
 public struct StoredConcertSetlist: Hashable, Sendable {
     public let episodeID: UUID
     public var alignment: ConcertSetlistAlignment
+    /// The disc's chapter marks, as they were when this was worked out.
+    ///
+    /// Stored rather than re-read because they cannot be re-read: they live in
+    /// the disc's playlists and only reach the app while mpv has the disc open.
+    /// Without them the page could show a timeline it has no way to correct.
+    public var chapters: [ConcertChapterMark]
     /// A viewer moved this by hand, so nothing may recompute over it.
     public var isManual: Bool
     public var updatedAt: Date
@@ -48,11 +54,13 @@ public struct StoredConcertSetlist: Hashable, Sendable {
     public init(
         episodeID: UUID,
         alignment: ConcertSetlistAlignment,
+        chapters: [ConcertChapterMark] = [],
         isManual: Bool = false,
         updatedAt: Date = .now
     ) {
         self.episodeID = episodeID
         self.alignment = alignment
+        self.chapters = chapters
         self.isManual = isManual
         self.updatedAt = updatedAt
     }

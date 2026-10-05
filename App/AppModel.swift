@@ -47,6 +47,11 @@ final class AppModel: ObservableObject {
     let episodeCache = EpisodeCacheStore()
     /// The embedded BitTorrent engine and the downloads it is running.
     let downloads = TorrentDownloadManager()
+    /// The concert section. Observed directly by the views that show it rather
+    /// than republished through here: identifying a library of discs takes
+    /// minutes at the rate the services allow, and nothing else should be
+    /// re-rendering while it does.
+    let concertSection = ConcertCoordinator()
     /// Standing rules that download new episodes on their own.
     let subscriptions: TorrentSubscriptionManager
     /// Which anime indexes release searches use, plus recent searches.
@@ -242,7 +247,7 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func play(_ episode: EpisodeMedia) async {
+    func play(_ episode: EpisodeMedia, startingAt startPosition: Double? = nil) async {
         guard let database else { return }
         guard roots.first(where: { $0.id == episode.mediaFile.libraryRootID }) != nil else {
             errorMessage = "The library folder for this episode is unavailable."
@@ -253,7 +258,10 @@ final class AppModel: ObservableObject {
         let siblings = (try? await database.episodes(animeID: episode.episode.animeID)) ?? []
         let list = siblings.contains(where: { $0.id == episode.id }) ? siblings : [episode]
         guard let index = list.firstIndex(where: { $0.id == episode.id }) else { return }
-        playerRequest = PlayerRequest(episodes: list, startIndex: index, roots: roots, cache: episodeCache)
+        playerRequest = PlayerRequest(
+            episodes: list, startIndex: index, roots: roots, cache: episodeCache,
+            startPosition: startPosition
+        )
     }
 
     /// Plays a file straight from disk — a download in progress or one that
@@ -1251,6 +1259,7 @@ final class AppModel: ObservableObject {
                 Task { await self?.automaticDownloadStarted(for: rule) }
             }
             await subscriptions.attach(database: database, downloads: downloads)
+            concertSection.attach(database: database)
             await refreshRootAvailability()
             await reloadLibrary()
             enrichInBackground()
@@ -1308,6 +1317,7 @@ final class AppModel: ObservableObject {
             watchHistory = history
             diarySummary = diary
             libraryRevision += 1
+            await concertSection.reload()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -1397,6 +1407,12 @@ struct PlayerRequest: Identifiable {
     /// Local episode copies, so playback survives an unplugged drive.
     let cache: EpisodeCacheStore?
     var directPlayback: DirectPlayback?
+    /// Where to begin, when the caller is choosing rather than resuming.
+    ///
+    /// A concert's setlist is a list of starts: clicking the eleventh song means
+    /// 1:09:21, not "wherever I left off". Nil keeps the saved position, which
+    /// is what everything else wants.
+    var startPosition: Double?
 
     var episode: EpisodeMedia { episodes[startIndex] }
 }

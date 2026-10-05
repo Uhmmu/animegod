@@ -135,7 +135,9 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
         let episode = request.episode
         currentEpisode = episode
         isWatched = episode.progress?.isWatched ?? false
-        let startPosition = Self.startPosition(for: episode)
+        // A caller that named a position meant it — "play the encore" is not a
+        // resume — so it wins over the saved one.
+        let startPosition = request.startPosition ?? Self.startPosition(for: episode)
         position = startPosition
         livePosition = startPosition
         duration = episode.progress?.duration ?? 0
@@ -978,6 +980,15 @@ struct PlayerScreen: View {
     /// is not offered for one.
     private var tracksWatchedState: Bool { watchedKind.tracksWatchedState }
 
+    /// Re-runs the setlist alignment only when something it depends on moved.
+    /// `duration` is rounded to the second: mpv refines it as the file loads,
+    /// and a fractional change would recompute the whole alignment.
+    private struct SetlistKey: Hashable {
+        let episodeID: UUID
+        let chapters: Int
+        let duration: Int
+    }
+
     private var episodeLabel: String {
         let episode = state.currentEpisode.episode
         return switch episode.kind {
@@ -1144,6 +1155,25 @@ struct PlayerScreen: View {
                 currentAnime: currentDanmakuMatch?.anime,
                 currentEpisode: currentDanmakuMatch?.episode,
                 onDismiss: { showDanmakuMatch = false }
+            )
+        }
+        // A concert's timeline can only be worked out here. No source publishes
+        // where a song starts, so it comes from the disc's own chapter marks —
+        // and those only exist once mpv has opened the disc, because they live
+        // in the `.mpls` playlists rather than anywhere the library can read.
+        // Storing it now is what puts the times on the concert's page.
+        .task(id: SetlistKey(episodeID: state.currentEpisode.episode.id,
+                             chapters: state.chapters.count,
+                             duration: Int(state.duration))) {
+            guard !state.isDirectPlayback, state.duration > 0, !state.chapters.isEmpty,
+                  model.concertSection.release(forAnimeID: state.currentEpisode.episode.animeID) != nil
+            else { return }
+            await model.concertSection.resolveSetlist(
+                for: state.currentEpisode,
+                chapters: state.chapters.map {
+                    ConcertChapterMark(index: $0.index, title: $0.title, startTime: $0.startTime)
+                },
+                duration: state.duration
             )
         }
         .onAppear {

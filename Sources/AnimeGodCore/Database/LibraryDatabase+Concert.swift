@@ -44,6 +44,50 @@ public extension LibraryDatabase {
         }
     }
 
+    /// Works whose files are discs, with the folder each arrived in.
+    ///
+    /// The folder is what carries the catalogue number, so it is what a lookup
+    /// needs — not the work's title, which has already had the release tags
+    /// stripped out of it. Returned for every disc work whether or not it is a
+    /// concert yet: an anime Blu-ray is a disc too, and the lookup is what
+    /// decides which it is.
+    func discWorks() throws -> [(animeID: UUID, folderName: String, title: String, kind: AnimeKind)] {
+        try database.read { db in
+            let rows = try Row.fetchAll(db, sql: """
+                SELECT anime.id AS animeID, anime.title AS title, anime.kind AS kind,
+                       MIN(mediaFile.relativePath) AS path
+                FROM anime
+                JOIN episode ON episode.animeID = anime.id
+                JOIN mediaFile ON mediaFile.episodeID = episode.id
+                WHERE mediaFile.relativePath LIKE '%.iso'
+                   OR LOWER(mediaFile.relativePath) LIKE '%/bdmv/index.bdmv'
+                GROUP BY anime.id
+                """)
+            return rows.compactMap { row in
+                guard let id = (row["animeID"] as String?).flatMap(UUID.init(uuidString:)),
+                      let path: String = row["path"],
+                      let folder = path.components(separatedBy: "/").first, !folder.isEmpty
+                else { return nil }
+                return (
+                    id, folder, row["title"],
+                    AnimeKind(rawValue: row["kind"] ?? "") ?? .unknown
+                )
+            }
+        }
+    }
+
+    /// Takes a work back out of the concert section.
+    @discardableResult
+    func unmarkAnimeAsConcert(id: UUID, becoming kind: AnimeKind = .unknown) throws -> Bool {
+        try database.write { db in
+            try db.execute(
+                sql: "UPDATE anime SET kind = ?, updatedAt = ? WHERE id = ? AND kind = ?",
+                arguments: [kind.rawValue, Date(), id.uuidString, AnimeKind.live.rawValue]
+            )
+            return db.changesCount > 0
+        }
+    }
+
     // MARK: - The release
 
     func concertRelease(animeID: UUID) throws -> ConcertRelease? {
@@ -132,14 +176,16 @@ public extension LibraryDatabase {
     /// not survive closing the window would be worse than no correction.
     func saveConcertSetlist(_ setlist: StoredConcertSetlist) throws {
         let placements = try JSONEncoder().encode(setlist.alignment.placements)
+        let chapters = try JSONEncoder().encode(setlist.chapters)
         try database.write { db in
             try db.execute(sql: """
-                INSERT INTO concertSetlist (episodeID, method, confidence, placements, isManual, updatedAt)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO concertSetlist (episodeID, method, confidence, placements, chapters, isManual, updatedAt)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(episodeID) DO UPDATE SET
                     method = excluded.method,
                     confidence = excluded.confidence,
                     placements = excluded.placements,
+                    chapters = excluded.chapters,
                     isManual = excluded.isManual,
                     updatedAt = excluded.updatedAt
                 WHERE concertSetlist.isManual = 0 OR excluded.isManual = 1
@@ -148,6 +194,7 @@ public extension LibraryDatabase {
                     setlist.alignment.method.rawValue,
                     setlist.alignment.confidence,
                     placements,
+                    chapters,
                     setlist.isManual,
                     setlist.updatedAt
                 ])
@@ -225,11 +272,14 @@ extension LibraryDatabase {
               let data = row["placements"] as Data?,
               let placements = try? JSONDecoder().decode([ConcertSetlistAlignment.Placement].self, from: data)
         else { return nil }
+        let chapters = (row["chapters"] as Data?)
+            .flatMap { try? JSONDecoder().decode([ConcertChapterMark].self, from: $0) } ?? []
         return StoredConcertSetlist(
             episodeID: episodeID,
             alignment: ConcertSetlistAlignment(
                 placements: placements, method: method, confidence: row["confidence"]
             ),
+            chapters: chapters,
             isManual: row["isManual"],
             updatedAt: row["updatedAt"]
         )

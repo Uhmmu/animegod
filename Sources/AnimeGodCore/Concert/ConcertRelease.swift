@@ -169,6 +169,20 @@ public struct ConcertRelease: Codable, Hashable, Sendable, Identifiable {
         videoDiscs.reduce(0) { $0 + $1.songs.count }
     }
 
+    /// The disc an episode of this work stands for.
+    ///
+    /// A single-disc release has one answer. A box numbers its episodes after
+    /// its disc folders — `DISC2`, `Day2` — so the number matches a medium's
+    /// position, and falls back to the order the media came in when a release
+    /// numbers its media differently from the way the folders were named.
+    public func videoDisc(forDiscNumber number: Int?) -> ConcertDisc? {
+        let discs = videoDiscs
+        guard let number else { return discs.first }
+        if let exact = discs.first(where: { $0.position == number }) { return exact }
+        let index = number - 1
+        return discs.indices.contains(index) ? discs[index] : discs.first
+    }
+
     /// How long the music runs, when the source published lengths.
     public var totalSongDuration: TimeInterval? {
         let lengths = videoDiscs.flatMap(\.songs).compactMap(\.duration)
