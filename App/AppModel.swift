@@ -400,6 +400,12 @@ final class AppModel: ObservableObject {
     /// Looked up already, whether or not it produced a match: a work nobody
     /// has heard of must not be searched for once a second.
     private var incomingMatchAttempts: Set<String> = []
+    /// Work keys a download's own name said were concerts.
+    ///
+    /// Kept as well as the anime row's `kind`, because the row is loaded back
+    /// asynchronously after a relaunch and the grid would show the download for
+    /// the moment in between — which is the one thing this is meant to stop.
+    @Published private(set) var concertWorkKeys: Set<String> = []
     /// Reads a folder name the way the scanner does, so an anime row created
     /// for a download that has not landed yet is the row the scan will use.
     private let filenameParser = AnimeFilenameParser()
@@ -426,6 +432,13 @@ final class AppModel: ObservableObject {
         let key = seriesTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty, !promptedSeries.contains(key), incomingMatches[key] == nil else { return }
         let title = libraryTitle(forWorkKey: key)
+        // A concert never reaches the sheet. There is no answer to give: no
+        // anime index lists a live Blu-ray, so every candidate offered is some
+        // other show, and the sheet cannot be dismissed into a correct state.
+        // The name is all there is to go on at this point — the catalogue
+        // number is in a cue sheet that has not been downloaded yet — and
+        // `ConcertNameHeuristics` is what reads it.
+        if await fileConcertDownload(workKey: key, title: title) { return }
         // Already in the library under that name: link the downloads to the
         // row that exists rather than asking about a work already matched.
         if let existing = library.first(where: { $0.anime.title == title }) {
@@ -440,6 +453,52 @@ final class AppModel: ObservableObject {
         guard incomingMatchPrompt?.seriesTitle == key else { return }
         incomingMatchPrompt?.candidates = ranked
         incomingMatchPrompt?.isSearching = false
+    }
+
+    /// Files a download whose name says it is a concert, and answers whether
+    /// it did — in which case nothing else asks about this work again.
+    ///
+    /// The row is created and marked here, while the files are still arriving,
+    /// for two reasons. The grid reads the download's work from this row, so
+    /// marking it is what keeps the download off the home screen; and the
+    /// scanner derives the same title from the same folder, so the files land
+    /// in this row rather than creating a second one.
+    private func fileConcertDownload(workKey key: String, title: String) async -> Bool {
+        guard let database else { return false }
+        // Every name the download has: the folder, the title the library will
+        // use, and the releases themselves — the night is often only in the
+        // file name, and so is the catalogue number.
+        var names = [key, title]
+        names.append(contentsOf: downloads.items
+            .filter { downloads.seriesKey(of: $0) == key || $0.record.folderName == key }
+            .map(\.title))
+        let verdict = ConcertNameHeuristics.verdict(for: names)
+        guard verdict.isConcert else { return false }
+        promptedSeries.insert(key)
+        incomingMatchAttempts.insert(key)
+        concertWorkKeys.insert(key)
+        do {
+            let anime = try await database.findOrCreateAnime(title: title)
+            await downloads.link(seriesTitle: key, toAnimeID: anime.id, title: anime.title)
+            // The coordinator marks it and looks it up by title, which is the
+            // only lookup available to a work with no files yet: the catalogue
+            // number lives in the release's own folder.
+            await concertSection.markAsConcert(animeID: anime.id, title: title)
+            if let marked = try? await database.anime(id: anime.id) { incomingAnime[anime.id] = marked }
+            await reloadLibrary()
+        } catch {
+            // A concert that could not be filed is still not an anime, so the
+            // sheet stays shut either way.
+            errorMessage = String(localized: "Could not file “\(title)” as a concert: \(error.localizedDescription)")
+        }
+        return true
+    }
+
+    /// Whether a download belongs to the Concerts section rather than the grid.
+    func isConcertDownload(_ item: TorrentDownloadItem) -> Bool {
+        if let animeID = item.record.animeID, incomingAnime[animeID]?.kind == .live { return true }
+        if let folder = item.record.folderName, concertWorkKeys.contains(folder) { return true }
+        return concertWorkKeys.contains(downloads.seriesKey(of: item))
     }
 
     /// Re-runs the sheet's search when the user corrects the title.
@@ -593,7 +652,14 @@ final class AppModel: ObservableObject {
     /// Looks up the works being downloaded that have not been looked up yet.
     /// Quiet on failure — a download must never be held up by metadata.
     func resolveIncomingMatches(seriesTitles: [String]) async {
-        let pending = seriesTitles.filter { !$0.isEmpty && !incomingMatchAttempts.contains($0) }
+        let candidateKeys = seriesTitles.filter { !$0.isEmpty && !incomingMatchAttempts.contains($0) }
+        // The same rule as the sheet's: a name that says concert is filed as
+        // one, and an anime index is never asked about it.
+        var pending: [String] = []
+        for key in candidateKeys {
+            let filed = await fileConcertDownload(workKey: key, title: libraryTitle(forWorkKey: key))
+            if !filed { pending.append(key) }
+        }
         guard !pending.isEmpty else { return }
         incomingMatchAttempts.formUnion(pending)
         let ordered = MetadataProviderID.allCases.compactMap { metadataProviders[$0] }

@@ -71,7 +71,7 @@ struct RootView: View {
                 case .library: LibraryView(downloads: model.downloads, subscriptions: model.subscriptions)
                 case .continueWatching: ContinueWatchingView()
                 case .concerts:
-                    ConcertsView(section: model.concertSection, navigationPath: $navigationPath)
+                    ConcertsView(section: model.concertSection, downloads: model.downloads, navigationPath: $navigationPath)
                         .navigationDestination(for: ConcertRoute.self) { route in
                             ConcertDetailView(section: model.concertSection, animeID: route.animeID)
                         }

@@ -133,6 +133,11 @@ final class ConcertCoordinator: ObservableObject {
             works.append((animeID: concert.id, title: concert.anime.title))
         }
         guard !works.isEmpty else { return 0 }
+        let folders = (try? await database.releaseFolders()) ?? []
+        let folderByAnime = Dictionary(
+            folders.map { ($0.animeID, $0.folderName) },
+            uniquingKeysWith: { first, _ in first }
+        )
         var moved = 0
         for work in works {
             progress = String(localized: "Looking up \(work.title)…")
@@ -152,7 +157,18 @@ final class ConcertCoordinator: ObservableObject {
                     found = byTitle
                 }
             }
-            guard let release = found.release, release.isLiveRecording else { continue }
+            guard let release = found.release, release.isLiveRecording else {
+                // No service knows it, and for a BDRip of a live plenty never
+                // will: no disc, no catalogue number, and no subject filed
+                // anywhere. Its own name is then the only evidence there is —
+                // and it is enough, because the alternative is the match review
+                // asking about a concert as if it were an anime at every
+                // launch, with no answer that is not wrong.
+                let names = [work.title, folderByAnime[work.animeID]].compactMap { $0 }
+                guard ConcertNameHeuristics.isConcert(names) else { continue }
+                if (try? await database.markAnimeAsConcert(id: work.animeID)) == true { moved += 1 }
+                continue
+            }
             do {
                 try await database.saveConcertRelease(release, forAnimeID: work.animeID)
                 try await database.markAnimeAsConcert(id: work.animeID)
@@ -231,7 +247,10 @@ final class ConcertCoordinator: ObservableObject {
 
     // MARK: - Moving a work in and out by hand
 
-    func markAsConcert(animeID: UUID) async {
+    /// `title` is for a work whose files have not landed yet: a download that
+    /// named itself a concert is marked the moment it starts, and the section's
+    /// own list is built from media files, so it cannot supply the name.
+    func markAsConcert(animeID: UUID, title: String? = nil) async {
         guard let database else { return }
         do {
             try await database.markAnimeAsConcert(id: animeID)
@@ -242,7 +261,7 @@ final class ConcertCoordinator: ObservableObject {
             // date, the cover, a score — is the difference between a page and a
             // folder name.
             guard try await database.concertRelease(animeID: animeID) == nil,
-                  let title = concerts.first(where: { $0.id == animeID })?.anime.title
+                  let title = concerts.first(where: { $0.id == animeID })?.anime.title ?? title
             else { return }
             isIdentifying = true
             defer { isIdentifying = false; progress = nil }

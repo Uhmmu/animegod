@@ -172,7 +172,10 @@ struct LibraryView: View {
     private var incoming: [IncomingWork] {
         var order: [String] = []
         var grouped: [String: [TorrentDownloadItem]] = [:]
-        for item in pendingDownloads {
+        // A concert belongs to its own section from the moment it starts
+        // downloading, not once it lands: this grid is "what am I watching",
+        // and a live Blu-ray has no episodes and no watch state to show here.
+        for item in pendingDownloads where !model.isConcertDownload(item) {
             let key = downloads.seriesKey(of: item)
             if grouped[key] == nil { order.append(key) }
             grouped[key, default: []].append(item)
@@ -472,7 +475,8 @@ private struct DownloadingCard: View {
 }
 
 /// The App Store-style ring: fills clockwise as the download completes.
-private struct DownloadRing: View {
+/// Shared with the Concerts section, which shows its own arrivals.
+struct DownloadRing: View {
     let progress: Double
 
     var body: some View {

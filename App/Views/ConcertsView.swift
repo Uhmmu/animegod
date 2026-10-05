@@ -11,7 +11,40 @@ import SwiftUI
 struct ConcertsView: View {
     @EnvironmentObject private var model: AppModel
     @ObservedObject var section: ConcertCoordinator
+    @ObservedObject var downloads: TorrentDownloadManager
     @Binding var navigationPath: NavigationPath
+
+    /// Concerts still downloading.
+    ///
+    /// They cannot come from `section.concerts`, which is built by joining
+    /// media files — a download has none yet. They are here rather than in the
+    /// library grid because that is the one place a concert is deliberately
+    /// never shown, and a download nobody can see looks like a download that
+    /// did not start.
+    private var incoming: [IncomingConcert] {
+        var order: [String] = []
+        var grouped: [String: [TorrentDownloadItem]] = [:]
+        for item in downloads.items where !item.isComplete && model.isConcertDownload(item) {
+            let key = downloads.seriesKey(of: item)
+            if grouped[key] == nil { order.append(key) }
+            grouped[key, default: []].append(item)
+        }
+        return order.compactMap { key -> IncomingConcert? in
+            guard let items = grouped[key], let first = items.first else { return nil }
+            let animeID = first.record.animeID
+            // Already in the section: the files have landed and the real card
+            // is showing it, so a second one with a ring on it is noise.
+            if let animeID, section.concerts.contains(where: { $0.id == animeID }) { return nil }
+            return IncomingConcert(
+                id: key,
+                title: animeID.flatMap { model.metadataByAnimeID[$0]?.title }
+                    ?? first.record.animeTitle
+                    ?? key,
+                posterURLs: animeID.map { model.posterCandidates(for: $0) } ?? [],
+                items: items
+            )
+        }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -39,6 +72,11 @@ struct ConcertsView: View {
                 Text("\(section.concerts.count) concerts")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                if !incoming.isEmpty {
+                    Text("· \(incoming.count) downloading")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 if !section.unidentifiedDiscs.isEmpty {
                     Text("· \(section.unidentifiedDiscs.count) discs not identified")
                         .font(.caption)
@@ -58,11 +96,14 @@ struct ConcertsView: View {
 
     @ViewBuilder
     private var content: some View {
-        if section.concerts.isEmpty {
+        if section.concerts.isEmpty && incoming.isEmpty {
             empty
         } else {
             ScrollView {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 180), spacing: 18)], spacing: 22) {
+                    ForEach(incoming) { arrival in
+                        IncomingConcertCard(concert: arrival)
+                    }
                     ForEach(section.concerts) { concert in
                         Button {
                             navigationPath.append(ConcertRoute(animeID: concert.id))
@@ -116,6 +157,60 @@ struct ConcertsView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+/// A concert being downloaded: every file of it still running, under whatever
+/// name is known so far.
+private struct IncomingConcert: Identifiable {
+    let id: String
+    let title: String
+    let posterURLs: [URL]
+    let items: [TorrentDownloadItem]
+
+    var progress: Double {
+        guard !items.isEmpty else { return 0 }
+        return items.map(\.progress).reduce(0, +) / Double(items.count)
+    }
+}
+
+private struct IncomingConcertCard: View {
+    let concert: IncomingConcert
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Color.clear
+                .aspectRatio(1, contentMode: .fit)
+                .overlay {
+                    if concert.posterURLs.isEmpty {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 8).fill(.quaternary)
+                            DownloadRing(progress: concert.progress)
+                                .frame(width: 56, height: 56)
+                        }
+                    } else {
+                        PosterView(urls: concert.posterURLs, height: 180)
+                            .overlay(alignment: .topTrailing) {
+                                DownloadRing(progress: concert.progress)
+                                    .frame(width: 30, height: 30)
+                                    .padding(8)
+                            }
+                    }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            Text(concert.title)
+                .font(.subheadline.weight(.semibold))
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+            // Why it is here at all: nothing asked which anime this was, so
+            // the card has to say what happened instead.
+            Text("Recognised as a concert · downloading")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .help(concert.items.map(\.title).joined(separator: "\n"))
     }
 }
 

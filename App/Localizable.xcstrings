@@ -3567,6 +3567,28 @@
         }
       }
     },
+    "Could not file “%@” as a concert: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Could not file “%1$@” as a concert: %2$@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」をライブとして登録できませんでした：%@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法将“%@”归入演唱会：%@"
+          }
+        }
+      }
+    },
     "Could not link “%@”: %@": {
       "localizations": {
         "en": {
@@ -10695,6 +10717,22 @@
         }
       }
     },
+    "Recognised as a concert · downloading": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ライブと判定 · ダウンロード中"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已识别为演唱会 · 下载中"
+          }
+        }
+      }
+    },
     "Refine": {
       "localizations": {
         "ja": {
@@ -15188,6 +15226,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "· %lld 张碟未识别"
+          }
+        }
+      }
+    },
+    "· %lld downloading": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "· %lld 件ダウンロード中"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "· %lld 个下载中"
           }
         }
       }
