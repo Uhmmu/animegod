@@ -102,11 +102,18 @@ public enum ConcertReleaseFileReader {
             else { return }
             for entry in entries.sorted(by: { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }) {
                 let name = entry.lastPathComponent
-                // A catalogue number can be on anything: the folder, a cue
-                // sheet, a log, a scan.
-                for number in ConcertCatalogNumber.all(in: name)
-                where seenNumbers.insert(number.description).inserted {
-                    files.catalogNumbers.append(number)
+                // A catalogue number reaches a folder on a cue sheet, a log, a
+                // subfolder's name — **never on a scan**. A scan is named by
+                // whoever ran the scanner, and `IMG-01.png` is the commonest
+                // filename there is: reading those as numbers matched two of
+                // this library's concerts to a compilation Discogs files under
+                // `IMG015`. Four digits for the rest, because a file that is
+                // not a scan can still be `Disc 2`.
+                if !imageExtensions.contains(entry.pathExtension.lowercased()) {
+                    for number in ConcertCatalogNumber.all(in: name, minimumDigits: 4)
+                    where seenNumbers.insert(number.description).inserted {
+                        files.catalogNumbers.append(number)
+                    }
                 }
 
                 let isDirectory = (try? entry.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true

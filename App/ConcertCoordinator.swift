@@ -86,7 +86,12 @@ final class ConcertCoordinator: ObservableObject {
                 // cheap next to leaving a page that stays empty for ever.
                 if let existing = try await database.concertRelease(animeID: work.animeID),
                    existing.songCount > 0 || !existing.extras.isEmpty {
-                    continue
+                    // Unless it was filed under something that was never a
+                    // catalogue number, in which case the record is wrong
+                    // rather than thin and keeping it is keeping the wrong
+                    // concert on the page for ever.
+                    guard !existing.wasFiledUnderARealCatalogueNumber else { continue }
+                    try await database.deleteConcertRelease(animeID: work.animeID)
                 }
                 progress = String(localized: "Looking up \(work.title)…")
                 let files = await releaseFiles(forAnimeID: work.animeID)
@@ -131,6 +136,20 @@ final class ConcertCoordinator: ObservableObject {
         var works = (try? await database.worksWithNoMetadata()) ?? []
         for concert in concerts where concert.release?.songCount ?? 0 == 0
             && concert.release?.extras.isEmpty != false {
+            works.append((animeID: concert.id, title: concert.anime.title))
+        }
+        // And the ones that are wrong rather than thin: a record filed under a
+        // key that is no longer a catalogue number was matched by something
+        // that never was one. Measured in this library — a folder of scans
+        // named `IMG-01.png` … `IMG-13.png` put MyGO's 7th LIVE and its Extra
+        // Studio Live under a compilation Discogs files as `IMG015`. The record
+        // is thrown away first, so a lookup that now finds nothing leaves an
+        // honest blank rather than the wrong concert.
+        for concert in concerts {
+            guard let release = concert.release, !release.wasFiledUnderARealCatalogueNumber,
+                  !works.contains(where: { $0.animeID == concert.id })
+            else { continue }
+            try? await database.deleteConcertRelease(animeID: concert.id)
             works.append((animeID: concert.id, title: concert.anime.title))
         }
         guard !works.isEmpty else { return 0 }

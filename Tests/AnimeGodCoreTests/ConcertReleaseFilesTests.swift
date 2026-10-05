@@ -65,6 +65,48 @@ struct ConcertReleaseFilesTests {
         #expect(files.cueTracks.first?.duration.map { Int($0) } == 260)
     }
 
+    /// The scans are **not** catalogue numbers, and this is not hypothetical:
+    /// this exact folder shape matched MyGO's 7th LIVE and its Extra Studio
+    /// Live to a compilation called *Walking Without Rhythm*, which Discogs
+    /// files under `IMG015`, and Ave Mujica's 0th LIVE to *Retro Destiny*,
+    /// filed under `ANIME-01`. A label does not name a file.
+    @Test func doesNotReadAScanFilenameAsACatalogueNumber() throws {
+        var paths: [String: Data?] = [
+            "MyGO 7th LIVE.mkv": nil,
+            "OST/BRMM-10876.cue": cueSheet,
+        ]
+        // `updateValue`, not `paths[key] = nil`: assigning nil through the
+        // subscript of a dictionary of optionals *removes* the key, so the
+        // first version of this test created no scans at all and proved
+        // nothing.
+        for index in 1...13 {
+            paths.updateValue(nil, forKey: "Scans/IMG-\(String(format: "%02d", index)).png")
+        }
+        for index in 1...5 { paths.updateValue(nil, forKey: "BK/ANIME-0\(index).jpg") }
+        let root = try makeRelease(paths)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let files = ConcertReleaseFileReader.read(folder: root)
+        // The one real number survives; twenty-three scans contribute none.
+        #expect(files.catalogNumbers.map(\.description) == ["BRMM-10876"])
+        // And they are still the artwork — only the number-reading changed.
+        #expect(files.coverImageURLs.count == 18)
+    }
+
+    /// A sequence number on a file that is not an image is still a sequence
+    /// number. Four digits is what a real one has.
+    @Test func wantsARealNumberOnAFileInsideTheRelease() throws {
+        let root = try makeRelease([
+            "Live.mkv": nil,
+            "Disc 2/VOL-03.log": nil,
+            "LABX-8333.log": nil,
+        ])
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let files = ConcertReleaseFileReader.read(folder: root)
+        #expect(files.catalogNumbers.map(\.description) == ["LABX-8333"])
+    }
+
     /// Every group names the artwork folder differently, so the rule is not the
     /// name: several images in a folder are the artwork whatever it is called.
     @Test func findsArtworkWhateverTheFolderIsCalled() throws {

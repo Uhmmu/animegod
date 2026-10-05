@@ -71,7 +71,17 @@ public extension ConcertCatalogNumber {
         "STAGE", "SHOW", "SET", "BOX", "VER", "REV", "RAW", "FIN", "END",
         "SEASON", "MOVIE", "FILM", "MIX", "AUDIO", "VIDEO", "SUB", "DUB",
         "MAIN", "MENU", "EXTRA", "BONUS", "MAKING", "SPECIAL", "DAY", "NIGHT",
-        "JPN", "ENG", "CHS", "CHT", "JP", "EN", "ZH", "HI", "LOW"
+        "JPN", "ENG", "CHS", "CHT", "JP", "EN", "ZH", "HI", "LOW",
+        // What a scanner and a camera call their output. These cost a real
+        // match twice over in this library: `IMG-01.png` … `IMG-13.png` in a
+        // release's `Scans/` folder were read as catalogue numbers, and
+        // Discogs *has* a release filed under `IMG015` — so MyGO's 7th LIVE
+        // and its Extra Studio Live were both identified as a compilation
+        // called *Walking Without Rhythm*, and `ANIME-01.jpg` made Ave
+        // Mujica's 0th LIVE into *Retro Destiny*. A label does not name a
+        // file; whoever ran the scanner does.
+        "IMG", "IMAGE", "DSC", "DSCF", "DSCN", "PIC", "PICT", "PICTURE",
+        "PHOTO", "SCAN", "PAGE", "ANIME", "COVER", "BK", "FRONT", "BACK"
     ]
 
     /// Years, for the guard below.
@@ -89,11 +99,19 @@ public extension ConcertCatalogNumber {
     /// A name may carry more than one — a box set lists the set's number and
     /// each disc's — so the caller decides which to use rather than this
     /// returning a guess.
-    static func all(in name: String) -> [ConcertCatalogNumber] {
+    ///
+    /// - Parameter minimumDigits: how long the number has to be. Two is right
+    ///   for a name a person wrote — a folder, a typed-in number. **Four is
+    ///   right for a file inside the release**, where the competing hypothesis
+    ///   is a sequence number and it wins almost every time: `IMG-01`, `01`,
+    ///   `Disc 2`. Every real number measured here is four or five digits
+    ///   (`ANZX-10294`, `BRMM-10716`, `LABX-8333`), so nothing is lost by it.
+    static func all(in name: String, minimumDigits: Int = 2) -> [ConcertCatalogNumber] {
         var found: [ConcertCatalogNumber] = []
         var seen = Set<String>()
         for candidate in tokenise(name) {
             guard let parsed = parse(token: candidate.token, joined: candidate.joined),
+                  parsed.number.count >= minimumDigits,
                   seen.insert(parsed.description).inserted
             else { continue }
             found.append(parsed)
@@ -103,8 +121,8 @@ public extension ConcertCatalogNumber {
 
     /// The one catalogue number to look a name up by: the first, which in
     /// every real naming scheme is the set's own.
-    static func first(in name: String) -> ConcertCatalogNumber? {
-        all(in: name).first
+    static func first(in name: String, minimumDigits: Int = 2) -> ConcertCatalogNumber? {
+        all(in: name, minimumDigits: minimumDigits).first
     }
 
     /// Splits a name on everything that cannot be inside a catalogue number.

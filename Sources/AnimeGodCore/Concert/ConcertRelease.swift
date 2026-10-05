@@ -199,6 +199,20 @@ public struct ConcertRelease: Codable, Hashable, Sendable, Identifiable {
     /// which the page treats as "not recorded" rather than as "nobody".
     public var attribution: [ConcertReleaseField: ConcertProviderID] = [:]
 
+    /// Whether the numbers this record was filed under are still catalogue
+    /// numbers.
+    ///
+    /// A record matched by a key that no longer parses was matched by
+    /// something that was never a key — `IMG015` off a folder of scans, which
+    /// Discogs happens to have a compilation filed under. Nothing can repair
+    /// such a record, so the pass that would otherwise leave it alone for ever
+    /// throws it away and asks again. True when there are no numbers at all: a
+    /// Bangumi record was never matched by one.
+    public var wasFiledUnderARealCatalogueNumber: Bool {
+        guard !catalogNumbers.isEmpty else { return true }
+        return catalogNumbers.contains { ConcertCatalogNumber.first(in: $0) != nil }
+    }
+
     /// The sources that answered something, each with what it gave, in the
     /// order a page should list them: most fields first, and the folder on disk
     /// last because it is not a service.

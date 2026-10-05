@@ -193,6 +193,19 @@ public extension LibraryDatabase {
         }
     }
 
+    /// Throws a stored record away, for one that is known to be wrong rather
+    /// than merely thin.
+    @discardableResult
+    func deleteConcertRelease(animeID: UUID) throws -> Bool {
+        try database.write { db in
+            try db.execute(
+                sql: "DELETE FROM concertRelease WHERE animeID = ?",
+                arguments: [animeID.uuidString]
+            )
+            return db.changesCount > 0
+        }
+    }
+
     /// Works already filed under one of these catalogue numbers.
     ///
     /// Used before a lookup: a box set's three numbers all name one work, and

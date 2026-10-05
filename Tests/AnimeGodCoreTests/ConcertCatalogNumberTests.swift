@@ -80,3 +80,61 @@ struct ConcertCatalogNumberTests {
         #expect(all.map(\.description) == ["ANZX-10294", "PCXP-50999"])
     }
 }
+
+/// A scanner's filenames are not catalogue numbers, and Discogs will happily
+/// answer as if they were.
+@Suite("Numbers that are not catalogue numbers")
+struct ConcertScanFilenameTests {
+    /// Every one of these was read as a catalogue number in the real library,
+    /// and two of them returned a release: `IMG015` is a compilation called
+    /// *Walking Without Rhythm*, `ANIME-01` is *Retro Destiny*.
+    @Test(arguments: [
+        "IMG-01.png", "IMG015", "IMG_0042.jpg", "ANIME-01.jpg", "anime001",
+        "DSC_0001.jpg", "DSCF1234.jpg", "SCAN-01.png", "PIC-02.png", "COVER-01.jpg",
+        "PAGE-003.png", "BK-01.jpg",
+    ])
+    func aScannersNameIsNotACatalogueNumber(_ name: String) {
+        #expect(ConcertCatalogNumber.first(in: name) == nil, "\(name)")
+    }
+
+    /// And the real ones still read, including from the file the whole folder
+    /// reader exists for.
+    @Test(arguments: [
+        ("BRMM-10876.cue", "BRMM-10876"),
+        ("ANZX-10294~10296", "ANZX-10294"),
+        ("LABX-8333.log", "LABX-8333"),
+        ("[BDMV][BRMM-10716] MyGO!!!!! 4th LIVE", "BRMM-10716"),
+    ])
+    func realNumbersStillRead(_ name: String, _ expected: String) {
+        #expect(ConcertCatalogNumber.first(in: name)?.description == expected, "\(name)")
+    }
+
+    /// Four digits for a name found inside the release, where a short number
+    /// is a sequence number and nothing else.
+    @Test func wantsFourDigitsFromAFileInside() {
+        #expect(ConcertCatalogNumber.first(in: "VOL-03.log", minimumDigits: 4) == nil)
+        #expect(ConcertCatalogNumber.first(in: "XYZ-123.log", minimumDigits: 4) == nil)
+        #expect(ConcertCatalogNumber.first(in: "BRMM-10876.cue", minimumDigits: 4)?.description
+            == "BRMM-10876")
+    }
+
+    /// A record filed under one of those can never be repaired, so it is
+    /// thrown away rather than kept.
+    @Test func recognisesARecordFiledUnderANonNumber() {
+        let poisoned = ConcertRelease(
+            provider: .discogs, externalID: "1", title: "Walking Without Rhythm",
+            catalogNumbers: ["IMG015", "IMG-01", "IMG-02"]
+        )
+        #expect(!poisoned.wasFiledUnderARealCatalogueNumber)
+
+        let real = ConcertRelease(
+            provider: .musicBrainz, externalID: "2", title: "跡暖空",
+            catalogNumbers: ["BRMM-10876"]
+        )
+        #expect(real.wasFiledUnderARealCatalogueNumber)
+
+        // A Bangumi record was never matched by a number at all.
+        let byTitle = ConcertRelease(provider: .bangumi, externalID: "3", title: "MyGO 7th LIVE")
+        #expect(byTitle.wasFiledUnderARealCatalogueNumber)
+    }
+}
