@@ -9,6 +9,9 @@ public protocol ConcertReleaseSource: Sendable {
     /// Releases filed under a catalogue number. Empty when the source has no
     /// catalogue index at all, which is Bangumi's answer.
     func releases(catalogNumber: ConcertCatalogNumber) async throws -> [ConcertRelease]
+    /// A disc's barcode, which a cue sheet carries as its `CATALOG` line and is
+    /// as exact a key as the catalogue number.
+    func releases(barcode: String) async throws -> [ConcertRelease]
     func releases(title: String, artist: String?) async throws -> [ConcertRelease]
     /// The full record, with its track list.
     func release(id: String) async throws -> ConcertRelease
@@ -16,6 +19,12 @@ public protocol ConcertReleaseSource: Sendable {
 
 extension DiscogsConcertProvider: ConcertReleaseSource {}
 extension MusicBrainzConcertProvider: ConcertReleaseSource {}
+
+public extension ConcertReleaseSource {
+    /// Most sources index one; Bangumi indexes neither a barcode nor a
+    /// catalogue number, and says so once here rather than at every call site.
+    func releases(barcode: String) async throws -> [ConcertRelease] { [] }
+}
 
 extension BangumiConcertProvider: ConcertReleaseSource {
     /// Bangumi indexes nothing by catalogue number, so there is nothing to ask
@@ -132,12 +141,32 @@ public struct ConcertIdentifier: Sendable {
         return result
     }
 
-    public func identify(folderName: String) async -> ConcertIdentification {
+    /// - Parameter files: what the release's own folder says about itself.
+    ///
+    ///   The catalogue number is usually in there rather than in the folder's
+    ///   name. Measured on a real download: the folder was called
+    ///   `[DBD-Raws][MyGO!!!!! 6th LIVE…][1080P][BDRip][HEVC-10bit][FLAC][MKV]`
+    ///   and carried no number at all, while `BRMM-10876` was the name of a cue
+    ///   sheet two levels down — and that number answers with the release and
+    ///   both nights' setlists.
+    public func identify(
+        folderName: String,
+        files: ConcertReleaseFiles = ConcertReleaseFiles()
+    ) async -> ConcertIdentification {
         var result = ConcertIdentification()
-        let numbers = Array(ConcertCatalogNumber.all(in: folderName).prefix(Self.catalogNumbersToTry))
-        guard !numbers.isEmpty else { return result }
+        var seenNumbers = Set<String>()
+        let numbers = (ConcertCatalogNumber.all(in: folderName) + files.catalogNumbers)
+            .filter { seenNumbers.insert($0.description).inserted }
+            .prefix(Self.catalogNumbersToTry)
+        // What the folder itself knows is worth keeping even when no service
+        // answers: the scans are the artwork, and a cue sheet is a track list.
+        let local = files.release(fallbackTitle: folderName)
+        guard !numbers.isEmpty || files.barcode != nil else {
+            result.release = local
+            return result
+        }
 
-        var found: [ConcertRelease] = []
+        var found: [ConcertRelease] = local.map { [$0] } ?? []
         for number in numbers {
             for source in [discogs, musicBrainz].compactMap({ $0 }) {
                 guard !found.contains(where: { $0.provider == source.id }) else { continue }
@@ -149,7 +178,19 @@ public struct ConcertIdentifier: Sendable {
                     result.failures[source.id] = error.localizedDescription
                 }
             }
-            if !found.isEmpty { break }
+            if found.contains(where: { $0.provider != .localFiles }) { break }
+        }
+        // The barcode is one more exact key, and worth one more request when
+        // the numbers found nothing.
+        if !found.contains(where: { $0.provider != .localFiles }), let barcode = files.barcode {
+            for source in [discogs, musicBrainz].compactMap({ $0 }) {
+                do {
+                    guard let summary = try await source.releases(barcode: barcode).first else { continue }
+                    found.append(try await source.release(id: summary.externalID))
+                } catch {
+                    result.failures[source.id] = error.localizedDescription
+                }
+            }
         }
         guard !found.isEmpty else { return result }
 

@@ -649,6 +649,22 @@
         }
       }
     },
+    "%lld items": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 件"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 项"
+          }
+        }
+      }
+    },
     "%lld min of music": {
       "localizations": {
         "ja": {
@@ -1232,6 +1248,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "整季一起开始时会自动排队：同时下载这么多个，其余的按顺序等待"
+          }
+        }
+      }
+    },
+    "About": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "概要"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "简介"
           }
         }
       }
@@ -4234,6 +4266,22 @@
         }
       }
     },
+    "Discs": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ディスク"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "碟片"
+          }
+        }
+      }
+    },
     "Discussions": {
       "localizations": {
         "ja": {
@@ -5925,6 +5973,22 @@
         }
       }
     },
+    "Full programme": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本編"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全片"
+          }
+        }
+      }
+    },
     "Gather This Anime Into “%@”": {
       "localizations": {
         "ja": {
@@ -6469,6 +6533,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "资料库已有"
+          }
+        }
+      }
+    },
+    "In the box": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同梱物"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "随碟附带"
           }
         }
       }
@@ -7956,6 +8036,40 @@
         }
       }
     },
+    "Night %lld": {
+      "extractionState": "stale",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Day %lld"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第 %lld 场"
+          }
+        }
+      }
+    },
+    "Nights": {
+      "extractionState": "stale",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "公演"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "场次"
+          }
+        }
+      }
+    },
     "No Anime Yet": {
       "localizations": {
         "ja": {
@@ -9159,6 +9273,22 @@
         }
       }
     },
+    "Official site": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "公式サイト"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "官方网站"
+          }
+        }
+      }
+    },
     "One chapter per song": {
       "localizations": {
         "ja": {
@@ -10160,6 +10290,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "私人笔记"
+          }
+        }
+      }
+    },
+    "Programme": {
+      "extractionState": "stale",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "収録内容"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "内容"
           }
         }
       }
@@ -11214,6 +11361,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "扫描所有资料库"
+          }
+        }
+      }
+    },
+    "Scans": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "スキャン"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "扫图"
           }
         }
       }

@@ -35,6 +35,13 @@ actor ArtworkCache {
             return result
         }
         let task = Task<Data?, Never> { [directory] in
+            // A release's own jacket scans are files on the library drive, and a
+            // file URL has no `HTTPURLResponse` — insisting on one turned every
+            // local cover into a spinner that never stopped.
+            if url.isFileURL {
+                guard let data = try? Data(contentsOf: url), !data.isEmpty else { return nil }
+                return data
+            }
             guard let (data, response) = try? await URLSession.shared.data(from: url),
                   let http = response as? HTTPURLResponse,
                   (200..<300).contains(http.statusCode),

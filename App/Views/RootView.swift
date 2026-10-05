@@ -137,13 +137,30 @@ struct RootView: View {
         }
         .task {
             guard AppearanceSnapshotSmokeTest.isRequested else { return }
-            let sections = SidebarItem.allCases.map(\.rawValue) + ["detail"]
+            // A concert's page shares nothing with an anime's, so it has to be
+            // walked too or the one screen built from scratch is the one screen
+            // never drawn.
+            let sections = SidebarItem.allCases.map(\.rawValue) + ["detail", "concertDetail"]
             await AppearanceSnapshotSmokeTest.run(model: model, sections: sections, openPlayer: { openWindow(id: "player") }) { name in
-                if name == "detail" {
+                switch name {
+                case "detail":
                     selection = .library
                     let item = model.library.first { model.metadataByAnimeID[$0.id] != nil } ?? model.library.first
                     if let anime = item?.anime { navigationPath.append(anime) }
-                } else {
+                case "concertDetail":
+                    selection = .concerts
+                    navigationPath = NavigationPath()
+                    // A beat before pushing: the destination for `ConcertRoute`
+                    // is declared *by* `ConcertsView`, so appending in the same
+                    // update that selects the section pushes onto a stack that
+                    // does not know the route yet, and the push is dropped.
+                    if let concert = model.concertSection.concerts.first {
+                        Task { @MainActor in
+                            try? await Task.sleep(for: .milliseconds(300))
+                            navigationPath.append(ConcertRoute(animeID: concert.id))
+                        }
+                    }
+                default:
                     navigationPath = NavigationPath()
                     selection = SidebarItem(rawValue: name)
                 }

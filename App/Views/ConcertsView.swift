@@ -130,11 +130,19 @@ private struct ConcertCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             // Square rather than a poster's 2:3: a concert's artwork is a disc
-            // jacket, and cropping one to a film poster's shape cuts the title
-            // off it.
-            PosterView(urls: concert.release?.coverImageURLs ?? [], height: 180)
-                .aspectRatio(1, contentMode: .fill)
-                .frame(maxWidth: .infinity)
+            // jacket or a stage photo, and cropping one to a film poster's
+            // shape cuts the title off it.
+            //
+            // The square comes from an empty `Color` carrying the ratio, with
+            // the artwork as an overlay. `PosterView` has no intrinsic size of
+            // its own, so putting `.aspectRatio` on it directly lets it grow to
+            // whatever the image wants — which is what made every card a
+            // full-height cover with the titles overlapping each other.
+            Color.clear
+                .aspectRatio(1, contentMode: .fit)
+                .overlay {
+                    PosterView(urls: concert.release?.coverImageURLs ?? [], height: 180)
+                }
                 .clipShape(RoundedRectangle(cornerRadius: 8))
             Text(concert.displayTitle)
                 .font(.subheadline.weight(.semibold))

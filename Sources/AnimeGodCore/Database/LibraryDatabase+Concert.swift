@@ -51,6 +51,33 @@ public extension LibraryDatabase {
     /// stripped out of it. Returned for every disc work whether or not it is a
     /// concert yet: an anime Blu-ray is a disc too, and the lookup is what
     /// decides which it is.
+    /// Where a work's files sit: the library root they are under and the folder
+    /// they share.
+    ///
+    /// A release says more about itself in its own folder than any index does —
+    /// the catalogue number in a cue sheet's filename, the jacket scans, the
+    /// track list — so the lookup needs to be able to open it.
+    func releaseFolders() throws -> [(animeID: UUID, rootID: UUID, folderName: String)] {
+        try database.read { db in
+            let rows = try Row.fetchAll(db, sql: """
+                SELECT anime.id AS animeID, mediaFile.libraryRootID AS rootID,
+                       MIN(mediaFile.relativePath) AS path
+                FROM anime
+                JOIN episode ON episode.animeID = anime.id
+                JOIN mediaFile ON mediaFile.episodeID = episode.id
+                GROUP BY anime.id
+                """)
+            return rows.compactMap { row in
+                guard let id = (row["animeID"] as String?).flatMap(UUID.init(uuidString:)),
+                      let rootID = (row["rootID"] as String?).flatMap(UUID.init(uuidString:)),
+                      let path: String = row["path"],
+                      let folder = path.components(separatedBy: "/").first, !folder.isEmpty
+                else { return nil }
+                return (id, rootID, folder)
+            }
+        }
+    }
+
     func discWorks() throws -> [(animeID: UUID, folderName: String, title: String, kind: AnimeKind)] {
         try database.read { db in
             let rows = try Row.fetchAll(db, sql: """
@@ -130,14 +157,15 @@ public extension LibraryDatabase {
     /// would leave a field from a source that has since been corrected.
     func saveConcertRelease(_ release: ConcertRelease, forAnimeID animeID: UUID) throws {
         let discs = try JSONEncoder().encode(release.discs)
+        let extras = try JSONEncoder().encode(release.extras)
         try database.write { db in
             try db.execute(sql: """
                 INSERT INTO concertRelease (
                     animeID, provider, externalID, title, artistNames, releaseDate, country,
                     labels, catalogNumbers, barcode, genres, coverImageURLs, sourceURL,
                     score, ratingCount, summary, venue, performedOn, officialSiteURL,
-                    discs, updatedAt
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    discs, extras, updatedAt
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(animeID) DO UPDATE SET
                     provider = excluded.provider, externalID = excluded.externalID,
                     title = excluded.title, artistNames = excluded.artistNames,
@@ -148,7 +176,8 @@ public extension LibraryDatabase {
                     score = excluded.score, ratingCount = excluded.ratingCount,
                     summary = excluded.summary, venue = excluded.venue,
                     performedOn = excluded.performedOn, officialSiteURL = excluded.officialSiteURL,
-                    discs = excluded.discs, updatedAt = excluded.updatedAt
+                    discs = excluded.discs, extras = excluded.extras,
+                    updatedAt = excluded.updatedAt
                 """, arguments: [
                     animeID.uuidString, release.provider.rawValue, release.externalID,
                     release.title, Self.joined(release.artistNames), release.releaseDate,
@@ -158,7 +187,7 @@ public extension LibraryDatabase {
                     Self.joined(release.coverImageURLs.map(\.absoluteString)),
                     release.sourceURL?.absoluteString, release.score, release.ratingCount,
                     release.summary, release.venue, release.performedOn,
-                    release.officialSiteURL?.absoluteString, discs, Date()
+                    release.officialSiteURL?.absoluteString, discs, extras, Date()
                 ])
         }
     }
@@ -286,7 +315,9 @@ extension LibraryDatabase {
             summary: row["summary"],
             venue: row["venue"],
             performedOn: row["performedOn"],
-            officialSiteURL: (row["officialSiteURL"] as String?).flatMap(URL.init(string:))
+            officialSiteURL: (row["officialSiteURL"] as String?).flatMap(URL.init(string:)),
+            extras: (row["extras"] as Data?)
+                .flatMap { try? JSONDecoder().decode([ConcertExtra].self, from: $0) } ?? []
         )
     }
 

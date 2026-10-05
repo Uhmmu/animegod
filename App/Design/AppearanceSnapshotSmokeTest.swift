@@ -37,7 +37,8 @@ enum AppearanceSnapshotSmokeTest {
             for section in sections {
                 show(section)
                 // Artwork and provider-backed pages load asynchronously.
-                try? await Task.sleep(for: .seconds(section == "detail" || section == "bangumiCharts" ? 4 : 2))
+                let slow = ["detail", "concertDetail", "bangumiCharts"].contains(section)
+                try? await Task.sleep(for: .seconds(slow ? 4 : 2))
                 let url = folder.appendingPathComponent("\(mode.rawValue)-\(section).png")
                 if let data = WindowSnapshot.png(of: window) {
                     try? data.write(to: url)

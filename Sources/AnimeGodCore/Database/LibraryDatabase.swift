@@ -2220,6 +2220,14 @@ public actor LibraryDatabase {
             }
             try db.create(index: "concertRelease_catalog", on: "concertRelease", columns: ["catalogNumbers"])
         }
+        migrator.registerMigration("v15_concert_extras") { db in
+            // What came in the box beside the video: `CDs`, `OST`, `Scans`,
+            // `menu`. Its own migration rather than an edit to `v14`, which has
+            // been applied to a real library by now.
+            try db.alter(table: "concertRelease") { table in
+                table.add(column: "extras", .blob)
+            }
+        }
         return migrator
     }
 }

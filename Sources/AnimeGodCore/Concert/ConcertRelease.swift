@@ -4,12 +4,16 @@ public enum ConcertProviderID: String, Codable, CaseIterable, Sendable {
     case discogs
     case musicBrainz
     case bangumi
+    /// The release's own folder — its scans, its cue sheet, its catalogue
+    /// number. Not a service, but a source, and for artwork the best one.
+    case localFiles
 
     public var displayName: String {
         switch self {
         case .discogs: "Discogs"
         case .musicBrainz: "MusicBrainz"
         case .bangumi: "Bangumi"
+        case .localFiles: String(localized: "This release", bundle: .module)
         }
     }
 }
@@ -110,6 +114,10 @@ public struct ConcertRelease: Codable, Hashable, Sendable, Identifiable {
     /// nothing of the sort. It is what moves a work into the concert section
     /// without anyone having to say so.
     public var isLiveRecording: Bool = false
+    /// What else came in the box, read off the folder it arrived in. A page
+    /// that can say "and five bonus CDs and 27 scans" is describing what the
+    /// viewer owns rather than what a catalogue happens to list.
+    public var extras: [ConcertExtra] = []
 
     public var id: String { "\(provider.rawValue):\(externalID)" }
 
@@ -134,7 +142,8 @@ public struct ConcertRelease: Codable, Hashable, Sendable, Identifiable {
         performedOn: String? = nil,
         officialSiteURL: URL? = nil,
         isPerformanceRecord: Bool = false,
-        isLiveRecording: Bool = false
+        isLiveRecording: Bool = false,
+        extras: [ConcertExtra] = []
     ) {
         self.provider = provider
         self.externalID = externalID
@@ -157,6 +166,7 @@ public struct ConcertRelease: Codable, Hashable, Sendable, Identifiable {
         self.officialSiteURL = officialSiteURL
         self.isPerformanceRecord = isPerformanceRecord
         self.isLiveRecording = isLiveRecording
+        self.extras = extras
     }
 
     /// The discs worth playing, in order.
@@ -178,9 +188,13 @@ public struct ConcertRelease: Codable, Hashable, Sendable, Identifiable {
     public func videoDisc(forDiscNumber number: Int?) -> ConcertDisc? {
         let discs = videoDiscs
         guard let number else { return discs.first }
-        if let exact = discs.first(where: { $0.position == number }) { return exact }
+        // By order, not by the medium's own position. A release whose video
+        // discs are media 2 and 3 — an album with a CD in front of them, which
+        // is how `BRMM-10876` holds both nights — would otherwise hand the
+        // second night the first night's setlist.
         let index = number - 1
-        return discs.indices.contains(index) ? discs[index] : discs.first
+        if discs.indices.contains(index) { return discs[index] }
+        return discs.first { $0.position == number } ?? discs.first
     }
 
     /// How long the music runs, when the source published lengths.

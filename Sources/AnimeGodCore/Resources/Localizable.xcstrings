@@ -1325,6 +1325,22 @@
         }
       }
     },
+    "This release" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この作品のファイル"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本片文件"
+          }
+        }
+      }
+    },
     "This title is not available in your region." : {
       "localizations" : {
         "ja" : {

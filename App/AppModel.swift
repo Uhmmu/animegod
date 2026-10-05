@@ -182,25 +182,17 @@ final class AppModel: ObservableObject {
         Task { [weak self] in
             // Let the scan's own work settle before adding network traffic.
             try? await Task.sleep(for: .seconds(2))
+            // Concerts first, and this is the whole reason they are first: no
+            // anime index lists one, so a concert left in the library is a
+            // question the match review asks at every launch and can never
+            // answer. Moving it out of the library *before* the metadata pass
+            // runs is what stops the question being asked even once.
+            await self?.concertSection.identifyAll(isAutomatic: true)
             await self?.enrichLibraryMetadata(isAutomatic: true)
         }
-        identifyConcertsInBackground()
     }
 
-    /// Looks up any disc the library has not identified yet, on its own.
-    ///
-    /// The same reasoning that made the metadata pass automatic: a toolbar
-    /// button nobody presses is a feature nobody has. Detached and quiet,
-    /// because a pass over a library of discs takes minutes at one request a
-    /// second and the usual reason one fails is a busy service, which the next
-    /// pass will get.
-    private func identifyConcertsInBackground() {
-        guard !concertSection.isIdentifying else { return }
-        Task { [weak self] in
-            try? await Task.sleep(for: .seconds(4))
-            await self?.concertSection.identifyAll(isAutomatic: true)
-        }
-    }
+
 
     func scan(_ root: LibraryRoot, managesScanningState: Bool = true) async {
         guard let database else { return }
@@ -300,6 +292,29 @@ final class AppModel: ObservableObject {
             cache: nil,
             directPlayback: PlayerRequest.DirectPlayback(url: url, title: title, infoHash: infoHash)
         )
+    }
+
+    /// Reads what a work's own release folder says about itself.
+    ///
+    /// The read happens here rather than in the coordinator because the folder
+    /// can only be opened while the root's security scope is held, and a URL
+    /// handed out after the scope is dropped is a URL nothing may read.
+    func releaseFiles(forAnimeID animeID: UUID) async -> ConcertReleaseFiles? {
+        guard let database,
+              let entry = try? await database.releaseFolders().first(where: { $0.animeID == animeID }),
+              let root = roots.first(where: { $0.id == entry.rootID }),
+              let access = try? ScopedLibraryAccess(root: root)
+        else { return nil }
+        let folder = access.url.appending(path: entry.folderName, directoryHint: .isDirectory)
+        guard FileManager.default.fileExists(atPath: folder.path) else {
+            access.stop()
+            return nil
+        }
+        let files = await Task.detached(priority: .utility) {
+            ConcertReleaseFileReader.read(folder: folder)
+        }.value
+        access.stop()
+        return files
     }
 
     /// The library root a path sits inside, if any.
@@ -1276,6 +1291,11 @@ final class AppModel: ObservableObject {
             }
             await subscriptions.attach(database: database, downloads: downloads)
             concertSection.attach(database: database)
+            // The concert lookup reads a release's own folder, which needs the
+            // security scope only the roots carry.
+            concertSection.releaseFilesResolver = { [weak self] animeID in
+                await self?.releaseFiles(forAnimeID: animeID)
+            }
             await refreshRootAvailability()
             await reloadLibrary()
             enrichInBackground()

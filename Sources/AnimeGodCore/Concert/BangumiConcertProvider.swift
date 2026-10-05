@@ -147,7 +147,12 @@ private extension BangumiConcertProvider {
                 provider: .bangumi,
                 externalID: String(id),
                 title: nameCN?.isEmpty == false ? nameCN! : name,
-                artistNames: Self.values(in: infobox, keys: ["艺术家", "アーティスト", "出演", "演出者", "歌手"]),
+                // `主演` is what a 演出 subject calls the act — measured on
+                // subject 492657, which credits `MyGO!!!!!` there and under no
+                // other key. Without it a concert page has no performer on it.
+                artistNames: Self.values(in: infobox, keys: [
+                    "主演", "艺术家", "アーティスト", "出演", "演出者", "歌手", "出演者"
+                ]),
                 releaseDate: isPerformance ? nil : (date ?? Self.value(in: infobox, keys: ["发售日期", "発売日"])),
                 country: Self.value(in: infobox, keys: ["国家/地区", "国家", "地区"]),
                 labels: Self.values(in: infobox, keys: ["厂牌", "レーベル", "发行", "発売元"]),
@@ -159,8 +164,12 @@ private extension BangumiConcertProvider {
                 score: rating?.score.flatMap { $0 > 0 ? $0 : nil },
                 ratingCount: rating?.total,
                 summary: summary,
-                venue: Self.value(in: infobox, keys: ["演出地点", "会场", "会場", "场地"]),
-                performedOn: isPerformance ? (Self.value(in: infobox, keys: ["开始", "開始", "日期"]) ?? date) : nil,
+                // A tour plays more than one hall and the entry lists them
+                // all: 492657 ran at 武蔵野の森総合スポーツプラザ and then at
+                // 上海虹館EH, and naming only the first would be wrong about
+                // where half of it happened.
+                venue: Self.joined(Self.values(in: infobox, keys: ["演出地点", "会场", "会場", "场地"])),
+                performedOn: isPerformance ? Self.dateRange(infobox) ?? date : nil,
                 officialSiteURL: Self.value(in: infobox, keys: ["官方网站", "公式サイト"]).flatMap(URL.init(string:)),
                 isPerformanceRecord: isPerformance,
                 // A 演出 subject *is* a concert, and a disc entry says so in
@@ -189,6 +198,20 @@ private extension BangumiConcertProvider {
                 let folded = value.lowercased()
                 return markers.contains { folded.contains($0) }
             }
+        }
+
+        static func joined(_ values: [String]) -> String? {
+            values.isEmpty ? nil : values.joined(separator: "、")
+        }
+
+        /// When the concert happened. Two nights are `开始` and `结束`, and a
+        /// page that showed only the first would be describing half of it.
+        static func dateRange(_ infobox: [InfoboxEntry]) -> String? {
+            guard let start = value(in: infobox, keys: ["开始", "開始", "日期"]) else { return nil }
+            guard let end = value(in: infobox, keys: ["结束", "終了", "結束"]), end != start else {
+                return start
+            }
+            return "\(start) – \(end)"
         }
 
         static func value(in infobox: [InfoboxEntry], keys: [String]) -> String? {

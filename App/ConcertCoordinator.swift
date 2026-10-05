@@ -26,9 +26,21 @@ final class ConcertCoordinator: ObservableObject {
     private var chaptersByEpisode: [UUID: [ConcertChapterMark]] = [:]
 
     private var database: LibraryDatabase?
+    /// Reads a work's release folder inside the sandbox. Set by `AppModel`,
+    /// which owns the library roots and their security scopes — the folder can
+    /// only be opened while a scope is held, so the reading happens there.
+    var releaseFilesResolver: ((UUID) async -> ConcertReleaseFiles?)?
 
     func attach(database: LibraryDatabase?) {
         self.database = database
+    }
+
+    /// What a work's own folder says about itself — the catalogue number in a
+    /// cue sheet's name, the jacket scans, the track list. Read before any
+    /// service is asked, because the number is usually here and almost never in
+    /// the folder's name.
+    private func releaseFiles(forAnimeID animeID: UUID) async -> ConcertReleaseFiles {
+        await releaseFilesResolver?(animeID) ?? ConcertReleaseFiles()
     }
 
     var hasDiscogsKey: Bool { CredentialStore.Concert.loadDiscogsCredentials() != nil }
@@ -67,9 +79,17 @@ final class ConcertCoordinator: ObservableObject {
             let works = try await database.discWorks()
             var identified = 0
             for work in works {
-                if try await database.concertRelease(animeID: work.animeID) != nil { continue }
+                // A record already there is left alone — unless it is a thin
+                // one. A release identified before the folder itself was read
+                // has no setlist and nothing from the box, and re-asking is
+                // cheap next to leaving a page that stays empty for ever.
+                if let existing = try await database.concertRelease(animeID: work.animeID),
+                   existing.songCount > 0 || !existing.extras.isEmpty {
+                    continue
+                }
                 progress = String(localized: "Looking up \(work.title)…")
-                let found = await identifier().identify(folderName: work.folderName)
+                let files = await releaseFiles(forAnimeID: work.animeID)
+                let found = await identifier().identify(folderName: work.folderName, files: files)
                 guard let release = found.release else {
                     if !isAutomatic, let failure = found.failures.values.first {
                         errorMessage = failure
@@ -103,13 +123,35 @@ final class ConcertCoordinator: ObservableObject {
     /// title would match the artist's other concerts; a performance subject
     /// whose title plainly matches is an event that happened in a hall.
     private func identifyConcertsNoProviderKnows(isAutomatic: Bool) async -> Int {
-        guard let database, let works = try? await database.worksWithNoMetadata(), !works.isEmpty else {
-            return 0
+        guard let database else { return 0 }
+        // Works no provider knows, plus concerts already here whose record is a
+        // thin one — the second group is how a page identified before the
+        // folder was read ever gets its setlist and its scans.
+        var works = (try? await database.worksWithNoMetadata()) ?? []
+        for concert in concerts where concert.release?.songCount ?? 0 == 0
+            && concert.release?.extras.isEmpty != false {
+            works.append((animeID: concert.id, title: concert.anime.title))
         }
+        guard !works.isEmpty else { return 0 }
         var moved = 0
         for work in works {
             progress = String(localized: "Looking up \(work.title)…")
-            let found = await identifier().identify(title: work.title, requiringPerformance: true)
+            // The folder first: a release with a catalogue number in it is
+            // identified outright, and only a folder with nothing in it has to
+            // fall back to asking Bangumi about the title.
+            let files = await releaseFiles(forAnimeID: work.animeID)
+            var found = await identifier().identify(folderName: work.title, files: files)
+            if found.release?.isLiveRecording != true {
+                var byTitle = await identifier().identify(title: work.title, requiringPerformance: true)
+                if byTitle.release != nil {
+                    // Keep what the folder gave — the scans and the cue sheet —
+                    // and add the hall the title lookup found.
+                    byTitle.release = ConcertReleaseMerge.merge(
+                        [found.release, byTitle.release].compactMap { $0 }
+                    )
+                    found = byTitle
+                }
+            }
             guard let release = found.release, release.isLiveRecording else { continue }
             do {
                 try await database.saveConcertRelease(release, forAnimeID: work.animeID)
@@ -132,7 +174,8 @@ final class ConcertCoordinator: ObservableObject {
             isIdentifying = true
             defer { isIdentifying = false; progress = nil }
             progress = String(localized: "Looking up \(work.title)…")
-            let found = await identifier().identify(folderName: work.folderName)
+            let files = await releaseFiles(forAnimeID: animeID)
+            let found = await identifier().identify(folderName: work.folderName, files: files)
             if let release = found.release {
                 try await database.saveConcertRelease(release, forAnimeID: animeID)
                 if found.isConcert { try await database.markAnimeAsConcert(id: animeID) }

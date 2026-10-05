@@ -26,10 +26,13 @@ public enum ConcertReleaseMerge {
         // the disc.
         let performance = sources.first { $0.provider == .bangumi && $0.isPerformanceRecord }
         let bangumiDisc = sources.first { $0.provider == .bangumi && !$0.isPerformanceRecord }
+        /// The release's own folder: its scans, its cue sheet, its catalogue
+        /// number. Not a service, and for artwork better than all of them.
+        let local = sources.first { $0.provider == .localFiles }
 
         // Whichever source is leading decides the identity the record is
         // stored under, and that is the one with the setlist.
-        let lead = musicBrainz ?? discogs ?? bangumiDisc ?? performance!
+        let lead = musicBrainz ?? discogs ?? bangumiDisc ?? performance ?? local!
 
         var merged = ConcertRelease(
             provider: lead.provider,
@@ -37,18 +40,19 @@ public enum ConcertReleaseMerge {
             title: title(musicBrainz: musicBrainz, others: [discogs, bangumiDisc, performance]),
             artistNames: dedupe([
                 musicBrainz?.artistNames ?? [], discogs?.artistNames ?? [],
-                performance?.artistNames ?? []
+                performance?.artistNames ?? [], local?.artistNames ?? []
             ].flatMap { $0 }),
             releaseDate: first([discogs?.releaseDate, musicBrainz?.releaseDate, bangumiDisc?.releaseDate]),
             country: first([discogs?.country, musicBrainz?.country, performance?.country]),
             labels: dedupe([discogs?.labels ?? [], musicBrainz?.labels ?? []].flatMap { $0 }),
             catalogNumbers: dedupe([
-                musicBrainz?.catalogNumbers ?? [], discogs?.catalogNumbers ?? []
+                musicBrainz?.catalogNumbers ?? [], discogs?.catalogNumbers ?? [],
+                local?.catalogNumbers ?? []
             ].flatMap { $0 }),
-            barcode: first([discogs?.barcode, musicBrainz?.barcode]),
+            barcode: first([discogs?.barcode, musicBrainz?.barcode, local?.barcode]),
             genres: dedupe([discogs?.genres ?? [], performance?.genres ?? []].flatMap { $0 }),
-            discs: discs(musicBrainz: musicBrainz, bangumi: bangumiDisc, discogs: discogs),
-            coverImageURLs: covers(performance: performance, bangumiDisc: bangumiDisc,
+            discs: discs(musicBrainz: musicBrainz, bangumi: bangumiDisc, discogs: discogs, local: local),
+            coverImageURLs: covers(local: local, performance: performance, bangumiDisc: bangumiDisc,
                                    musicBrainz: musicBrainz, discogs: discogs),
             sourceURL: lead.sourceURL,
             // Bangumi is the only one of the three with a rating a person left,
@@ -62,7 +66,9 @@ public enum ConcertReleaseMerge {
             isPerformanceRecord: false,
             // One source saying so is enough: none of them claims it falsely,
             // and only MusicBrainz and Bangumi claim it at all.
-            isLiveRecording: sources.contains(where: \.isLiveRecording)
+            isLiveRecording: sources.contains(where: \.isLiveRecording),
+            // Only the folder knows what is in the box.
+            extras: local?.extras ?? []
         )
         if merged.title.isEmpty { merged.title = lead.title }
         return merged
@@ -78,7 +84,10 @@ public enum ConcertReleaseMerge {
     /// `結束バンドLIVE-恒星-`; on a mixed release only the medium gets it right.
     static func title(musicBrainz: ConcertRelease?, others: [ConcertRelease?]) -> String {
         if let discTitle = musicBrainz?.videoDiscs.first?.title, !discTitle.isEmpty {
-            return discTitle
+            // The medium is one night of the concert and is titled as such —
+            // `… 見つけた景色、たずさえて」DAY1`. The concert is both nights, so the
+            // night comes off the name the same way it comes off a folder's.
+            return AnimeFilenameParser.withoutDiscLabel(discTitle)
         }
         if let releaseTitle = musicBrainz?.title, !releaseTitle.isEmpty { return releaseTitle }
         return others.compactMap { $0?.title }.first { !$0.isEmpty } ?? ""
@@ -116,9 +125,14 @@ public enum ConcertReleaseMerge {
     static func discs(
         musicBrainz: ConcertRelease?,
         bangumi: ConcertRelease?,
-        discogs: ConcertRelease?
+        discogs: ConcertRelease?,
+        local: ConcertRelease? = nil
     ) -> [ConcertDisc] {
-        for candidate in [musicBrainz, bangumi, discogs] {
+        // The folder's own cue sheet comes last among track lists, because it
+        // describes the bonus CD rather than the programme — twelve songs where
+        // each night of the concert ran sixteen. It is still a setlist, and it
+        // is the only one with durations on it, so it beats having none.
+        for candidate in [musicBrainz, bangumi, discogs, local] {
             guard let discs = candidate?.discs, !discs.isEmpty,
                   discs.contains(where: { !$0.songs.isEmpty })
             else { continue }
@@ -135,13 +149,16 @@ public enum ConcertReleaseMerge {
     /// these releases was a `secondary` one around 500px, which is as likely to
     /// be the back of the case as the front.
     static func covers(
+        local: ConcertRelease? = nil,
         performance: ConcertRelease?,
         bangumiDisc: ConcertRelease?,
         musicBrainz: ConcertRelease?,
         discogs: ConcertRelease?
     ) -> [URL] {
         var seen = Set<URL>()
-        return [bangumiDisc, performance, musicBrainz, discogs]
+        // The release's own scans first and by a long way: three-megabyte
+        // jacket scans against Discogs' 445×600 photograph of the case.
+        return [local, bangumiDisc, performance, musicBrainz, discogs]
             .compactMap { $0?.coverImageURLs }
             .flatMap { $0 }
             .filter { seen.insert($0).inserted }
