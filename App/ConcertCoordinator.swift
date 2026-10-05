@@ -181,25 +181,51 @@ final class ConcertCoordinator: ObservableObject {
         return moved
     }
 
-    /// Looks one disc up again, for the disc that was added while a service was
-    /// down.
+    /// Looks one concert up again, from scratch.
+    ///
+    /// Reached from the section's context menu, and it is the only way to make
+    /// a record that is already complete be re-read: the automatic pass leaves
+    /// anything with a setlist alone, so a release identified before a source
+    /// existed would never see that source. It is also the only path that works
+    /// for a **BDRip** — it used to ask `discWorks()` alone, which lists `.iso`
+    /// and `BDMV` works only, so for the one concert actually in this library it
+    /// returned in silence and the menu item did nothing at all.
     func identify(animeID: UUID) async {
         guard let database else { return }
         do {
-            guard let work = try await database.discWorks().first(where: { $0.animeID == animeID })
-            else { return }
+            let title = try await database.anime(id: animeID)?.title
+            // The folder is what carries the catalogue number; a rip that is not
+            // a disc work still has one.
+            var folder = try await database.discWorks().first { $0.animeID == animeID }?.folderName
+            if folder == nil {
+                folder = try await database.releaseFolders()
+                    .first { $0.animeID == animeID }?.folderName
+            }
+            guard let name = folder ?? title else { return }
             isIdentifying = true
             defer { isIdentifying = false; progress = nil }
-            progress = String(localized: "Looking up \(work.title)…")
+            progress = String(localized: "Looking up \(title ?? name)…")
+
             let files = await releaseFiles(forAnimeID: animeID)
-            let found = await identifier().identify(folderName: work.folderName, files: files)
+            var found = await identifier().identify(folderName: name, files: files)
+            // No catalogue number anywhere, which is the ordinary case for a
+            // rip: fall back to the title, the way the automatic pass does.
+            if found.release?.isLiveRecording != true, let title, !title.isEmpty {
+                var byTitle = await identifier().identify(title: title)
+                if byTitle.release != nil {
+                    byTitle.release = ConcertReleaseMerge.merge(
+                        [found.release, byTitle.release].compactMap { $0 }
+                    )
+                    found = byTitle
+                }
+            }
             if let release = found.release {
                 try await database.saveConcertRelease(release, forAnimeID: animeID)
                 if found.isConcert { try await database.markAnimeAsConcert(id: animeID) }
             } else if let failure = found.failures.values.first {
                 errorMessage = failure
             } else {
-                errorMessage = String(localized: "No source has a release under “\(work.folderName)”. The folder needs a catalogue number in its name — ANZX-10294, BRMM-10716 — for a disc to be looked up.")
+                errorMessage = String(localized: "No source has a release under “\(name)”. A disc is matched by the catalogue number in its folder — ANZX-10294, BRMM-10716 — or by a title Bangumi files as a 演出.")
             }
             await reload()
         } catch {

@@ -8903,7 +8903,24 @@
         }
       }
     },
+    "No source has a release under “%@”. A disc is matched by the catalogue number in its folder — ANZX-10294, BRMM-10716 — or by a title Bangumi files as a 演出.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」はどの情報源にもありません。ディスクはフォルダー名の品番——ANZX-10294、BRMM-10716——か、Bangumi が演出として登録しているタイトルで照合されます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有任何来源收录“%@”。碟片是靠文件夹里的番号匹配的 —— ANZX-10294、BRMM-10716 —— 或者靠 Bangumi 归为「演出」的标题。"
+          }
+        }
+      }
+    },
     "No source has a release under “%@”. The folder needs a catalogue number in its name — ANZX-10294, BRMM-10716 — for a disc to be looked up.": {
+      "extractionState": "stale",
       "localizations": {
         "ja": {
           "stringUnit": {
