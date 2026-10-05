@@ -236,7 +236,7 @@ private struct ConcertCard: View {
             Color.clear
                 .aspectRatio(1, contentMode: .fit)
                 .overlay {
-                    PosterView(urls: concert.release?.coverImageURLs ?? [], height: 180)
+                    PosterView(urls: concert.release?.displayCoverURLs ?? [], height: 180)
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 8))
             Text(concert.displayTitle)

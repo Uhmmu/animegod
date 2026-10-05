@@ -481,3 +481,46 @@ struct ConcertPresentationTests {
         #expect(merged.coverImageURLs.first?.lastPathComponent == "IMG-01.png")
     }
 }
+
+/// Which cover a page leads with, decided when the page is drawn.
+///
+/// The merge's order is stored, so a record written under an older rule keeps
+/// it for ever: eight of the real library's concerts had a scan at the front
+/// and a perfectly good service cover a few places down.
+@Suite("Ordering covers at display time")
+struct ConcertDisplayCoverTests {
+    private func release(_ urls: [URL]) -> ConcertRelease {
+        ConcertRelease(provider: .musicBrainz, externalID: "1", title: "x", coverImageURLs: urls)
+    }
+
+    private func scan(_ name: String) -> URL { URL(fileURLWithPath: "/Volumes/T7/x/Scans/\(name)") }
+    private let service = URL(string: "https://lain.bgm.tv/pic/cover/l/1.jpg")!
+
+    /// The stored order of a real record: scans first, the service cover
+    /// fourth. A ticket application form was the card for Ave Mujica's 3rd
+    /// LIVE exactly like this.
+    @Test func aServiceCoverIsLiftedOutOfAPileOfScans() {
+        let stored = release([scan("IMG-01.png"), scan("IMG-02.png"), scan("IMG-03.png"), service])
+        #expect(stored.displayCoverURLs.first == service)
+        // Nothing is dropped — the scans are the rest of the artwork and the
+        // fallback for a URL that will not load.
+        #expect(stored.displayCoverURLs.count == 4)
+        #expect(stored.displayCoverURLs.dropFirst().filter(\.isFileURL).count == 3)
+    }
+
+    /// A file somebody named `cover.jpg` outranks both.
+    @Test func aNamedCoverLeads() {
+        let stored = release([service, scan("IMG-01.png"), scan("cover.jpg")])
+        #expect(stored.displayCoverURLs.first?.lastPathComponent == "cover.jpg")
+        #expect(stored.displayCoverURLs[1] == service)
+    }
+
+    @Test func scansAloneKeepTheirOrder() {
+        let stored = release([scan("IMG-01.png"), scan("IMG-02.png")])
+        #expect(stored.displayCoverURLs.map(\.lastPathComponent) == ["IMG-01.png", "IMG-02.png"])
+    }
+
+    @Test func nothingIsNothing() {
+        #expect(release([]).displayCoverURLs.isEmpty)
+    }
+}

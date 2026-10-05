@@ -199,6 +199,33 @@ public struct ConcertRelease: Codable, Hashable, Sendable, Identifiable {
     /// which the page treats as "not recorded" rather than as "nobody".
     public var attribution: [ConcertReleaseField: ConcertProviderID] = [:]
 
+    /// The covers in the order a page should try them, worked out from the
+    /// URLs themselves rather than from who supplied them.
+    ///
+    /// The merge already orders them, but that order is **stored**, so a
+    /// record written under an older rule keeps it for ever — eight of this
+    /// library's concerts had a scan at the front and a perfectly good service
+    /// cover three places down. Which image leads is a presentation decision,
+    /// and everything it needs is in the URL: a `file:` URL is the release's
+    /// own folder, an `http` one is a service's single curated front, and a
+    /// local file **named** `cover` is somebody saying which image is the
+    /// jacket.
+    public var displayCoverURLs: [URL] {
+        var named: [URL] = []
+        var services: [URL] = []
+        var scans: [URL] = []
+        for url in coverImageURLs {
+            guard url.isFileURL else { services.append(url); continue }
+            let stem = url.deletingPathExtension().lastPathComponent.lowercased()
+            if ConcertReleaseFileReader.coverFileStems.contains(stem) {
+                named.append(url)
+            } else {
+                scans.append(url)
+            }
+        }
+        return named + services + scans
+    }
+
     /// Whether the numbers this record was filed under are still catalogue
     /// numbers.
     ///

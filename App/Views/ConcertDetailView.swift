@@ -70,7 +70,7 @@ struct ConcertDetailView: View {
 
     private func header(_ concert: LibraryConcert) -> some View {
         HStack(alignment: .top, spacing: 20) {
-            PosterView(urls: concert.release?.coverImageURLs ?? [], height: 200)
+            PosterView(urls: concert.release?.displayCoverURLs ?? [], height: 200)
                 .frame(width: 200, height: 200)
                 .clipShape(RoundedRectangle(cornerRadius: 10))
 
@@ -474,7 +474,7 @@ struct ConcertDetailView: View {
     /// three megabytes each against a catalogue's 445×600 photograph of a case.
     @ViewBuilder
     private func scans(_ release: ConcertRelease) -> some View {
-        let images = Array(release.coverImageURLs.dropFirst().prefix(24))
+        let images = Array(release.displayCoverURLs.dropFirst().prefix(24))
         if !images.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Scans")
