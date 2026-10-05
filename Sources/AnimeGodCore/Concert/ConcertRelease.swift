@@ -93,6 +93,15 @@ public struct ConcertRelease: Codable, Hashable, Sendable, Identifiable {
     /// When the concert happened, which is not when the disc shipped.
     public var performedOn: String?
     public var officialSiteURL: URL?
+    /// This record is about the *concert*, not about a disc of it.
+    ///
+    /// Bangumi files the two separately — a 演出 subject knows the hall and the
+    /// date and has no track list, while the 音乐 subject for the Blu-ray has
+    /// the track list and knows nothing about the hall — so a merge has to be
+    /// able to tell them apart. Without the flag a performance record looks
+    /// like a release with no discs, which is also what a failed lookup looks
+    /// like.
+    public var isPerformanceRecord: Bool = false
 
     public var id: String { "\(provider.rawValue):\(externalID)" }
 
@@ -115,7 +124,8 @@ public struct ConcertRelease: Codable, Hashable, Sendable, Identifiable {
         summary: String? = nil,
         venue: String? = nil,
         performedOn: String? = nil,
-        officialSiteURL: URL? = nil
+        officialSiteURL: URL? = nil,
+        isPerformanceRecord: Bool = false
     ) {
         self.provider = provider
         self.externalID = externalID
@@ -136,6 +146,7 @@ public struct ConcertRelease: Codable, Hashable, Sendable, Identifiable {
         self.venue = venue
         self.performedOn = performedOn
         self.officialSiteURL = officialSiteURL
+        self.isPerformanceRecord = isPerformanceRecord
     }
 
     /// The discs worth playing, in order.

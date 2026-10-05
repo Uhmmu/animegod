@@ -226,7 +226,7 @@ private struct Images: Decodable {
     let common: String?
 }
 
-private struct InfoboxEntry: Decodable {
+struct InfoboxEntry: Decodable {
     let key: String
     let values: [InfoboxValue]?
 
@@ -249,7 +249,7 @@ private struct InfoboxEntry: Decodable {
     }
 }
 
-private struct InfoboxValue: Decodable {
+struct InfoboxValue: Decodable {
     let value: String?
 
     init(from decoder: Decoder) throws {
