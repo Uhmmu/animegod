@@ -508,6 +508,19 @@ final class MPVPlayerController: NSViewController {
         // demux it, and only libbluray can read it without mounting. Which
         // kind of disc it holds decides whether it can play at all, so that
         // is settled before mpv is handed anything.
+        // An unpacked Blu-ray is already known to be a Blu-ray: the library
+        // only records one when `BDMV/index.bdmv` is there. Nothing to probe,
+        // and nothing to read off a forty-gigabyte folder first.
+        if let discRoot = DiscImageProbe.discRoot(forStructureFile: url) {
+            stopNativePlayback()
+            currentContainerProbe = nil
+            currentDiscImageKind = .blurayDisc
+            currentBlurayDevice = discRoot
+            loadWithMPV(url: url, position: position)
+            return
+        }
+        currentBlurayDevice = nil
+
         if DiscImageProbe.isDiscImage(url) {
             stopNativePlayback()
             currentContainerProbe = nil
@@ -570,6 +583,12 @@ final class MPVPlayerController: NSViewController {
         }
     }
 
+    /// The folder handed to libbluray for an unpacked Blu-ray. Kept apart from
+    /// `currentURL`, which stays the path the library knows the disc by — a
+    /// renderer rebuild reloads from `currentURL` and would otherwise point
+    /// libbluray at `index.bdmv` itself.
+    private var currentBlurayDevice: URL?
+
     private func loadWithMPV(url: URL, position: Double) {
         if mpv == nil { setupMPV() }
         guard mpv != nil else { return }
@@ -581,7 +600,10 @@ final class MPVPlayerController: NSViewController {
             // property rather than a loadfile option because that option
             // list is comma-separated with no escaping, and disc images do
             // sit in folders with commas in their names.
-            setString("bluray-device", url.path)
+            // For an image this is the image itself; for an unpacked disc it is
+            // the folder holding `BDMV`, which is not the path the library
+            // stores.
+            setString("bluray-device", (currentBlurayDevice ?? url).path)
             command("loadfile", arguments: ["bd://longest", "replace", "-1", options.joined(separator: ",")])
             return
         }

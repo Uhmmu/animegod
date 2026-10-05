@@ -32,6 +32,27 @@ public enum DiscImageProbe {
         url.pathExtension.lowercased() == "iso"
     }
 
+    /// The disc root for the path the library stores for an *unpacked* Blu-ray.
+    ///
+    /// A folder-form Blu-ray is recorded as its `BDMV/index.bdmv`, because that
+    /// file is mandatory on every disc and a directory is not a media file. What
+    /// libbluray wants is the folder that *contains* `BDMV`, so playing one is a
+    /// matter of walking two levels back up. Nil for anything else, including an
+    /// `index.bdmv` that is not inside a `BDMV` folder.
+    public static func discRoot(forStructureFile url: URL) -> URL? {
+        guard url.lastPathComponent.caseInsensitiveCompare(
+                AnimeFilenameParser.discStructureFileName) == .orderedSame else { return nil }
+        let structure = url.deletingLastPathComponent()
+        guard structure.lastPathComponent.caseInsensitiveCompare(
+                AnimeFilenameParser.discStructureFolderName) == .orderedSame else { return nil }
+        return structure.deletingLastPathComponent()
+    }
+
+    /// Whether this is a disc at all, in either form.
+    public static func isDisc(_ url: URL) -> Bool {
+        isDiscImage(url) || discRoot(forStructureFile: url) != nil
+    }
+
     /// Blocking: reads from disk. Call it off the main actor.
     ///
     /// Nil means the image could not be read at all — a drive that is gone,

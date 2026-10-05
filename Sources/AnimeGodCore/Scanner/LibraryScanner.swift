@@ -59,6 +59,25 @@ public actor LibraryScanner {
         var skipped = 0
         for case let url as URL in enumerator {
             try Task.checkCancellation()
+            // An unpacked Blu-ray has to be recognised at its folder, because
+            // the enumerator never goes inside one: macOS reports a `BDMV`
+            // directory as a *package* (`isPackage` is true), and the walk is
+            // created with `.skipsPackageDescendants` so it does not wander
+            // into `.app` and `.rtfd` bundles. The streams were therefore
+            // never seen at all — an original disc contributed nothing to the
+            // library, not even the wrong thing. Recognising the folder is also
+            // the only way to play it: the chapter marks live in the `.mpls`
+            // playlists rather than in the streams, so a concert played
+            // stream-by-stream would have no song boundaries.
+            if url.lastPathComponent.caseInsensitiveCompare(
+                AnimeFilenameParser.discStructureFolderName) == .orderedSame {
+                if let disc = Self.discEntry(
+                    atStructureFolder: url, rootComponents: rootComponents, parser: parser
+                ) {
+                    pending.append(disc)
+                }
+                continue
+            }
             guard parser.isSupportedMediaFile(url) else { continue }
             do {
                 let values = try url.resourceValues(forKeys: keys)
@@ -70,6 +89,20 @@ public actor LibraryScanner {
                     continue
                 }
                 let relativePath = components.dropFirst(rootComponents.count).joined(separator: "/")
+
+                // Streams inside a disc structure are never episodes of their
+                // own. The folder above has already been offered as one disc —
+                // and a structure missing its `index.bdmv` is an incomplete rip
+                // that offers nothing, which is still better than thirty
+                // entries called `00001`. (macOS stops reporting the folder as a
+                // package once the structure is incomplete, so the walk does
+                // get inside those.)
+                if components.dropFirst(rootComponents.count).contains(where: {
+                    $0.caseInsensitiveCompare(AnimeFilenameParser.discStructureFolderName) == .orderedSame
+                }) {
+                    continue
+                }
+
                 // Disc-navigation junk (menu screens, logos) is not watchable
                 // anime and must not pollute a work's episode list.
                 if let parent = components.dropLast().last,
@@ -115,6 +148,74 @@ public actor LibraryScanner {
                 $0.relativePath.localizedStandardCompare($1.relativePath) == .orderedAscending
             }
         return LibraryScanResult(root: root, files: files, skippedUnreadableCount: skipped)
+    }
+
+    /// One entry standing for a whole Blu-ray folder, or nil when the folder is
+    /// not a disc.
+    ///
+    /// `index.bdmv` is mandatory on every Blu-ray, so its absence means an
+    /// incomplete rip — which must contribute nothing rather than a disc that
+    /// will not open. The size is the total of the stream directory: the
+    /// library records a size to notice a file changing, and `index.bdmv` is a
+    /// few kilobytes whatever happens to the forty gigabytes beside it. One
+    /// shallow listing, not a walk.
+    static func discEntry(
+        atStructureFolder folderURL: URL,
+        rootComponents: [String],
+        parser: AnimeFilenameParser
+    ) -> PendingScannedFile? {
+        let indexURL = folderURL.appending(path: AnimeFilenameParser.discStructureFileName)
+        guard FileManager.default.fileExists(atPath: indexURL.path) else { return nil }
+
+        let components = indexURL.resolvingSymlinksInPath().standardizedFileURL.pathComponents
+        guard components.starts(with: rootComponents), components.count > rootComponents.count + 1 else {
+            return nil
+        }
+        let relative = Array(components.dropFirst(rootComponents.count))
+        // [work, …, "BDMV", "index.bdmv"] — everything above the structure
+        // names the disc.
+        let enclosing = relative.dropLast(2)
+        guard let work = enclosing.first else { return nil }
+
+        var parsed = ParsedAnimeFilename(
+            title: parser.collectionTitle(from: work),
+            episode: nil,
+            episodeKind: .regular,
+            confidence: 0.9
+        )
+        if parsed.title.isEmpty { parsed.title = work }
+        // A box set puts each disc in its own folder, and each needs an
+        // identity of its own or three discs collapse into one entry holding
+        // three "versions" of the same thing.
+        if enclosing.count > 1, let discName = enclosing.last,
+           let number = AnimeFilenameParser.discNumber(in: discName)
+               ?? Int(discName.filter(\.isNumber)) {
+            parsed.episode = Double(number)
+            parsed.episodeText = String(number)
+        }
+
+        let values = try? folderURL.resourceValues(forKeys: [.contentModificationDateKey])
+        return PendingScannedFile(
+            scanned: ScannedMediaFile(
+                relativePath: relative.joined(separator: "/"),
+                fileSize: streamSize(in: folderURL),
+                modifiedAt: values?.contentModificationDate ?? .distantPast,
+                parsed: parsed
+            ),
+            fileTitle: parsed.title,
+            topLevelFolder: work
+        )
+    }
+
+    /// The total of `BDMV/STREAM`, which is where a disc's forty gigabytes are.
+    private static func streamSize(in structureFolder: URL) -> Int64 {
+        let streamURL = structureFolder.appending(path: "STREAM", directoryHint: .isDirectory)
+        guard let contents = try? FileManager.default.contentsOfDirectory(
+            at: streamURL, includingPropertiesForKeys: [.fileSizeKey], options: [.skipsHiddenFiles]
+        ) else { return 0 }
+        return contents.reduce(0) { total, url in
+            total + Int64((try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0)
+        }
     }
 
     /// Disc-navigation junk folders whose videos are not watchable content.

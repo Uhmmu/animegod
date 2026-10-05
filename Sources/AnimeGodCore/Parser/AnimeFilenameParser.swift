@@ -43,6 +43,34 @@ public struct AnimeFilenameParser: Sendable {
         Self.mediaExtensions.contains(url.pathExtension.lowercased())
     }
 
+    /// The file that stands in for a whole Blu-ray folder.
+    ///
+    /// An unpacked Blu-ray is not a video file, it is a directory with dozens
+    /// of `.m2ts` streams in `BDMV/STREAM/` — and scanned as files, one disc
+    /// becomes thirty episodes called `00001`, `00002`. It also cannot be
+    /// played as files: the chapter marks live in the `.mpls` playlists, not in
+    /// the streams, so a concert played stream-by-stream has no song
+    /// boundaries at all. `BDMV/index.bdmv` is mandatory on every Blu-ray, so
+    /// it is what represents the disc, and the player hands its folder to
+    /// libbluray.
+    public func isDiscStructureFile(_ url: URL) -> Bool {
+        url.lastPathComponent.caseInsensitiveCompare(Self.discStructureFileName) == .orderedSame
+    }
+
+    public static let discStructureFileName = "index.bdmv"
+    public static let discStructureFolderName = "BDMV"
+
+    /// The disc number a folder name carries — `DISC2`, `Disc_3`, `BD1`,
+    /// `ディスク2`. A box set puts each disc in one of these, and without a
+    /// number of its own every disc of a box would collapse into a single
+    /// entry holding three "versions" of the same thing.
+    public static func discNumber(in folderName: String) -> Int? {
+        let pattern = #"(?i)(?:disc|disk|dvd|bd|ディスク|ディスク)\s*[_\-]?\s*(\d{1,2})\b"#
+        guard let range = folderName.range(of: pattern, options: .regularExpression) else { return nil }
+        let digits = folderName[range].filter(\.isNumber)
+        return Int(digits)
+    }
+
     /// Detects release part markers (前篇 / 後篇 / 上巻 / Part 2 …). A title
     /// carrying one describes its own work even inside a shared folder.
     public static func partLabel(in title: String) -> String? {
