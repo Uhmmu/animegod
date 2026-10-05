@@ -19,14 +19,27 @@ final class TorrentSourcePreferences: ObservableObject {
     /// Most recent first, case-insensitively unique.
     @Published private(set) var history: [String]
 
+    /// Sources this install has already offered. An index added in a later
+    /// version is not in the stored enabled list, so without this it would
+    /// arrive switched off and nobody would ever know it was there — the
+    /// stored list says what the user turned *off* just as much as what they
+    /// turned on, and the two cannot be told apart without remembering which
+    /// sources existed at the time.
+    private static let knownSourcesKey = "torrent.knownSources"
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         if let stored = defaults.stringArray(forKey: Self.sourcesKey) {
-            enabledSources = Set(stored.compactMap(TorrentSourceID.init(rawValue:)))
+            var enabled = Set(stored.compactMap(TorrentSourceID.init(rawValue:)))
+            let known = Set((defaults.stringArray(forKey: Self.knownSourcesKey) ?? stored)
+                .compactMap(TorrentSourceID.init(rawValue:)))
+            enabled.formUnion(TorrentSourceID.allCases.filter { !known.contains($0) })
+            enabledSources = enabled
         } else {
             enabledSources = Set(TorrentSourceID.allCases)
         }
         history = defaults.stringArray(forKey: Self.historyKey) ?? []
+        defaults.set(TorrentSourceID.allCases.map(\.rawValue).sorted(), forKey: Self.knownSourcesKey)
     }
 
     func set(_ source: TorrentSourceID, enabled: Bool) {

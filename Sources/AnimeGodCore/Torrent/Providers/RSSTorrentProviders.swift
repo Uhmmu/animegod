@@ -140,11 +140,15 @@ public struct NyaaTorrentProvider: TorrentSearchProvider {
     public func search(query: String, limit: Int) async throws -> [TorrentObservation] {
         var lastError: Error = TorrentSearchError.network("no mirror reachable")
         for mirror in mirrors {
-            // c=1_0 is the Anime category; sukebei is a different host and
-            // is never queried.
+            // `c=0_0` is every category on this host, and that is deliberate:
+            // `c=1_0` is Anime alone, and **a concert Blu-ray is filed under
+            // Live Action or Music** — so a live disc that is on Nyaa was
+            // invisible here. Nyaa's adult material is on sukebei, which is a
+            // different host and is never queried, so "everything" on this one
+            // is safe to ask for.
             let url = searchURL("\(mirror)/", [
                 URLQueryItem(name: "page", value: "rss"),
-                URLQueryItem(name: "c", value: "1_0"),
+                URLQueryItem(name: "c", value: "0_0"),
                 URLQueryItem(name: "f", value: "0"),
                 URLQueryItem(name: "q", value: query)
             ])

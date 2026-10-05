@@ -5886,6 +5886,22 @@
         }
       }
     },
+    "Find Releases searches every enabled index at once and merges listings of the same torrent. The anime indexes are first; the general ones below them are what a concert Blu-ray is actually filed on, and they answer about everything, so a vague query returns more than it used to. Adult categories are never requested.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「資源を探す」は有効なインデックスを一斉に検索し、同じトレントの情報をまとめます。上はアニメ専門、その下の総合インデックスこそライブBlu-rayが実際に登録されている場所です。ただし何でも扱うので、曖昧な語では以前より多くの結果が返ります。アダルトのカテゴリーは一切リクエストしません。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查找资源会同时搜索所有已启用的索引，并把同一个种子的多条记录合并。上面是动画索引；下面的综合索引才是演唱会蓝光真正被收录的地方，但它们什么都收，所以模糊的关键词会比以前返回更多东西。成人分类从不请求。"
+          }
+        }
+      }
+    },
     "Find Releases searches the enabled anime indexes at once and merges listings of the same torrent. Only anime indexes are offered; adult, game and manga listings are filtered out.": {
       "localizations": {
         "ja": {
@@ -6176,6 +6192,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "通用"
+          }
+        }
+      }
+    },
+    "General indexes": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "総合インデックス"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "综合索引"
           }
         }
       }

@@ -151,7 +151,7 @@ struct SettingsView: View {
             concertSourcesSection
 
             Section("Release Sources") {
-                ForEach(TorrentSourceID.allCases) { source in
+                ForEach(TorrentSourceID.allCases.filter(\.isAnimeIndex)) { source in
                     Toggle(isOn: Binding(
                         get: { torrentSources.enabledSources.contains(source) },
                         set: { torrentSources.set(source, enabled: $0) }
@@ -164,7 +164,24 @@ struct SettingsView: View {
                         }
                     }
                 }
-                Text("Find Releases searches the enabled anime indexes at once and merges listings of the same torrent. Only anime indexes are offered; adult, game and manga listings are filtered out.")
+                Divider()
+                Text("General indexes")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                ForEach(TorrentSourceID.allCases.filter { !$0.isAnimeIndex }) { source in
+                    Toggle(isOn: Binding(
+                        get: { torrentSources.enabledSources.contains(source) },
+                        set: { torrentSources.set(source, enabled: $0) }
+                    )) {
+                        HStack {
+                            Text(source.displayName)
+                            Text(source.homepage.host() ?? "")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                Text("Find Releases searches every enabled index at once and merges listings of the same torrent. The anime indexes are first; the general ones below them are what a concert Blu-ray is actually filed on, and they answer about everything, so a vague query returns more than it used to. Adult categories are never requested.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

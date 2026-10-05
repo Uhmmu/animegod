@@ -13,8 +13,28 @@ public enum TorrentSourceID: String, CaseIterable, Codable, Identifiable, Sendab
     case animeTosho
     case subsPlease
     case tokyoTosho
+    // General indexes. Every one above is an *anime* index, and a concert
+    // Blu-ray is not filed as anime — the live discs in the real library come
+    // from DBD-Raws, which these carry and several of the anime indexes do
+    // not. Ported from the magnet-crawler project.
+    case knaben
+    case torrentsCsv
+    case bitSearch
+    case theRarbg
+    case apiBay
 
     public var id: String { rawValue }
+
+    /// Whether this index is about anime specifically. The general ones answer
+    /// about everything, which is the point and also the cost: relevance
+    /// scoring is what keeps a search for one concert from returning the rest
+    /// of the internet.
+    public var isAnimeIndex: Bool {
+        switch self {
+        case .knaben, .torrentsCsv, .bitSearch, .theRarbg, .apiBay: false
+        default: true
+        }
+    }
 
     public var displayName: String {
         switch self {
@@ -28,6 +48,11 @@ public enum TorrentSourceID: String, CaseIterable, Codable, Identifiable, Sendab
         case .animeTosho: "AnimeTosho"
         case .subsPlease: "SubsPlease"
         case .tokyoTosho: "TokyoTosho"
+        case .knaben: "Knaben"
+        case .torrentsCsv: "torrents-csv"
+        case .bitSearch: "BitSearch"
+        case .theRarbg: "TheRARBG"
+        case .apiBay: "The Pirate Bay"
         }
     }
 
@@ -43,6 +68,11 @@ public enum TorrentSourceID: String, CaseIterable, Codable, Identifiable, Sendab
         case .animeTosho: URL(string: "https://animetosho.org")!
         case .subsPlease: URL(string: "https://subsplease.org")!
         case .tokyoTosho: URL(string: "https://www.tokyotosho.info")!
+        case .knaben: URL(string: "https://knaben.org")!
+        case .torrentsCsv: URL(string: "https://torrents-csv.com")!
+        case .bitSearch: URL(string: "https://bitsearch.to")!
+        case .theRarbg: URL(string: "https://therarbg.to")!
+        case .apiBay: URL(string: "https://apibay.org")!
         }
     }
 }

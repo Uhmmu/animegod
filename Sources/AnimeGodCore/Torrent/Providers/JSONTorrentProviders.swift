@@ -255,7 +255,7 @@ public struct SubsPleaseTorrentProvider: TorrentSearchProvider {
 }
 
 public enum TorrentProviders {
-    /// Every built-in anime index.
+    /// Every built-in index, anime and general.
     public static func all(http: TorrentHTTPClient = TorrentHTTPClient()) -> [TorrentSourceID: any TorrentSearchProvider] {
         let providers: [any TorrentSearchProvider] = [
             DmhyTorrentProvider(http: http),
@@ -267,7 +267,13 @@ public enum TorrentProviders {
             NyaaTorrentProvider(http: http),
             AnimeToshoTorrentProvider(http: http),
             SubsPleaseTorrentProvider(http: http),
-            TokyoToshoTorrentProvider(http: http)
+            TokyoToshoTorrentProvider(http: http),
+            // General indexes: a concert Blu-ray is not filed as anime.
+            KnabenTorrentProvider(http: http),
+            TorrentsCsvTorrentProvider(http: http),
+            BitSearchTorrentProvider(http: http),
+            TheRarbgTorrentProvider(http: http),
+            ApiBayTorrentProvider(http: http)
         ]
         return Dictionary(uniqueKeysWithValues: providers.map { ($0.id, $0) })
     }
