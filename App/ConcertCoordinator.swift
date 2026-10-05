@@ -130,13 +130,33 @@ final class ConcertCoordinator: ObservableObject {
     /// whose title plainly matches is an event that happened in a hall.
     private func identifyConcertsNoProviderKnows(isAutomatic: Bool) async -> Int {
         guard let database else { return 0 }
+        func folderName(_ animeID: UUID, in map: [UUID: String]) -> String? { map[animeID] }
         // Works no provider knows, plus concerts already here whose record is a
         // thin one — the second group is how a page identified before the
         // folder was read ever gets its setlist and its scans.
+        let folders = (try? await database.releaseFolders()) ?? []
+        let folderByAnime = Dictionary(
+            folders.map { ($0.animeID, $0.folderName) },
+            uniquingKeysWith: { first, _ in first }
+        )
         var works = (try? await database.worksWithNoMetadata()) ?? []
         for concert in concerts where concert.release?.songCount ?? 0 == 0
             && concert.release?.extras.isEmpty != false {
             works.append((animeID: concert.id, title: concert.anime.title))
+        }
+        // And the ones a provider matched — wrongly — whose own name says
+        // concert beyond doubt. `worksWithNoMetadata()` cannot see these, and
+        // having a match is precisely what hides them: AniList files
+        // `BanG Dream! 12th☆LIVE DAY2：MyGO!!!!!` as the 2017 BanG Dream! TV
+        // series, thirteen episodes, and so the work sat in the grid with a
+        // summary about a girl called Kasumi. Only a **certain** name counts
+        // here — one signal that means a concert on its own — because this is
+        // overruling somebody else's answer rather than filling a blank.
+        let matched = (try? await database.worksThatAreNotConcerts()) ?? []
+        for work in matched where !works.contains(where: { $0.animeID == work.animeID }) {
+            let names = [work.title, folderName(work.animeID, in: folderByAnime)].compactMap { $0 }
+            guard ConcertNameHeuristics.verdict(for: names).isCertain else { continue }
+            works.append(work)
         }
         // And the ones that are wrong rather than thin: a record filed under a
         // key that is no longer a catalogue number was matched by something
@@ -153,11 +173,6 @@ final class ConcertCoordinator: ObservableObject {
             works.append((animeID: concert.id, title: concert.anime.title))
         }
         guard !works.isEmpty else { return 0 }
-        let folders = (try? await database.releaseFolders()) ?? []
-        let folderByAnime = Dictionary(
-            folders.map { ($0.animeID, $0.folderName) },
-            uniquingKeysWith: { first, _ in first }
-        )
         var moved = 0
         for work in works {
             progress = String(localized: "Looking up \(work.title)…")

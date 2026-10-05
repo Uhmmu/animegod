@@ -103,6 +103,31 @@ public extension LibraryDatabase {
         }
     }
 
+    /// Every work in the library that is not already a concert, with its title.
+    ///
+    /// For the one case `worksWithNoMetadata()` cannot see: a work a provider
+    /// *did* match, wrongly. AniList files
+    /// `BanG Dream! 12th☆LIVE DAY2：MyGO!!!!!` as the 2017 TV series — thirteen
+    /// episodes, a summary about Kasumi Toyama — and having that match is
+    /// exactly what hid the concert from every pass here. A provider's opinion
+    /// is not evidence against a name that says `12th☆LIVE`.
+    func worksThatAreNotConcerts() throws -> [(animeID: UUID, title: String)] {
+        try database.read { db in
+            let rows = try Row.fetchAll(db, sql: """
+                SELECT anime.id AS animeID, anime.title AS title
+                FROM anime
+                JOIN episode ON episode.animeID = anime.id
+                JOIN mediaFile ON mediaFile.episodeID = episode.id
+                WHERE anime.kind <> ?
+                GROUP BY anime.id
+                """, arguments: [AnimeKind.live.rawValue])
+            return rows.compactMap { row in
+                guard let id = (row["animeID"] as String?).flatMap(UUID.init(uuidString:)) else { return nil }
+                return (id, row["title"])
+            }
+        }
+    }
+
     /// Works no metadata provider has ever answered about.
     ///
     /// A concert is the usual reason: no anime index lists one, so the match

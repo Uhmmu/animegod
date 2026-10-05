@@ -77,6 +77,15 @@ public enum ConcertNameHeuristics {
         /// Reasons in the order they are worth, so the first one is the one
         /// to show when there is only room for one.
         public var reasons: [Signal] { signals.sorted { $0.weight > $1.weight } }
+
+        /// One signal that means a concert on its own — `演唱会`, `CONCERT`,
+        /// or an ordinal before a live word.
+        ///
+        /// The test for overruling something else. A sum of weak signals is
+        /// enough to file a download nobody has an opinion about; it is not
+        /// enough to contradict a provider that matched the work, however
+        /// badly it matched it.
+        public var isCertain: Bool { signals.contains { $0.weight >= 0.9 } }
     }
 
     /// One strong signal passes; one weak one does not.

@@ -131,3 +131,47 @@ struct ConcertNameHeuristicsRealQueueTests {
         #expect(verdict.isConcert, "\(name) scored \(verdict.score) from \(verdict.signals)")
     }
 }
+
+/// Overruling a provider is a stronger claim than filing a download nobody has
+/// an opinion about, so it takes a stronger name.
+@Suite("A name certain enough to overrule a match")
+struct ConcertCertainNameTests {
+    /// The one that needed it. AniList matched this concert to the 2017
+    /// *BanG Dream!* TV series — thirteen episodes and a summary about Kasumi
+    /// Toyama — and having a match is what kept every concert pass from ever
+    /// looking at it.
+    @Test func anOrdinalLiveIsCertain() {
+        let verdict = ConcertNameHeuristics.verdict(for: "BanG Dream! 12th☆LIVE DAY2：MyGO!!!!!")
+        #expect(verdict.isCertain)
+        #expect(verdict.signals.contains(.ordinalLive))
+    }
+
+    /// And the one that proves the gate earns its keep. Run over all 35
+    /// non-concert works in the real library, this is the only other title that
+    /// clears the ordinary threshold — on the bare word in *Film Live* — and it
+    /// is a film. A provider's match is not overruled for it.
+    @Test func aFilmNamedFilmLiveIsNot() {
+        let verdict = ConcertNameHeuristics.verdict(
+            for: "MyGO!!!!! The Movie - Part 2 Sing, Songs That Become Us & Film Live"
+        )
+        #expect(verdict.isConcert, "the ordinary threshold still sees it")
+        #expect(!verdict.isCertain, "but not certainly enough to contradict a provider")
+    }
+
+    @Test func aPileOfWeakSignalsIsNeverCertain() {
+        // Venue, a day label and a catalogue number: enough to file, never
+        // enough to overrule.
+        let verdict = ConcertNameHeuristics.verdict(for: "Something at 武道館 DAY1 [ANZX-10294]")
+        #expect(verdict.isConcert)
+        #expect(!verdict.isCertain)
+    }
+
+    @Test(arguments: [
+        "初音ミク マジカルミライ 2023 演唱会",
+        "Aimer コンサート 2022",
+        "Roselia 6th LIVE",
+    ])
+    func oneWordThatMeansAConcertIsCertain(_ name: String) {
+        #expect(ConcertNameHeuristics.verdict(for: name).isCertain, "\(name)")
+    }
+}
