@@ -129,6 +129,22 @@
         }
       }
     },
+    "Band": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "バンド"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "乐队"
+          }
+        }
+      }
+    },
     "Barcode": {
       "localizations": {
         "ja": {
@@ -775,6 +791,22 @@
         }
       }
     },
+    "Name": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "名前"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "名称"
+          }
+        }
+      }
+    },
     "Named differently": {
       "localizations": {
         "ja": {
@@ -935,6 +967,22 @@
         }
       }
     },
+    "Performance Date": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "公演日"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "演出日期"
+          }
+        }
+      }
+    },
     "Performance date": {
       "localizations": {
         "ja": {
@@ -1043,6 +1091,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "生肉"
+          }
+        }
+      }
+    },
+    "Release Date": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "発売日"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "发行日期"
           }
         }
       }

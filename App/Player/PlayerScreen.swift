@@ -273,6 +273,7 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
         setlistChapterNames = [:]
         suppliedChapters = []
         fileChapters = []
+        usesSuppliedChapters = false
         setPosition(Self.startPosition(for: episode))
         duration = episode.progress?.duration ?? 0
         watchedDuration = 0
@@ -474,8 +475,10 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
 
     func selectChapter(_ index: Int) {
         // mpv knows nothing about a timeline the library supplied, so jumping
-        // to one is a seek rather than a chapter change.
-        if fileChapters.isEmpty, let chapter = chapters.first(where: { $0.index == index }) {
+        // to one is a seek rather than a chapter change — and that is true
+        // whenever the list on screen is the library's, not only when the file
+        // has no marks of its own.
+        if usesSuppliedChapters, let chapter = chapters.first(where: { $0.index == index }) {
             seek(to: chapter.startTime, exact: true)
             currentChapter = index
             return
@@ -531,7 +534,7 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
             // The highlighted song moves with playback when the timeline came
             // from the library: mpv reports a chapter change only for chapters
             // it knows about, and it knows about none of these.
-            if !suppliedChapters.isEmpty {
+            if usesSuppliedChapters {
                 let index = chapterIndex(at: position)
                 if index != currentChapter { currentChapter = index }
             }
@@ -682,7 +685,7 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
         refreshChapters()
         // mpv's index counts the file's own chapters, which is not what is on
         // screen when the library supplied the timeline instead.
-        currentChapter = suppliedChapters.isEmpty ? current : chapterIndex(at: livePosition)
+        currentChapter = usesSuppliedChapters ? chapterIndex(at: livePosition) : current
     }
 
     /// This work is a concert.
@@ -710,10 +713,26 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
         currentChapter = chapters.isEmpty ? currentChapter : chapterIndex(at: livePosition)
     }
 
-    /// The file's own marks when it has them, the supplied ones when it does
-    /// not. A disc that kept its chapters is still described by its chapters.
+    /// Whether what is on screen is the library's timeline rather than the
+    /// file's own marks. Jumping to one of those is a seek, since mpv has never
+    /// heard of it.
+    private var usesSuppliedChapters = false
+
+    /// The file's own marks when they describe something, the library's
+    /// timeline when they do not.
+    ///
+    /// A setlist aligned to the disc names the disc's marks, and then the marks
+    /// are what to keep: the ones no song claimed are the MC segments, and
+    /// dropping them would lose them. **A pasted timeline names nothing** — it
+    /// has its own times and no chapter indices at all — so there the file's
+    /// marks are not a better version of it, they are a different and worse
+    /// one. Measured on the 8th LIVE rip, whose 23 chapters are named
+    /// `Chapter 01` … `Chapter 23`: keeping those threw away sixteen songs
+    /// somebody had typed in by hand and showed the numbering instead.
     private func refreshChapters() {
-        let base = fileChapters.isEmpty ? suppliedChapters : fileChapters
+        let standsAlone = !suppliedChapters.isEmpty && setlistChapterNames.isEmpty
+        usesSuppliedChapters = standsAlone || fileChapters.isEmpty
+        let base = usesSuppliedChapters ? suppliedChapters : fileChapters
         chapters = Self.naming(base, with: setlistChapterNames)
     }
 
@@ -746,7 +765,11 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
     func nameChapters(_ names: [Int: String]) {
         guard names != setlistChapterNames else { return }
         setlistChapterNames = names
-        chapters = Self.naming(chapters, with: names)
+        // Through `refreshChapters` rather than renaming what is on screen:
+        // whether the names belong to the file's marks or the library's
+        // timeline is one decision, and it has to be made in one place or the
+        // two calls can land in either order and disagree.
+        refreshChapters()
     }
 
     func playerDidUpdatePlaybackState(speed: Double?, volume: Double?, subtitleDelay: Double?, audioDelay: Double?) {

@@ -13,6 +13,7 @@ struct ConcertsView: View {
     @ObservedObject var section: ConcertCoordinator
     @ObservedObject var downloads: TorrentDownloadManager
     @Binding var navigationPath: NavigationPath
+    @AppStorage(ConcertSortOrder.storageKey) private var sortOrder: ConcertSortOrder = .band
 
     /// Concerts still downloading.
     ///
@@ -84,6 +85,14 @@ struct ConcertsView: View {
                 }
             }
             Spacer()
+            Picker("Sort By", selection: $sortOrder) {
+                ForEach(ConcertSortOrder.allCases) { order in
+                    Text(order.displayName).tag(order)
+                }
+            }
+            .pickerStyle(.menu)
+            .fixedSize()
+            .help("Group the section by the act, each act in the order it played — or lay it out flat by when the concert happened, when the disc shipped, or by name.")
             Button("Identify Discs") {
                 Task { await section.identifyAll() }
             }
@@ -104,26 +113,55 @@ struct ConcertsView: View {
                     ForEach(incoming) { arrival in
                         IncomingConcertCard(concert: arrival)
                     }
-                    ForEach(section.concerts) { concert in
-                        Button {
-                            navigationPath.append(ConcertRoute(animeID: concert.id))
-                        } label: {
-                            ConcertCard(concert: concert)
+                    if sortOrder == .band {
+                        ForEach(ConcertShelves.shelves(of: section.concerts)) { shelf in
+                            Section {
+                                ForEach(shelf.concerts) { concert in card(concert) }
+                            } header: {
+                                shelfHeader(shelf)
+                            }
                         }
-                        .buttonStyle(.plain)
-                        .contextMenu {
-                            Button("Look This Disc Up Again") {
-                                Task { await section.identify(animeID: concert.id) }
-                            }
-                            Button("Not a Concert") {
-                                Task { await section.removeFromConcerts(animeID: concert.id) }
-                            }
+                    } else {
+                        ForEach(ConcertShelves.sorted(section.concerts, by: sortOrder)) { concert in
+                            card(concert)
                         }
                     }
                 }
                 .padding(20)
             }
         }
+    }
+
+    @ViewBuilder
+    private func card(_ concert: LibraryConcert) -> some View {
+        Button {
+            navigationPath.append(ConcertRoute(animeID: concert.id))
+        } label: {
+            ConcertCard(concert: concert, subtitle: sortOrder == .band ? concert.sortDate : nil)
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            Button("Look This Disc Up Again") {
+                Task { await section.identify(animeID: concert.id) }
+            }
+            Button("Not a Concert") {
+                Task { await section.removeFromConcerts(animeID: concert.id) }
+            }
+        }
+    }
+
+    /// The act, and how much of it is here.
+    private func shelfHeader(_ shelf: ConcertShelf) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(shelf.band)
+                .font(.title3.weight(.semibold))
+            Text("\(shelf.concerts.count) concerts")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Spacer()
+        }
+        .padding(.top, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var empty: some View {
@@ -221,6 +259,9 @@ struct ConcertRoute: Hashable {
 
 private struct ConcertCard: View {
     let concert: LibraryConcert
+    /// The date, when the section is grouped by act — a run of one band's
+    /// concerts is a timeline, and a timeline with no dates on it is a list.
+    var subtitle: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -245,7 +286,12 @@ private struct ConcertCard: View {
                 .multilineTextAlignment(.leading)
             // What a concert card can say that an episode count cannot: who
             // played, where, and how much of it there is.
-            if let artist = concert.release?.artistNames.first {
+            if let subtitle {
+                Text(subtitle)
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            } else if let artist = concert.release?.artistNames.first {
                 Text(artist)
                     .font(.caption)
                     .foregroundStyle(.secondary)
