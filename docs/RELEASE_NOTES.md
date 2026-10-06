@@ -1,123 +1,147 @@
-# AnimeGod 0.5.0
+# AnimeGod 0.6.0
 
-**Your library, in your pocket. Put the Mac down mid-episode and pick the phone up at the same second.**
+**A concert Blu-ray is not an anime, and AnimeGod has stopped pretending it is.**
 
-AnimeGod is now two apps. The Mac still holds everything — the files, the
-database, the metadata, the danmaku matches — and an iPhone app of the same
-name mirrors it over your own network. Nothing is uploaded, nothing is
-duplicated, and nothing new is exposed to the internet.
-
-This release also fixes the watch-state bugs that could replay episode one
-forever or quietly un-finish something you had finished.
-
-## 📱 AnimeGod on iPhone
-
-The phone is not a second library. It is the same library, seen from
-somewhere else.
-
-| | |
-|---|---|
-| **Same shelves** | Every work, episode, poster, score and diary entry the Mac has |
-| **Continue watching** | The Mac's position, to the second — not to the last autosave |
-| **Handoff** | Tap an episode and the Mac pauses, records the session and closes its window |
-| **Send it back** | One tap reopens the Mac's player exactly where the phone stopped |
-| **Danmaku** | Already matched and merged by the Mac; the phone only draws them |
-| **Subtitles** | Embedded tracks and the sidecars the Mac downloaded, in one menu |
-| **Offline** | Download an episode and play it with the Mac asleep, or a continent away |
-| **The rest** | Diary, statistics, rankings, charts, downloads and subscriptions |
-
-### Handing an episode over
-
-The phone asks the Mac for the episode rather than reading a cached row, and
-the difference is the point: in the run that proved it out, the Mac was at
-**380.672 s** while the cached row still said **365 s**. The phone started at
-380.672 s. The Mac paused, wrote a 77.3-second session into the diary, and
-closed its window. Sending it back reopened the Mac's player where the phone
-had left it.
-
-A claim is leased, so a phone that dies on the bus cannot strand an episode,
-and two devices cannot drive the same one at once.
-
-### Getting to the Mac
-
-Every route produces the same thing — an address that reaches your Mac — and
-they are **all raced at once**, with the first to answer winning.
-
-| | |
-|---|---|
-| 📶 **Bonjour / same Wi-Fi** | Found by name; nothing to type |
-| 🔒 **Tailscale** | Anywhere in the world, over WireGuard |
-| ⌨️ **Typed address** | For networks that block discovery — student halls especially |
-
-Every address is remembered **per kind**, so pairing at home and then leaving
-no longer erases the one that works from outside.
-
-Access is a bearer token on every request, and the Mac only serves once you
-turn it on in **Settings → iPhone** — after which it remembers, so a paired
-phone keeps working across launches.
-
-> **Building it yourself:** the iPhone app is not on the App Store. The `.ipa`
-> attached here is signed with a personal development team, which means it
-> expires seven days after it was built. To keep it alive, open `project.yml`,
-> put your own `DEVELOPMENT_TEAM` in, and build the `AnimeGodMobile` scheme.
-
-## 🎯 Watch state that tells the truth
-
-- **"Resume Watching" used to always play episode one.** Only its *title*
-  reacted to progress. It now opens the first unseen main episode, at its own
-  breakpoint, and offers **Play Again** from the top once everything is seen.
-- **Finished episodes could un-finish themselves.** The player autosaves every
-  ten seconds and the save recomputed `isWatched` from scratch, so opening a
-  finished episode and dragging the scrubber undid it. Only your own mark can
-  lower the flag now.
-- **A new sort order**: Finished / Still Watching / Not Started, newest first.
-- A series counts as watched five minutes from the end and a film ten, with the
-  tail capped at a quarter of the runtime — so a four-minute creditless opening
-  is not "watched" the moment it opens.
-
-## 💬 Danmaku, measured rather than guessed at
-
-Three faults that were invisible to the compiler and to the tests, all found by
-instrumenting the renderer instead of theorising about it. **The Mac gets the
-first two as well.**
-
-| Symptom | Actually |
-|---|---|
-| "The overlapping strokes look darker" | The outline was drawn **over** the fill and centred on the glyph, so half of that black sat inside letterforms. At 16pt a CJK stroke is about a pixel wide, so it was swallowed whole. The outline now goes underneath. |
-| "The comments stutter" | The clock was hard-anchored on every sample, and mpv reports a position quantised to the video's frame period after a variable hop. It now tracks gradually, and reads the frame's display time rather than the callback's arrival time. |
-| "They appear out of nowhere" | Any layout pass that moved the view a fraction of a point threw away every bitmap and cleared the engine. Metrics are rounded now. |
-
-Comments also **cross the whole screen** rather than stopping at a seam inside
-the picture, while their size and stacking still come from the picture — two
-rectangles, two different jobs.
-
-New on the phone: a **Style** panel for coverage (top ¼ through full), size,
-opacity, spacing, speed and density, with **subtitle delay and size** beside it.
-
-## 🈳 Subtitles that are all there
-
-Simplified-only characters used to come out as boxes — 还, 请, 伤 — while 你
-rendered fine. mpv's default subtitle font resolves to Helvetica on iOS, which
-has no CJK at all, and the fallback iOS offers lives inside a private framework
-a sandboxed app **cannot open**. What survived was whatever the Japanese system
-font happened to cover.
-
-AnimeGod now carries Noto Sans CJK SC, which covers simplified, traditional,
-Japanese and Korean in one file.
-
-## ✋ Two gestures worth having
-
-- **Press and hold** to run at double speed, with a knock from the haptic
-  engine. **Tap first, then hold**, for triple.
-- **Rotation lock stays on.** When the phone is held one way and pinned
-  another — which can only happen while rotation is locked — a button appears
-  and takes the hint, then times out. With the lock off it is never drawn.
-
-## 🌏 简体中文 / 日本語
-
-The iPhone app is fully localized in Simplified Chinese and Japanese, like the
-Mac. 173 new strings, 0 missing.
+A live disc has no episodes, no synopsis, and no provider that rates it as a
+work. What it has is **what was played** — so the setlist is the page, and
+everything else follows from where that information lives. This release adds a
+Concerts section built around that, four music sources behind it, five general
+torrent indexes in front of it, and the switch that stops every finished
+download from seeding behind your back.
 
 ---
 
-**Requirements:** macOS 14+ · iOS 17+ · Universal (Apple silicon + Intel)
+## 🎤 Concerts
+
+Its own section in the sidebar. Deliberately **not** on the home screen: a
+concert is not something you are partway through a season of.
+
+| | |
+|---|---|
+| 🏷 **Files itself** | `6th LIVE`, `演唱会`, `合同ライブ`, `12th☆LIVE` — a live recognises itself when the download starts and never raises the "which anime is this?" sheet |
+| 🎚 **The setlist is the page** | Songs, lengths, the encore, the hall, the night it happened |
+| 💿 **Two nights are one work** | `DAY1` + `DAY2`, however they arrived — one folder, two folders, or the night in the filename |
+| 🚫 **No "watched"** | There is no finishing a concert. Your position is still kept; it is a position, not a verdict |
+| 🎸 **Grouped by band** | Each act in the order it played, the act you are collecting now at the top |
+| 🖼 **Choose a cover** | Plenty of concerts have none anywhere. Pick one and it stays |
+
+### Where the information comes from
+
+No single catalogue knows a concert. Four do, between them, and each is asked
+only what it is actually good at — measured, not assumed.
+
+| | |
+|---|---|
+| **Discogs** | The catalogue number, the label, the barcode, the shape of the box |
+| **MusicBrainz** | The setlist, the song lengths, and the name of each night |
+| **Bangumi** | The hall, the date, and a score somebody voted on |
+| **setlist.fm** | What was *actually* played, night by night, with the encore marked |
+| **The release's own folder** | The catalogue number in a cue sheet, the jacket scans, what else was in the box |
+
+The folder is often the best of the five. One release here is named
+`[DBD-Raws][MyGO!!!!! 6th LIVE…][1080P][BDRip]` and carries no catalogue number
+at all — but two levels down sits `OST/BRMM-10876.cue`, and that number answers
+with the release and **both nights' setlists, sixteen songs each**.
+
+**Every field says who answered it.** A concert page is four services and a
+folder, and no two of them answer the same question, so the page stops implying
+one source:
+
+```
+这些信息来自哪里
+MusicBrainz   曲目 · 艺人 · 标题 · 番号 · 条码 · 厂牌
+Bangumi       演出日期 · 评分 · 简介
+setlist.fm    场馆
+This release  封面 · 盒内附属
+```
+
+### Where a song starts
+
+Nothing publishes this. Three answers, in this order:
+
+1. **The video's own chapters**, read straight off the file. If the encode kept
+   them and named them, that is the disc telling you what is on it and where —
+   better than any catalogue, and it no longer takes playing the file to find
+   out.
+2. **The disc's marks**, aligned to the setlist while it plays.
+3. **Paste one in.** People post these lists; paste one and it becomes the
+   setlist, including the parts no catalogue lists. A disc that already has
+   times but no names takes a **bare list of song names** instead, with the
+   times shown beside them as you type — the counts are expected to disagree, so
+   the mismatch is shown rather than silently resolved.
+
+### In the player
+
+A concert plays as a concert: the scrubber **cuts itself into songs**, the scrub
+bubble names the one under the pointer, and there is a song picker bottom right.
+No subtitle search, no danmaku — nobody writes either for a live Blu-ray, and
+being asked twice at the start of every concert is not a feature.
+
+---
+
+## 🧲 Five more places to look
+
+Every index AnimeGod searched was an *anime* index, and a concert Blu-ray is not
+filed as anime. **Knaben, torrents-csv, BitSearch, TheRARBG and The Pirate Bay**
+join them, grouped separately in Settings.
+
+Measured, with this library's own queries:
+
+| | nyaa | knaben | torrents-csv | TheRARBG |
+|---|---|---|---|---|
+| `MyGO 9th LIVE` | 0 | 1 | 1 | **18** |
+| `Ave Mujica 4th LIVE` | 0 | 30 | 2 | **30** |
+
+And **Nyaa was only ever asked about its Anime category** — while a live Blu-ray
+is filed under Live Action or Music. It is asked about the whole site now.
+
+---
+
+## 🌱 Sharing is a choice now, and it starts off
+
+Everything that finished used to seed for as long as the app was open, with no
+way to say otherwise. One switch — Settings → Downloads — and it **starts off**.
+Off is not "stop the next one": the seed queue shuts *and* every finished task
+stops on the spot.
+
+A **Seeding** section shows what is actually being shared: upload rate, how much
+has gone out, the peers being served, the ratio given back.
+
+---
+
+## 📦 A work is one work
+
+**"I downloaded episode one on its own and episode two became a second show."**
+A season in its first week cannot be downloaded as a set, and a lone download was
+the one path that never named a folder — so it landed in one named after the
+release while the set a week later named it after the work. Two folders, two
+cards, two library entries.
+
+Every new download now joins the work already being downloaded under a matching
+name, folder and anime alike, whichever way it was started: by hand,
+multi-select, a set, a subscription, or an accepted subscription candidate.
+
+**A release search opens on Episode Sets**, because what you want from a search
+is almost always "get me this show" — unless the show is one episode old, in
+which case it opens on the results that exist.
+
+---
+
+## 🩹 Fixes
+
+| | |
+|---|---|
+| **Watch state on screen** | A finished episode now says so without reopening the page — macOS stops drawing a window the player covered, so the count was right in the model and stale on screen |
+| **A tap on the phone** | Tapping the picture no longer fast-forwards it; `onPressingChanged` reports the press, not the long press |
+| **Covers** | A local jacket scan never loaded at all — the cache insisted on an HTTP response, and a file URL has none |
+
+---
+
+## Install
+
+Download `AnimeGod-0.6.0.dmg` and drag AnimeGod to Applications. Universal
+(Apple Silicon + Intel), ad-hoc signed, not notarized — on first launch,
+right-click and choose **Open**.
+
+The iPhone companion is unchanged in this release and is not packaged with it;
+0.5.0's `.ipa` still pairs with this build.

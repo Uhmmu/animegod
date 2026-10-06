@@ -32,13 +32,12 @@ Mac. Nothing is uploaded, nothing is renamed, nothing is moved.
 > The app is ad-hoc signed, not notarized. On first launch macOS may need you
 > to right-click it and choose **Open**.
 
-**Current release: 0.5.0** — AnimeGod is now two apps. **An iPhone companion**
-mirrors the whole library over your own network and hands an episode back and
-forth with the Mac: tap continue on the phone and the Mac pauses at the exact
-second, records the session and closes its window. Danmaku, subtitles and
-offline downloads come with it. Watch state is also fixed — "Resume Watching"
-opens the episode you are actually on, and a finished episode can no longer
-un-finish itself.
+**Current release: 0.6.0** — **a concert Blu-ray is not an anime**, and AnimeGod
+has stopped pretending it is. Live discs get their own section, built around the
+one thing they actually have: what was played. Four music sources behind it,
+five general torrent indexes in front of it, song timelines read straight out of
+the video, and a switch that stops every finished download from seeding behind
+your back.
 
 ## At a glance
 
@@ -49,7 +48,8 @@ un-finish itself.
 | ▶️ **Player** | libmpv, HDR10/HLG/Dolby Vision, Blu-ray images, chapter timeline |
 | 💬 **Danmaku** | dandanplay and Bilibili, merged, with filters and a comment manager |
 | 🈳 **Subtitles** | Finds and loads Chinese subtitles automatically when a release has none |
-| 🧲 **Releases** | Ten anime indexes searched at once, whole seasons assembled per fansub |
+| 🎤 **Concerts** | Live Blu-rays in their own section: setlist, hall, song timeline, grouped by band |
+| 🧲 **Releases** | Ten anime indexes and five general ones at once, whole seasons assembled per fansub |
 | ⬇️ **Downloads** | Built-in BitTorrent engine, a season per folder, play while downloading, auto-unpack |
 | 🔔 **Subscriptions** | One click on an airing season; every episode after it arrives by itself |
 | 📱 **iPhone** | A companion app that mirrors the library and hands episodes back and forth with the Mac |
@@ -58,7 +58,8 @@ un-finish itself.
 
 ## Contents
 
-[Library](#library) · [Metadata](#metadata) · [Player](#player) ·
+[Library](#library) · [Metadata](#metadata) · [Concerts](#concerts) ·
+[Player](#player) ·
 [Danmaku](#danmaku-弹幕) · [Online subtitles](#online-subtitles-在线字幕) ·
 [Find releases](#find-releases) · [Downloads](#downloads) ·
 [Subscriptions](#subscriptions) · [Episode cache](#episode-cache) ·
@@ -118,6 +119,48 @@ Your files stay exactly as they are. AnimeGod only reads them.
 - Bangumi uses the v0 API; AniList uses GraphQL.
 
 </details>
+
+## Concerts
+
+A live Blu-ray has no episodes, no synopsis and no provider that rates it as a
+work. What it has is **what was played** — so the setlist is the page.
+
+Concerts live in their own sidebar section and deliberately **never** appear on
+the home screen or in Continue Watching: there is no finishing a concert. Your
+position is still kept; it is a position, not a verdict.
+
+| | |
+|---|---|
+| 🏷 **Files itself** | `6th LIVE`, `演唱会`, `合同ライブ`, `12th☆LIVE` — a live is recognised when the download starts, and never raises the "which anime is this?" sheet |
+| 💿 **Two nights, one work** | `DAY1` + `DAY2`, however they arrived |
+| 🎸 **Grouped by band** | Each act in the order it played, the act you are collecting now on top |
+| 🖼 **Choose a cover** | Plenty of concerts have none anywhere; pick one and it stays |
+| 🗂 **Who said what** | Every field on the page names the source that answered it |
+
+**No single catalogue knows a concert**, so four are asked, each only what it is
+good at — and the release's own folder is often better than all of them.
+
+| | |
+|---|---|
+| Discogs | Catalogue number, label, barcode, the shape of the box |
+| MusicBrainz | The setlist, the song lengths, the name of each night |
+| Bangumi | The hall, the date, a score somebody voted on |
+| setlist.fm | What was actually played, night by night, encore marked |
+| The folder | The catalogue number in a cue sheet, the jacket scans, what else was in the box |
+
+### Where a song starts
+
+Nothing publishes this, so there are three answers in order of trust:
+
+1. **The video's own chapters**, read straight off the file — no need to play it.
+2. **The disc's marks**, aligned to the setlist while it plays.
+3. **Paste one in.** A disc that already has times but no names takes a bare
+   list of song names, with the times shown beside them as you type.
+
+In the player a concert plays as one: the scrubber cuts itself into songs, the
+scrub bubble names the one under the pointer, there is a song picker bottom
+right — and no subtitle search or danmaku popups, because nobody writes either
+for a live Blu-ray.
 
 ## Player
 
