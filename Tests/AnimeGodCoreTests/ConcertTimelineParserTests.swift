@@ -127,10 +127,16 @@ struct ConcertTimelineParserTests {
         #expect(ConcertTimelineParser.isEncoreHeading(ConcertTimelineParser.normalise(line)))
     }
 
-    /// Two numbered lines are not a timeline, and prose is not one either.
+    /// Prose is not a timeline, and neither is a single timecode in it.
+    ///
+    /// Two lines used to be refused as well, on the reasoning that two could be
+    /// a coincidence. They are accepted now — see
+    /// `twoSongsUnderATitleLineAreATimeline` for what that cost: a real paste
+    /// of two songs was dropped whole while the sheet said it had found no
+    /// times at all.
     @Test func refusesWhatIsNotATimeline() {
         #expect(ConcertTimelineParser.parse("").isEmpty)
-        #expect(ConcertTimelineParser.parse("00:01:00 A\n00:05:00 B").isEmpty)
+        #expect(ConcertTimelineParser.parse("00:01:00 A").isEmpty)
         #expect(ConcertTimelineParser.parse("这是一段没有时间码的说明文字。").isEmpty)
     }
 }
@@ -170,5 +176,43 @@ struct ConcertPastedProgrammeTests {
         #expect(second.tracks.first?.title == "処救生")
         #expect(second.placements.first?.startTime == 153)
         #expect(second.tracks.last?.title == "比心")
+    }
+}
+
+/// What the reader does with too little, and what it says about it.
+@Suite("A paste that is nearly nothing")
+struct ConcertTimelineParserFloorTests {
+    /// The real one. Two songs, pasted with the concert's name on the first
+    /// line, and the sheet answered "no times found in that" — which was not
+    /// true, and was the whole of what it offered to go on.
+    @Test func twoSongsUnderATitleLineAreATimeline() {
+        let discs = ConcertTimelineParser.parse("""
+        MyGO!!!!! Extra Studio Live
+        00:00:00 1.孤壊牢
+        00:03:40 2.步拾道
+        """)
+        let disc = try! #require(discs.first)
+        #expect(discs.count == 1)
+        #expect(disc.entries.map(\.title) == ["孤壊牢", "步拾道"])
+        #expect(disc.entries.map(\.startTime) == [0, 220])
+    }
+
+    /// One timecode in a line of prose is a mention, not a timeline, and that
+    /// is what the floor is for.
+    @Test func oneStrayTimeIsStillRefused() {
+        #expect(ConcertTimelineParser.parse("開場 17:00 開演 18:00 の予定です").isEmpty)
+        #expect(ConcertTimelineParser.parse("00:00:00 1.孤壊牢").isEmpty)
+    }
+
+    /// And the count a refusal reports is the count of lines that carried a
+    /// time, so the two refusals can be told apart.
+    @Test func countsTheLinesThatCarriedATime() {
+        #expect(ConcertTimelineParser.timedLineCount(in: "00:00:00 1.孤壊牢") == 1)
+        #expect(ConcertTimelineParser.timedLineCount(in: "MyGO!!!!! Extra Studio Live") == 0)
+        #expect(ConcertTimelineParser.timedLineCount(in: """
+        MyGO!!!!! Extra Studio Live
+        00:00:00 1.孤壊牢
+        00:03:40 2.步拾道
+        """) == 2)
     }
 }

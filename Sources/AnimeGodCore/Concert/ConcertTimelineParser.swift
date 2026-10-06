@@ -37,8 +37,26 @@ public enum ConcertTimelineParser {
         }
     }
 
-    /// Two entries are a coincidence; three with rising times are a timeline.
-    static let minimumEntries = 3
+    /// Two lines that each carry a time and a name are a timeline.
+    ///
+    /// It was three, on the reasoning that two could be a coincidence — and the
+    /// cost of that was a paste of two songs being thrown away whole while the
+    /// sheet reported "no times found in that", which was not true and gave
+    /// nobody anything to act on. One stray timecode in a block of prose is
+    /// still refused, which is what the floor is actually for; the second line
+    /// is what makes it a sequence rather than a mention.
+    public static let minimumEntries = 2
+
+    /// How many lines carried a time at all, whatever became of them.
+    ///
+    /// So a refusal can say which refusal it is: nothing in the text looked
+    /// like a timeline, or something did and there was not enough of it.
+    public static func timedLineCount(in text: String) -> Int {
+        text.components(separatedBy: .newlines)
+            .map(normalise)
+            .filter { !$0.isEmpty && entry(in: $0, isEncore: false) != nil }
+            .count
+    }
 
     public static func parse(_ text: String) -> [Disc] {
         var discs: [Disc] = []

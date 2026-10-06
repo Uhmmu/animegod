@@ -9657,6 +9657,28 @@
         }
       }
     },
+    "Only %lld line with a time — a disc needs at least %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Only %1$lld line with a time — a disc needs at least %2$lld"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "時刻のある行が %1$lld 行だけです——1枚につき最低 %2$lld 行必要です"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只读到 %1$lld 行带时间的 —— 一张碟至少要 %2$lld 行"
+          }
+        }
+      }
+    },
     "Only Show %@": {
       "localizations": {
         "ja": {

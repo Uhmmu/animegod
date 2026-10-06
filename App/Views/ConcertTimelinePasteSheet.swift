@@ -54,6 +54,16 @@ struct ConcertTimelinePasteSheet: View {
                     )
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                } else if preview.timedLines > 0 {
+                    // It did read times; there were not enough of them. Saying
+                    // "no times found" here was simply untrue, and left nobody
+                    // anything to do about it.
+                    Label(
+                        String(localized: "Only \(preview.timedLines) line with a time — a disc needs at least \(ConcertTimelineParser.minimumEntries)"),
+                        systemImage: "exclamationmark.triangle"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(Color.orange)
                 } else {
                     Label("No times found in that", systemImage: "exclamationmark.triangle")
                         .font(.caption)

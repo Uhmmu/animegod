@@ -430,13 +430,19 @@ final class ConcertCoordinator: ObservableObject {
     /// What a pasted timeline would do, before it does it.
     struct PastedTimelinePreview: Sendable {
         var discs: [ConcertTimelineParser.Disc]
+        /// Lines that carried a time, whatever became of them — so a refusal
+        /// can say which refusal it is.
+        var timedLines: Int
         var discCount: Int { discs.count }
         var entryCount: Int { discs.reduce(0) { $0 + $1.entries.count } }
         var isUsable: Bool { !discs.isEmpty }
     }
 
     func previewPastedTimeline(_ text: String) -> PastedTimelinePreview {
-        PastedTimelinePreview(discs: ConcertTimelineParser.parse(text))
+        PastedTimelinePreview(
+            discs: ConcertTimelineParser.parse(text),
+            timedLines: ConcertTimelineParser.timedLineCount(in: text)
+        )
     }
 
     /// Takes a timeline somebody found and pasted in, and makes it the setlist.
