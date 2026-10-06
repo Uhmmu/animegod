@@ -649,6 +649,22 @@ final class AppModel: ObservableObject {
     }
     private static let dismissedMatchesKey = "metadata.dismissedMatches"
 
+    /// The same pairs, for questions that have merely been *asked*.
+    ///
+    /// Closing the sheet answers nothing, so every entry in it was still
+    /// pending at the next launch and the sheet opened again — at every
+    /// launch, over a library where the only unanswerable questions were two
+    /// concert discs no anime index lists. The queue itself is right: a work
+    /// with one source instead of two is worth showing. Opening a window over
+    /// whatever someone is doing, a second and a third time, to ask again, is
+    /// not. So a question offers itself **once**; after that it waits in the
+    /// toolbar, where asking is the user's move.
+    private var askedMatches: Set<String> {
+        get { Set(UserDefaults.standard.stringArray(forKey: Self.askedMatchesKey) ?? []) }
+        set { UserDefaults.standard.set(Array(newValue), forKey: Self.askedMatchesKey) }
+    }
+    private static let askedMatchesKey = "metadata.askedMatches"
+
     /// Anime rows for downloads that were linked in an earlier run, so their
     /// cards still open and still show a cover after a relaunch.
     func loadIncomingAnime(ids: [UUID]) async {
@@ -901,8 +917,12 @@ final class AppModel: ObservableObject {
         }
         await reloadMetadata()
         // An automatic pass is the only one that offers itself: pressing the
-        // button already puts the user in front of the result.
-        if isAutomatic, !pendingMatches.isEmpty { wantsMatchReview = true }
+        // button already puts the user in front of the result. And it offers
+        // itself only over a question nobody has been asked yet.
+        if isAutomatic, pendingMatches.contains(where: { !askedMatches.contains($0.id) }) {
+            askedMatches.formUnion(pendingMatches.map(\.id))
+            wantsMatchReview = true
+        }
 
         // Only worth reporting when a provider was actually given up on: a
         // handful of titles it has never heard of is not a failure of the run,
