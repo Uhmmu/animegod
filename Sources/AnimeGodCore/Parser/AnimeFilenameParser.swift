@@ -146,10 +146,6 @@ public struct AnimeFilenameParser: Sendable {
         let groups = allCaptures(bracketPattern, in: value).compactMap { captures in
             captures.dropFirst().first(where: { !$0.isEmpty })
         }
-        let bracketTitle = groups.dropFirst().first(where: { !isReleaseNoise($0) })
-        if let bracketTitle {
-            return normalizedCollectionTitle(bracketTitle)
-        }
 
         var withoutGroups = value.replacingOccurrences(of: bracketPattern, with: " ", options: .regularExpression)
         withoutGroups = withoutGroups.replacingOccurrences(
@@ -157,7 +153,23 @@ public struct AnimeFilenameParser: Sendable {
             with: " ",
             options: .regularExpression
         )
-        return normalizedCollectionTitle(withoutGroups)
+        let outside = normalizedCollectionTitle(withoutGroups)
+        // **What is outside the brackets is the name, whenever there is any.**
+        // The bracket groups are for the folders that are *nothing but*
+        // brackets — `[DBD-Raws][夏日大作战][2160P]…` — where there is no outside
+        // text to prefer. Reading a bracket first cost two works in this
+        // library their names outright:
+        // `[BDMV][220824] ずっと真夜中でいいのに。 - 鷹は飢えても踊り忘れず` became
+        // **`220824`** (a date) and
+        // `[Sakurato][20190112] Domestic na Kanojo [TV01-12+SP Fin]…` became
+        // **`TV01-12+SP Fin`** — and the title is not only what the card shows,
+        // it is what every provider is asked about, so both searched for
+        // something no index holds.
+        if outside.contains(where: \.isLetter), !isReleaseNoise(outside) { return outside }
+        if let bracketTitle = groups.dropFirst().first(where: { !isReleaseNoise($0) }) {
+            return normalizedCollectionTitle(bracketTitle)
+        }
+        return outside
     }
 
     /// macOS hands filenames back **decomposed**: 「まだ」 arrives as

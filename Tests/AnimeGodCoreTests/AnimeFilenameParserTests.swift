@@ -135,7 +135,21 @@ struct AnimeFilenameParserTests {
         ("[Snow-Raws] 劇場版メイドインアビス 深き魂の黎明", "劇場版メイドインアビス 深き魂の黎明"),
         ("[J.X&MGRT]Sakasama no Patema[GB][BDrip][1080P_Hi10_FLAC](Scans&OST&Special)", "Sakasama no Patema"),
         ("[Group] Some Work (BDRip 1080p) (CD+BK)", "Some Work"),
-        ("[Group] Hunter x Hunter (2011)", "Hunter x Hunter (2011)")
+        ("[Group] Hunter x Hunter (2011)", "Hunter x Hunter (2011)"),
+        // Tags in front of a real name: the name is what is outside them.
+        // This folder's work was called `220824` — a date — on its card and in
+        // every query sent about it.
+        ("[BDMV][220824] ずっと真夜中でいいのに。 - 鷹は飢えても踊り忘れず",
+         "ずっと真夜中でいいのに。 - 鷹は飢えても踊り忘れず"),
+        // And this one was called `TV01-12+SP Fin`, which is not a title but a
+        // description of what the folder holds.
+        ("[Sakurato][20190112] Domestic na Kanojo [TV01-12+SP Fin][BDRip][1080p][CHS&CHT&JPN]",
+         "Domestic na Kanojo"),
+        // A folder that is nothing but brackets still reads a bracket.
+        ("[DBD-Raws][MyGO!!!!! 7th LIVE「こたえなんてなくても」][1080P][BDRip][HEVC-10bit][FLAC][MKV]",
+         "MyGO!!!!! 7th LIVE「こたえなんてなくても」"),
+        // Outside text that is only a technical tag is not a name either.
+        ("[Nekomoe kissaten][Penguin Highway] FLAC", "Penguin Highway")
     ])
     func parsesReleaseFolderTitle(input: String, expected: String) {
         #expect(parser.collectionTitle(from: input) == expected)
