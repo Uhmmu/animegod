@@ -112,6 +112,42 @@ struct ConcertIdentifierTests {
         #expect(asked.contains("bangumi:release:512098"))
     }
 
+    /// A typed number is a correction, so it has to beat the folder's own.
+    ///
+    /// The folder is still read — the scans and what was in the box are not
+    /// wrong just because the number was — but the number that leads the search
+    /// is the one somebody typed, and the first answer ends it.
+    @Test func aTypedCatalogueNumberBeatsTheFoldersOwn() async throws {
+        let log = Log()
+        let musicBrainz = FakeSource(
+            id: .musicBrainz,
+            byCatalogNumber: [
+                "BRMM-10716": stub(.musicBrainz, externalID: "right", title: "4th LIVE"),
+                "BRMM-10837": stub(.musicBrainz, externalID: "wrong", title: "ELEMENTS")
+            ],
+            full: [
+                "right": stub(.musicBrainz, externalID: "right", title: "4th LIVE", isLive: true, songs: 16),
+                "wrong": stub(.musicBrainz, externalID: "wrong", title: "ELEMENTS", isLive: true, songs: 12)
+            ],
+            log: log
+        )
+        var files = ConcertReleaseFiles()
+        // What the folder says — the bonus CD's number, which is what made the
+        // record wrong in the first place.
+        files.catalogNumbers = [try #require(ConcertCatalogNumber.first(in: "BRMM-10837"))]
+        files.coverImageURLs = [URL(fileURLWithPath: "/Volumes/T7/x/Scans/cover.jpg")]
+
+        let found = await ConcertIdentifier(musicBrainz: musicBrainz)
+            .identify(folderName: "BRMM-10716", files: files)
+
+        #expect(found.release?.title == "4th LIVE")
+        #expect(found.catalogNumber?.description == "BRMM-10716")
+        // The folder's own scans survive the correction.
+        #expect(found.release?.coverImageURLs.first?.lastPathComponent == "cover.jpg")
+        // And the wrong number was never asked about: the first answer ends it.
+        #expect(await !log.asked.contains { $0.contains("BRMM-10837") })
+    }
+
     // MARK: - What it refuses to do
 
     /// A folder with no catalogue number is left alone. A title search is not a

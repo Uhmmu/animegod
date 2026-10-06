@@ -17,6 +17,7 @@ struct ConcertDetailView: View {
     @State private var episodes: [EpisodeMedia] = []
     @State private var selectedDiscNumber: Int?
     @State private var catalogNumberEntry = ""
+    @State private var isCorrectingCatalogNumber = false
     @State private var showingTimelinePaste = false
 
     private var concert: LibraryConcert? {
@@ -497,10 +498,11 @@ struct ConcertDetailView: View {
     /// The label, the catalogue number, the barcode. Small print, and the only
     /// place the identity the whole lookup hangs on is visible.
     @ViewBuilder
+    /// Always shown once there is a record, even one with no facts on it: the
+    /// way to correct a wrong catalogue number lives here, and a record thin
+    /// enough to have nothing else is the one most likely to need it.
     private func releaseFacts(_ release: ConcertRelease) -> some View {
-        if !releaseFactPairs(release).isEmpty || release.sourceURL != nil || release.officialSiteURL != nil {
-            releaseFactsBody(release)
-        }
+        releaseFactsBody(release)
     }
 
     private func releaseFactsBody(_ release: ConcertRelease) -> some View {
@@ -528,7 +530,47 @@ struct ConcertDetailView: View {
                     Link(String(localized: "Open on \(release.provider.displayName)"), destination: source)
                         .font(.caption)
                 }
+                // An identified disc can still be identified *wrongly* — the
+                // number is read off a folder, and a folder can hold the bonus
+                // CD's number as easily as the Blu-ray's. Correcting it was
+                // only possible while a disc had no record at all, which is the
+                // one case where there is nothing to correct.
+                if isCorrectingCatalogNumber {
+                    TextField("Catalogue number", text: $catalogNumberEntry)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 170)
+                        .onSubmit { correctCatalogNumber() }
+                    Button("Look Up", action: correctCatalogNumber)
+                        .disabled(section.isIdentifying || catalogNumberEntry.isEmpty)
+                    Button("Cancel", role: .cancel) { isCorrectingCatalogNumber = false }
+                        .buttonStyle(.link)
+                        .font(.caption)
+                } else {
+                    Button("Correct Catalogue Number…") {
+                        // Prefilled with what is there, because a correction is
+                        // usually a digit or a prefix away from it.
+                        catalogNumberEntry = release.catalogNumbers.first ?? ""
+                        isCorrectingCatalogNumber = true
+                    }
+                    .buttonStyle(.link)
+                    .font(.caption)
+                }
             }
+        }
+    }
+
+    /// Replaces the record with whatever the typed number answers.
+    ///
+    /// Not a merge: the number *is* the identity, so a corrected one makes a
+    /// different release, and keeping any of the old one would leave a page
+    /// half about each.
+    private func correctCatalogNumber() {
+        let entry = catalogNumberEntry
+        guard !entry.isEmpty else { return }
+        Task {
+            await section.identify(animeID: animeID, catalogNumber: entry)
+            if section.errorMessage == nil { isCorrectingCatalogNumber = false }
+            await load()
         }
     }
 

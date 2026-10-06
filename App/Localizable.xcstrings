@@ -3593,6 +3593,22 @@
         }
       }
     },
+    "Correct Catalogue Number…": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "品番を修正…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "改正品番…"
+          }
+        }
+      }
+    },
     "Could not cache “%@”: %@": {
       "localizations": {
         "en": {

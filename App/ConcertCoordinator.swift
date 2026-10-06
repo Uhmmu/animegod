@@ -282,8 +282,13 @@ final class ConcertCoordinator: ObservableObject {
         isIdentifying = true
         defer { isIdentifying = false; progress = nil }
         progress = String(localized: "Looking up \(number.description)…")
-        let found = await identifier().identify(folderName: number.description)
-        guard let release = found.release else {
+        // The folder comes along, so a correction keeps the release's own
+        // scans and what was in the box. The typed number is read first and
+        // ends the search, so the folder's own — which is what is being
+        // corrected — never wins.
+        let files = await releaseFiles(forAnimeID: animeID)
+        let found = await identifier().identify(folderName: number.description, files: files)
+        guard let release = found.release, release.provider != .localFiles else {
             errorMessage = found.failures.values.first
                 ?? String(localized: "No source has a release under \(number.description).")
             return
