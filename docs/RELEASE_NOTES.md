@@ -1,147 +1,98 @@
-# AnimeGod 0.6.0
+# AnimeGod 0.6.1
 
-**A concert Blu-ray is not an anime, and AnimeGod has stopped pretending it is.**
+**Four things that were quietly wrong.**
 
-A live disc has no episodes, no synopsis, and no provider that rates it as a
-work. What it has is **what was played** — so the setlist is the page, and
-everything else follows from where that information lives. This release adds a
-Concerts section built around that, four music sources behind it, five general
-torrent indexes in front of it, and the switch that stops every finished
-download from seeding behind your back.
+0.6.0 gave concerts their own section. This release is what a week of actually
+using it turned up: a live Blu-ray that no catalogue would vouch for, a 37 GB
+disc image that reported itself empty, a work filed under a date, and a
+question that would not stop asking itself.
 
 ---
 
-## 🎤 Concerts
+## 🎤 A disc only Discogs holds is still a concert
 
-Its own section in the sidebar. Deliberately **not** on the home screen: a
-concert is not something you are partway through a season of.
+A concert moves itself into the section when a source says `Live` — and only
+**two** sources ever say it: MusicBrainz's `Live` secondary type and Bangumi's
+演出 subject. Discogs says nothing of the sort. Measured across four catalogue
+numbers, not one carries a `Live` descriptor:
+
+| catalogue number | Discogs says | MusicBrainz has it |
+|---|---|---|
+| `UPXH-29056` | Blu-ray × 2, 46 songs | ❌ not at all |
+| `ANZX-10294` | Blu-ray, Limited Edition | ✅ |
+| `BRMM-10876` | CD + Blu-ray Audio | ✅ |
+| `BRMM-10679` | CD + Blu-ray | ✅ |
+
+So a Japanese live Blu-ray that **only** Discogs holds could never move itself
+in, however exactly its number answered. One was already identified, sitting in
+the database with all 46 of its songs, while the work itself stayed in the anime
+grid.
+
+What Discogs does say, without meaning to, is that the release is something you
+**watch** — and a music catalogue indexes music, so a video medium in one is a
+concert or a music video, never an episode of a series. That now moves a disc
+in, with one guard: only when no anime provider has matched the work. A
+catalogue number alone still moves nothing — `ANZX` is Aniplex's anime label
+as well.
+
+Three things had to follow:
 
 | | |
 |---|---|
-| 🏷 **Files itself** | `6th LIVE`, `演唱会`, `合同ライブ`, `12th☆LIVE` — a live recognises itself when the download starts and never raises the "which anime is this?" sheet |
-| 🎚 **The setlist is the page** | Songs, lengths, the encore, the hall, the night it happened |
-| 💿 **Two nights are one work** | `DAY1` + `DAY2`, however they arrived — one folder, two folders, or the night in the filename |
-| 🚫 **No "watched"** | There is no finishing a concert. Your position is still kept; it is a position, not a verdict |
-| 🎸 **Grouped by band** | Each act in the order it played, the act you are collecting now at the top |
-| 🖼 **Choose a cover** | Plenty of concerts have none anywhere. Pick one and it stays |
+| 💿 **Which disc of a box is the video** | `formats` lists the media in box order with a count each (`2 × CD`, then `1 × Blu-ray`) and the track list numbers its discs the same way — so a 2CD+BD album's **third** disc is recognised as the live, and its 26 songs are the setlist instead of the album's 13 |
+| 🔢 **A barcode from the release's own text file** | No cue sheet, no catalogue number in any name, and a saved shop page carrying `EAN ‏ : ‎ 4988031567562` — the only exact key in the folder, and both catalogues answer it with one release |
+| ✅ **A finished record over a work still in the grid** | Decided from the record already on disk, rather than by asking every service again |
 
-### Where the information comes from
+## 💽 A Blu-ray image that names its folders in UTF-16
 
-No single catalogue knows a concert. Four do, between them, and each is asked
-only what it is actually good at — measured, not assumed.
+A UDF file identifier is OSTA compressed Unicode, and its first byte says which
+of two encodings follows. AnimeGod only ever looked for one of them.
 
-| | |
-|---|---|
-| **Discogs** | The catalogue number, the label, the barcode, the shape of the box |
-| **MusicBrainz** | The setlist, the song lengths, and the name of each night |
-| **Bangumi** | The hall, the date, and a score somebody voted on |
-| **setlist.fm** | What was *actually* played, night by night, with the encore marked |
-| **The release's own folder** | The catalogue number in a cue sheet, the jacket scans, what else was in the box |
+| image | `BDMV` written as | result |
+|---|---|---|
+| `SENNEN_JYOYU.iso` | `42 44 4D 56` | ✅ played |
+| `ROAD GAME『テクノプア』…iso` | `00 42 00 44 00 4D 00 56` | ❌ "no playable Blu-ray video" |
 
-The folder is often the best of the five. One release here is named
-`[DBD-Raws][MyGO!!!!! 6th LIVE…][1080P][BDRip]` and carries no catalogue number
-at all — but two levels down sits `OST/BRMM-10876.cue`, and that number answers
-with the release and **both nights' setlists, sixteen songs each**.
+Neither image carries an ISO 9660 side to fall back on, so the identifier as the
+disc spells it is all there is to go on. Both spellings are read now — and the
+second image plays: 1920×1080, 2:22:15, 33 chapters, seeking fine. libbluray
+never had a problem with it; only the probe did.
 
-**Every field says who answered it.** A concert page is four services and a
-folder, and no two of them answer the same question, so the page stops implying
-one source:
+## 🏷 A work's name is what is outside the brackets
 
-```
-这些信息来自哪里
-MusicBrainz   曲目 · 艺人 · 标题 · 番号 · 条码 · 厂牌
-Bangumi       演出日期 · 评分 · 简介
-setlist.fm    场馆
-This release  封面 · 盒内附属
-```
+The title is not only what the card shows — it is what every metadata provider
+is asked for. Two works in a real library were filed under something that is
+not a title at all:
 
-### Where a song starts
+| folder | before | after |
+|---|---|---|
+| `[BDMV][220824] ずっと真夜中でいいのに。 - 鷹は飢えても踊り忘れず` | `220824` | the name |
+| `[Sakurato][20190112] Domestic na Kanojo [TV01-12+SP Fin]…` | `TV01-12+SP Fin` | `Domestic na Kanojo` |
 
-Nothing publishes this. Three answers, in this order:
+The second is why that work had no metadata: it was searching for a description
+of the folder's contents. A folder that is *nothing but* brackets still reads a
+bracket — that part was right and is unchanged.
 
-1. **The video's own chapters**, read straight off the file. If the encode kept
-   them and named them, that is the disc telling you what is on it and where —
-   better than any catalogue, and it no longer takes playing the file to find
-   out.
-2. **The disc's marks**, aligned to the setlist while it plays.
-3. **Paste one in.** People post these lists; paste one and it becomes the
-   setlist, including the parts no catalogue lists. A disc that already has
-   times but no names takes a **bare list of song names** instead, with the
-   times shown beside them as you type — the counts are expected to disagree, so
-   the mismatch is shown rather than silently resolved.
+## 🔁 A metadata question is asked once
 
-### In the player
+Closing the match review answers nothing — **Done is not Skip** — so every entry
+was still pending when the next automatic pass ran, and the sheet opened again.
+At every launch. In the library this was found in, the only unanswerable
+questions were two concert discs no anime index lists, and the stored skip-list
+had exactly **one** entry in it after months.
 
-A concert plays as a concert: the scrubber **cuts itself into songs**, the scrub
-bubble names the one under the pointer, and there is a song picker bottom right.
-No subtitle search, no danmaku — nobody writes either for a live Blu-ray, and
-being asked twice at the start of every concert is not a feature.
+The queue itself is right. Opening a window over whatever you are doing, a
+second and a third time, to ask the same thing, is not. A question now offers
+itself once; after that it waits in the toolbar, where asking is your move.
 
 ---
 
-## 🧲 Five more places to look
+## 📦 Install
 
-Every index AnimeGod searched was an *anime* index, and a concert Blu-ray is not
-filed as anime. **Knaben, torrents-csv, BitSearch, TheRARBG and The Pirate Bay**
-join them, grouped separately in Settings.
+Download `AnimeGod-0.6.1.dmg`, drag it to Applications. Universal (Apple
+Silicon + Intel), macOS 14+. Ad-hoc signed and **not notarized** — on first
+launch, right-click the app and choose **Open**.
 
-Measured, with this library's own queries:
-
-| | nyaa | knaben | torrents-csv | TheRARBG |
-|---|---|---|---|---|
-| `MyGO 9th LIVE` | 0 | 1 | 1 | **18** |
-| `Ave Mujica 4th LIVE` | 0 | 30 | 2 | **30** |
-
-And **Nyaa was only ever asked about its Anime category** — while a live Blu-ray
-is filed under Live Action or Music. It is asked about the whole site now.
-
----
-
-## 🌱 Sharing is a choice now, and it starts off
-
-Everything that finished used to seed for as long as the app was open, with no
-way to say otherwise. One switch — Settings → Downloads — and it **starts off**.
-Off is not "stop the next one": the seed queue shuts *and* every finished task
-stops on the spot.
-
-A **Seeding** section shows what is actually being shared: upload rate, how much
-has gone out, the peers being served, the ratio given back.
-
----
-
-## 📦 A work is one work
-
-**"I downloaded episode one on its own and episode two became a second show."**
-A season in its first week cannot be downloaded as a set, and a lone download was
-the one path that never named a folder — so it landed in one named after the
-release while the set a week later named it after the work. Two folders, two
-cards, two library entries.
-
-Every new download now joins the work already being downloaded under a matching
-name, folder and anime alike, whichever way it was started: by hand,
-multi-select, a set, a subscription, or an accepted subscription candidate.
-
-**A release search opens on Episode Sets**, because what you want from a search
-is almost always "get me this show" — unless the show is one episode old, in
-which case it opens on the results that exist.
-
----
-
-## 🩹 Fixes
-
-| | |
-|---|---|
-| **Watch state on screen** | A finished episode now says so without reopening the page — macOS stops drawing a window the player covered, so the count was right in the model and stale on screen |
-| **A tap on the phone** | Tapping the picture no longer fast-forwards it; `onPressingChanged` reports the press, not the long press |
-| **Covers** | A local jacket scan never loaded at all — the cache insisted on an HTTP response, and a file URL has none |
-
----
-
-## Install
-
-Download `AnimeGod-0.6.0.dmg` and drag AnimeGod to Applications. Universal
-(Apple Silicon + Intel), ad-hoc signed, not notarized — on first launch,
-right-click and choose **Open**.
-
-The iPhone companion is unchanged in this release and is not packaged with it;
-0.5.0's `.ipa` still pairs with this build.
+Upgrading from 0.6.0 needs nothing: the library, the concert records and every
+setlist you pasted are kept. Works whose names were wrong are renamed on the
+next scan, and what was bound to them comes along.

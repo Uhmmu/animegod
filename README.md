@@ -32,12 +32,12 @@ Mac. Nothing is uploaded, nothing is renamed, nothing is moved.
 > The app is ad-hoc signed, not notarized. On first launch macOS may need you
 > to right-click it and choose **Open**.
 
-**Current release: 0.6.0** — **a concert Blu-ray is not an anime**, and AnimeGod
-has stopped pretending it is. Live discs get their own section, built around the
-one thing they actually have: what was played. Four music sources behind it,
-five general torrent indexes in front of it, song timelines read straight out of
-the video, and a switch that stops every finished download from seeding behind
-your back.
+**Current release: 0.6.1** — four things that were quietly wrong. A live Blu-ray
+that **only Discogs** has now files itself as a concert instead of sitting in the
+grid; a disc image that spells its folder names in **UTF-16** plays instead of
+reporting that it holds no video; a work named `[BDMV][220824] …` is called by
+its name rather than by the date in front of it; and the match review asks a
+question **once** instead of at every launch.
 
 ## At a glance
 
