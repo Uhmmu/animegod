@@ -218,6 +218,22 @@ public extension LibraryDatabase {
         }
     }
 
+    /// Files a cover somebody chose themselves.
+    ///
+    /// `anime.posterPath` has existed since `v1` and nothing has ever written
+    /// to it, which makes it exactly the right place: a column already carried
+    /// everywhere a work goes, including to the phone.
+    @discardableResult
+    func setPosterPath(_ path: String?, forAnimeID animeID: UUID) throws -> Bool {
+        try database.write { db in
+            try db.execute(
+                sql: "UPDATE anime SET posterPath = ?, updatedAt = ? WHERE id = ?",
+                arguments: [path, Date(), animeID.uuidString]
+            )
+            return db.changesCount > 0
+        }
+    }
+
     /// Throws a stored record away, for one that is known to be wrong rather
     /// than merely thin.
     @discardableResult

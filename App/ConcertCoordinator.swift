@@ -313,6 +313,101 @@ final class ConcertCoordinator: ObservableObject {
         )
     }
 
+    /// Reads a disc's own chapter marks, with the library's scope held open.
+    /// Set by `AppModel`, which owns the roots.
+    var fileChaptersResolver: ((EpisodeMedia) async -> [ConcertChapterMark])?
+
+    /// Takes the programme off the video itself when the video carries one.
+    ///
+    /// **This wins.** A file whose encode kept its chapters, each one named, is
+    /// the disc telling you what is on it and where — better than any
+    /// catalogue, which has the names and no times, and better than an
+    /// alignment, which is an inference. It was invisible until now because
+    /// chapter marks only reached the app while mpv had the file open, so the
+    /// page showed a track list with no times against it while the player's own
+    /// menu had the lot.
+    ///
+    /// A numbering is not a programme: `Chapter 01` … `Chapter 23` is refused,
+    /// and so is anything a person already corrected by hand.
+    @discardableResult
+    func adoptFileChapters(forAnimeID animeID: UUID, episodes: [EpisodeMedia]) async -> Int {
+        guard let database, let resolver = fileChaptersResolver else { return 0 }
+        var adopted = 0
+        for episode in episodes {
+            // A hand-made correction is never overwritten, and neither is a
+            // programme already taken off this file.
+            if let stored = try? await database.concertSetlist(episodeID: episode.episode.id),
+               stored.isManual {
+                continue
+            }
+            let marks = await resolver(episode)
+            guard marks.carryRealNames else { continue }
+            let disc = ConcertTimelineParser.Disc(entries: marks.map {
+                ConcertTimelineParser.Entry(startTime: $0.startTime, title: $0.title, isEncore: false)
+            })
+            let number = episode.episode.numberText.flatMap { Int($0) } ?? 1
+            var numbered = disc
+            numbered.number = number
+            adopted += await apply(discs: [numbered], forAnimeID: animeID)
+        }
+        return adopted
+    }
+
+    // MARK: - A cover somebody chose
+
+    /// Where chosen covers live: inside the container, so one survives the
+    /// sandbox forgetting a file it was shown once.
+    private static var coversDirectory: URL? {
+        guard let support = FileManager.default.urls(
+            for: .applicationSupportDirectory, in: .userDomainMask
+        ).first else { return nil }
+        let directory = support.appending(path: "AnimeGod/Covers", directoryHint: .isDirectory)
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory
+    }
+
+    /// Copies a picked image in and files it as this work's cover.
+    ///
+    /// Copied rather than referenced: a file chosen in an open panel is
+    /// readable now and not after a relaunch, and a cover that disappears
+    /// overnight is worse than no cover. It beats every source afterwards —
+    /// the same rule a pasted setlist has, for the same reason.
+    func chooseCover(_ picked: URL, forAnimeID animeID: UUID) async {
+        guard let database, let directory = Self.coversDirectory else { return }
+        let scoped = picked.startAccessingSecurityScopedResource()
+        defer { if scoped { picked.stopAccessingSecurityScopedResource() } }
+        let ext = picked.pathExtension.isEmpty ? "jpg" : picked.pathExtension
+        let destination = directory.appending(path: "\(animeID.uuidString).\(ext)")
+        do {
+            // Every old one goes, whatever it was called, or a `.png` would sit
+            // behind a `.jpg` for ever.
+            for existing in (try? FileManager.default.contentsOfDirectory(
+                at: directory, includingPropertiesForKeys: nil
+            )) ?? [] where existing.deletingPathExtension().lastPathComponent == animeID.uuidString {
+                try? FileManager.default.removeItem(at: existing)
+            }
+            try Data(contentsOf: picked).write(to: destination, options: .atomic)
+            try await database.setPosterPath(destination.path, forAnimeID: animeID)
+            await reload()
+        } catch {
+            errorMessage = String(localized: "Could not use that image: \(error.localizedDescription)")
+        }
+    }
+
+    /// Back to whatever the sources and the folder give.
+    func clearChosenCover(forAnimeID animeID: UUID) async {
+        guard let database else { return }
+        if let directory = Self.coversDirectory {
+            for existing in (try? FileManager.default.contentsOfDirectory(
+                at: directory, includingPropertiesForKeys: nil
+            )) ?? [] where existing.deletingPathExtension().lastPathComponent == animeID.uuidString {
+                try? FileManager.default.removeItem(at: existing)
+            }
+        }
+        try? await database.setPosterPath(nil, forAnimeID: animeID)
+        await reload()
+    }
+
     // MARK: - Moving a work in and out by hand
 
     /// `title` is for a work whose files have not landed yet: a download that
@@ -509,7 +604,19 @@ final class ConcertCoordinator: ObservableObject {
     ) async -> Int {
         guard let database else { return 0 }
         let parsed = previewPastedTimeline(text, over: times).discs
-        guard !parsed.isEmpty else { return 0 }
+        return await apply(discs: parsed, forAnimeID: animeID)
+    }
+
+    /// Writes a set of discs in as the programme, each one replacing whatever
+    /// that disc had. Shared by the paste sheet and by a file's own chapters,
+    /// because they mean the same thing: this is what is on the disc, stated by
+    /// something that was there.
+    @discardableResult
+    private func apply(
+        discs parsed: [ConcertTimelineParser.Disc],
+        forAnimeID animeID: UUID
+    ) async -> Int {
+        guard let database, !parsed.isEmpty else { return 0 }
         let episodes = (try? await database.episodes(animeID: animeID)) ?? []
         guard !episodes.isEmpty else { return 0 }
 

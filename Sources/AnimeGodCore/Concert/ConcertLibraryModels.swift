@@ -43,6 +43,22 @@ public struct LibraryConcert: Identifiable, Hashable, Sendable {
         return title
     }
 
+    /// A cover somebody chose by hand. It beats every source, for the same
+    /// reason a pasted setlist does: nothing computed may overwrite what a
+    /// person stated.
+    public var customCoverURL: URL? {
+        guard let path = anime.posterPath, !path.isEmpty else { return nil }
+        return URL(fileURLWithPath: path)
+    }
+
+    /// Every cover to try, best first — the chosen one, then whatever the
+    /// sources and the folder gave.
+    public var coverURLs: [URL] {
+        var seen = Set<URL>()
+        return ([customCoverURL].compactMap { $0 } + (release?.displayCoverURLs ?? []))
+            .filter { seen.insert($0).inserted }
+    }
+
     public var songCount: Int { release?.songCount ?? 0 }
 
     public init(

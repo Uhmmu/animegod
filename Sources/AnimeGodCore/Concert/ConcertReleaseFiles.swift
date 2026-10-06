@@ -141,7 +141,14 @@ public enum ConcertReleaseFileReader {
                         namedArtwork.append(entry)
                     } else if coverFileStems.contains(entry.deletingPathExtension().lastPathComponent.lowercased()) {
                         looseCovers.append(entry)
-                    } else if depth > 0 {
+                    } else if depth == 0 {
+                        // An image sitting directly beside the video, whatever
+                        // it is called: somebody put it there, and the release
+                        // root is not where a stray screenshot lands. Measured
+                        // on a real one — `EXPO_ZUTOMAYO_KV.jpg`, dropped in by
+                        // hand — which matched no rule and so did nothing.
+                        looseCovers.append(entry)
+                    } else {
                         // Whatever this folder is called, several images in it
                         // are the release's artwork. Groups do not agree on the
                         // name and there is no reason to make them.

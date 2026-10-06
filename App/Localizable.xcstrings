@@ -2949,6 +2949,22 @@
         }
       }
     },
+    "Choose Cover…": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "カバーを選ぶ…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择封面…"
+          }
+        }
+      }
+    },
     "Choose Danmaku Episode": {
       "localizations": {
         "ja": {
@@ -4021,6 +4037,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "无法开始下载：%@"
+          }
+        }
+      }
+    },
+    "Could not use that image: %@": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この画像を使えませんでした：%@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法使用这张图片：%@"
           }
         }
       }
@@ -14604,6 +14636,22 @@
         }
       }
     },
+    "Use Automatic": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自動に戻す"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "恢复自动封面"
+          }
+        }
+      }
+    },
     "Use Folder": {
       "localizations": {
         "ja": {
@@ -14632,6 +14680,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "就用这个"
+          }
+        }
+      }
+    },
+    "Use as Cover": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "カバーに使う"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用作封面"
           }
         }
       }

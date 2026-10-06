@@ -1,4 +1,5 @@
 import AnimeGodCore
+import AppKit
 import SwiftUI
 
 /// A concert's page.
@@ -67,6 +68,12 @@ struct ConcertDetailView: View {
         guard let anime = concert?.anime else { return }
         episodes = await model.episodes(for: anime)
         if selectedDiscNumber == nil, let first = discNumbers.first { selectedDiscNumber = first }
+        // What the video itself says comes first, and it can only be read off
+        // the disk — the marks used to reach the app only while mpv had the
+        // file open.
+        if await section.adoptFileChapters(forAnimeID: animeID, episodes: episodes) > 0 {
+            episodes = await model.episodes(for: anime)
+        }
         for episode in episodes {
             await section.loadStoredSetlist(forEpisodeID: episode.episode.id)
         }
@@ -76,9 +83,27 @@ struct ConcertDetailView: View {
 
     private func header(_ concert: LibraryConcert) -> some View {
         HStack(alignment: .top, spacing: 20) {
-            PosterView(urls: concert.release?.displayCoverURLs ?? [], height: 200)
-                .frame(width: 200, height: 200)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
+            VStack(spacing: 6) {
+                PosterView(urls: concert.coverURLs, height: 200)
+                    .frame(width: 200, height: 200)
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                // Plenty of concerts have no cover anywhere — no Discogs
+                // release, nothing in the Cover Art Archive, no Bangumi
+                // subject, and a folder holding one video. Choosing one is
+                // then the only way there is ever going to be a cover.
+                HStack(spacing: 10) {
+                    Button("Choose Cover…") { chooseCover() }
+                        .buttonStyle(.link)
+                        .font(.caption)
+                    if concert.customCoverURL != nil {
+                        Button("Use Automatic") {
+                            Task { await section.clearChosenCover(forAnimeID: animeID) }
+                        }
+                        .buttonStyle(.link)
+                        .font(.caption)
+                    }
+                }
+            }
 
             VStack(alignment: .leading, spacing: 8) {
                 Text(concert.displayTitle)
@@ -562,6 +587,17 @@ struct ConcertDetailView: View {
                 }
             }
         }
+    }
+
+    /// Picks an image and files it as this concert's cover.
+    private func chooseCover() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.image]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.prompt = String(localized: "Use as Cover")
+        guard panel.runModal() == .OK, let picked = panel.url else { return }
+        Task { await section.chooseCover(picked, forAnimeID: animeID) }
     }
 
     /// Replaces the record with whatever the typed number answers.

@@ -306,6 +306,22 @@ final class AppModel: ObservableObject {
     /// The read happens here rather than in the coordinator because the folder
     /// can only be opened while the root's security scope is held, and a URL
     /// handed out after the scope is dropped is a URL nothing may read.
+    /// A media file's own chapter marks, read off the disk rather than from
+    /// mpv — which is the only reason they were ever a playback-time thing.
+    /// Only the head of the file is read, so this costs nothing next to the
+    /// gigabytes behind it.
+    func fileChapters(for episode: EpisodeMedia) async -> [ConcertChapterMark] {
+        guard let root = roots.first(where: { $0.id == episode.mediaFile.libraryRootID }),
+              let access = try? ScopedLibraryAccess(root: root)
+        else { return [] }
+        let url = access.url.appending(path: episode.mediaFile.relativePath)
+        defer { access.stop() }
+        guard FileManager.default.fileExists(atPath: url.path) else { return [] }
+        return await Task.detached(priority: .utility) {
+            MatroskaChapters.read(contentsOf: url)
+        }.value
+    }
+
     func releaseFiles(forAnimeID animeID: UUID) async -> ConcertReleaseFiles? {
         guard let database,
               let entry = try? await database.releaseFolders().first(where: { $0.animeID == animeID }),
@@ -1368,6 +1384,9 @@ final class AppModel: ObservableObject {
             // security scope only the roots carry.
             concertSection.releaseFilesResolver = { [weak self] animeID in
                 await self?.releaseFiles(forAnimeID: animeID)
+            }
+            concertSection.fileChaptersResolver = { [weak self] episode in
+                await self?.fileChapters(for: episode) ?? []
             }
             await refreshRootAvailability()
             await reloadLibrary()
