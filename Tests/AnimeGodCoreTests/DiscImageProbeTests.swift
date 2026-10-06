@@ -19,6 +19,35 @@ struct DiscImageProbeTests {
         #expect(try kind(ofImageContaining: "readme.txt") == .data)
     }
 
+    /// UDF writes a file identifier in one of two encodings and says which in
+    /// its first byte. Both are in this library: `SENNEN_JYOYU.iso` spells
+    /// `BDMV` in four bytes and the 37 GB `ROAD GAME…iso` spells it in eight,
+    /// and the second was reported as an image with no Blu-ray video on it.
+    /// Neither carries `CD001`, so there is no ISO 9660 spelling to fall back
+    /// on.
+    @Test func recognisesADiscThatNamesItsFoldersInUTF16() throws {
+        let utf16 = try #require("BDMV".data(using: .utf16BigEndian))
+        let url = try write(Data(repeating: 0, count: 2048) + utf16)
+        defer { try? FileManager.default.removeItem(at: url) }
+        #expect(DiscImageProbe.inspect(url: url) == .blurayDisc)
+
+        let dvd = try #require("VIDEO_TS".data(using: .utf16BigEndian))
+        let dvdURL = try write(Data(repeating: 0, count: 2048) + dvd)
+        defer { try? FileManager.default.removeItem(at: dvdURL) }
+        #expect(DiscImageProbe.inspect(url: dvdURL) == .dvdVideo)
+    }
+
+    /// The longest spelling is sixteen bytes, so the tail carried between
+    /// reads has to be fifteen — one short and a `VIDEO_TS` written in UTF-16
+    /// across the boundary is missed.
+    @Test func findsAUTF16MarkerThatStraddlesAReadBoundary() throws {
+        let marker = try #require("VIDEO_TS".data(using: .utf16BigEndian))
+        let head = Data(repeating: 0, count: DiscImageProbe.chunkSize - 8)
+        let url = try write(head + marker)
+        defer { try? FileManager.default.removeItem(at: url) }
+        #expect(DiscImageProbe.inspect(url: url) == .dvdVideo)
+    }
+
     @Test func anUnreadableImageIsNotMistakenForOneWithoutVideo() {
         #expect(DiscImageProbe.inspect(url: URL(fileURLWithPath: "/nope/gone.iso")) == nil)
     }

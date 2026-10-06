@@ -62,22 +62,44 @@ public enum DiscImageProbe {
         guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
         defer { try? handle.close() }
 
-        let bluray = Array("BDMV".utf8)
-        let dvd = Array("VIDEO_TS".utf8)
+        let bluray = spellings(of: "BDMV")
+        let dvd = spellings(of: "VIDEO_TS")
         // Identifiers can straddle a chunk boundary, so each read keeps the
-        // tail of the previous one in front of it.
-        let overlap = dvd.count - 1
+        // tail of the previous one in front of it — as much of it as the
+        // longest spelling of the longest name.
+        let overlap = (bluray + dvd).map(\.count).max().map { $0 - 1 } ?? 0
         var carry: [UInt8] = []
         var read = 0
         while read < scanLimit {
             guard let data = try? handle.read(upToCount: chunkSize), !data.isEmpty else { break }
             read += data.count
             let window = carry + data
-            if contains(window, bluray) { return .blurayDisc }
-            if contains(window, dvd) { return .dvdVideo }
+            if bluray.contains(where: { contains(window, $0) }) { return .blurayDisc }
+            if dvd.contains(where: { contains(window, $0) }) { return .dvdVideo }
             carry = Array(window.suffix(overlap))
         }
         return .data
+    }
+
+    /// A directory name as both of the ways UDF is allowed to write it.
+    ///
+    /// **A UDF file identifier is OSTA compressed Unicode, and its first byte
+    /// says which of two encodings follows: `8` for one byte a character, `16`
+    /// for UTF-16BE.** Both are in this library, in two Blu-ray images of the
+    /// same shape:
+    ///
+    /// | image | `BDMV` written as | at |
+    /// |---|---|---|
+    /// | `SENNEN_JYOYU.iso` | `42 44 4D 56` | `0xA18DB` |
+    /// | `ROAD GAME『テクノプア』…iso` | `00 42 00 44 00 4D 00 56` | `0xA184F` |
+    ///
+    /// Looking only for the first spelling reported the second — 37 GB of
+    /// perfectly good Blu-ray — as "no playable Blu-ray video on it". Neither
+    /// image carries `CD001`, so there is no ISO 9660 side to fall back on:
+    /// the identifier as the disc spells it is all there is to go on.
+    static func spellings(of name: String) -> [[UInt8]] {
+        [Array(name.utf8), Array(name.data(using: .utf16BigEndian) ?? Data())]
+            .filter { !$0.isEmpty }
     }
 
     private static func contains(_ haystack: [UInt8], _ needle: [UInt8]) -> Bool {
