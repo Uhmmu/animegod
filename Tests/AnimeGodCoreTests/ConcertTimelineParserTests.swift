@@ -216,3 +216,81 @@ struct ConcertTimelineParserFloorTests {
         """) == 2)
     }
 }
+
+/// A list that is only names, for the discs with the opposite problem: the
+/// chapter marks survived, so the disc knows where every song starts and what
+/// none of them is.
+@Suite("Names laid over times that already exist")
+struct ConcertNamesOverTimesTests {
+    @Test func readsABareList() {
+        let names = ConcertTimelineParser.names(in: """
+        1. 砂寸奏
+        2. 処救生
+        3. 歌いましょう唱いましょう
+        """)
+        #expect(names.map(\.title) == ["砂寸奏", "処救生", "歌いましょう唱いましょう"])
+        #expect(names.allSatisfy { !$0.isEncore })
+    }
+
+    /// Headings work the same as in a timed paste, and a disc heading is not a
+    /// song.
+    @Test func honoursTheHeadings() {
+        let names = ConcertTimelineParser.names(in: """
+        DAY1
+        迷星叫
+        アンコール
+        音一会
+        """)
+        #expect(names.map(\.title) == ["迷星叫", "音一会"])
+        #expect(names.map(\.isEncore) == [false, true])
+    }
+
+    /// One timed line and it is not a bare list at all — it is an ordinary
+    /// timeline, and `parse` owns that.
+    @Test func aSingleTimeMakesItATimeline() {
+        #expect(ConcertTimelineParser.names(in: "迷星叫\n00:03:40 音一会").isEmpty)
+    }
+
+    @Test func laysThemOverTheMarksInOrder() {
+        let disc = ConcertTimelineParser.layering(
+            ConcertTimelineParser.names(in: "砂寸奏\n処救生\n歌いましょう"),
+            over: [0, 375, 966]
+        )
+        #expect(disc.entries.map(\.title) == ["砂寸奏", "処救生", "歌いましょう"])
+        #expect(disc.entries.map(\.startTime) == [0, 375, 966])
+    }
+
+    /// The counts are expected to disagree — a posted list carries whatever the
+    /// person writing it felt like including — so the pairing goes as far as
+    /// both go and the rest is shown, not resolved.
+    @Test func pairsAsFarAsBothGo() {
+        let short = ConcertTimelineParser.layering(
+            ConcertTimelineParser.names(in: "砂寸奏\n処救生"), over: [0, 375, 966]
+        )
+        #expect(short.entries.count == 2)
+
+        let long = ConcertTimelineParser.layering(
+            ConcertTimelineParser.names(in: "砂寸奏\n処救生\n歌いましょう\n迷星叫"), over: [0, 375]
+        )
+        #expect(long.entries.map(\.title) == ["砂寸奏", "処救生"])
+    }
+
+    /// Marks arrive in whatever order they were stored; the pairing is by time.
+    @Test func sortsTheMarksBeforePairing() {
+        let disc = ConcertTimelineParser.layering(
+            ConcertTimelineParser.names(in: "一\n二\n三"), over: [966, 0, 375]
+        )
+        #expect(disc.entries.map(\.startTime) == [0, 375, 966])
+        #expect(disc.entries.map(\.title) == ["一", "二", "三"])
+    }
+
+    /// What it becomes: a programme, each song running until the next begins.
+    @Test func becomesAProgramme() {
+        let disc = ConcertTimelineParser.layering(
+            ConcertTimelineParser.names(in: "砂寸奏\n処救生"), over: [0, 375]
+        )
+        let programme = disc.programme()
+        #expect(programme.tracks.map(\.title) == ["砂寸奏", "処救生"])
+        #expect(programme.placements.map(\.startTime) == [0, 375])
+    }
+}

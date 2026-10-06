@@ -211,3 +211,62 @@ public extension ConcertTimelineParser.Disc {
         return (tracks, placements)
     }
 }
+
+// MARK: - A list with no times of its own
+
+public extension ConcertTimelineParser {
+    /// One line of a bare setlist: a name, and whether an `Encore` heading
+    /// came before it.
+    struct NamedLine: Hashable, Sendable {
+        public let title: String
+        public let isEncore: Bool
+
+        public init(title: String, isEncore: Bool) {
+            self.title = title
+            self.isEncore = isEncore
+        }
+    }
+
+    /// Reads a list that is only names — for the discs that have the opposite
+    /// problem from the ones `parse` was written for.
+    ///
+    /// A disc whose chapter marks survived knows **where** every song starts
+    /// and not **what** any of them is, and no catalogue lists the setlist. The
+    /// marks are the timeline; the names are what is missing. So a paste of
+    /// bare names is laid over them in order.
+    ///
+    /// Empty when any line carries a time: that is an ordinary timeline and
+    /// `parse` reads it. Headings (`DAY1`, `Encore`) are honoured, and the
+    /// numbering people write in front of a song (`1.`, `#3`, `M05`) comes off
+    /// exactly as it does there.
+    static func names(in text: String) -> [NamedLine] {
+        var found: [NamedLine] = []
+        var isEncore = false
+        for rawLine in text.components(separatedBy: .newlines) {
+            let line = normalise(rawLine)
+            guard !line.isEmpty else { continue }
+            // One timed line and this is not a bare list at all.
+            if entry(in: line, isEncore: isEncore) != nil { return [] }
+            if isEncoreHeading(line) { isEncore = true; continue }
+            if discHeading(line) != nil { continue }
+            let title = strip(line).trimmingCharacters(in: .whitespaces)
+            guard !title.isEmpty else { continue }
+            found.append(NamedLine(title: title, isEncore: isEncore))
+        }
+        return found
+    }
+
+    /// Names laid over times that already exist, in the order both are in.
+    ///
+    /// Paired as far as both go and no further. The counts are expected to
+    /// disagree — a published list carries whatever the person who wrote it
+    /// felt like including, and a disc marks whatever the encode kept — so the
+    /// pairing is shown rather than resolved, and lines are added or removed
+    /// until it reads right.
+    static func layering(_ names: [NamedLine], over times: [TimeInterval]) -> Disc {
+        let sorted = times.sorted()
+        return Disc(entries: zip(sorted, names).map { time, line in
+            Entry(startTime: time, title: line.title, isEncore: line.isEncore)
+        })
+    }
+}

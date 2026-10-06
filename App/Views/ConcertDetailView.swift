@@ -49,7 +49,12 @@ struct ConcertDetailView: View {
         }
         .navigationTitle(concert?.displayTitle ?? String(localized: "Concert"))
         .sheet(isPresented: $showingTimelinePaste) {
-            ConcertTimelinePasteSheet(section: section, animeID: animeID) {
+            ConcertTimelinePasteSheet(
+                section: section,
+                animeID: animeID,
+                existingTimes: playableEpisode(forDiscNumber: selectedDiscNumber)
+                    .map { section.existingTimes(forEpisodeID: $0.episode.id) } ?? []
+            ) {
                 showingTimelinePaste = false
                 Task { await load() }
             }

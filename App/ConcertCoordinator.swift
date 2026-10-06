@@ -438,13 +438,55 @@ final class ConcertCoordinator: ObservableObject {
         /// Lines that carried a time, whatever became of them — so a refusal
         /// can say which refusal it is.
         var timedLines: Int
+        /// Names read from a paste that carried no times at all, and the times
+        /// they were laid over. Both counts are kept because they are expected
+        /// to disagree.
+        var names: [ConcertTimelineParser.NamedLine] = []
+        var availableTimes: [TimeInterval] = []
+        var isLayeringNames: Bool { !names.isEmpty }
         var discCount: Int { discs.count }
         var entryCount: Int { discs.reduce(0) { $0 + $1.entries.count } }
         var isUsable: Bool { !discs.isEmpty }
+
+        /// What the paste will become, time by time, for the list on screen.
+        var pairs: [(time: TimeInterval?, name: String?, isEncore: Bool)] {
+            guard isLayeringNames else {
+                return discs.flatMap(\.entries).map { ($0.startTime, $0.title, $0.isEncore) }
+            }
+            let times = availableTimes.sorted()
+            return (0..<max(times.count, names.count)).map { index in
+                (times.indices.contains(index) ? times[index] : nil,
+                 names.indices.contains(index) ? names[index].title : nil,
+                 names.indices.contains(index) ? names[index].isEncore : false)
+            }
+        }
     }
 
-    func previewPastedTimeline(_ text: String) -> PastedTimelinePreview {
-        PastedTimelinePreview(
+    /// - Parameter times: what this disc already knows, for a paste that is
+    ///   only names. A disc whose chapter marks survived has the opposite
+    ///   problem from the one the paste sheet was built for: it knows where
+    ///   every song starts and what none of them is.
+    /// The times a disc already knows: its own chapter marks when it kept
+    /// them, else where the setlist on screen puts each song. Either is a
+    /// timeline somebody can hang names on.
+    func existingTimes(forEpisodeID episodeID: UUID) -> [TimeInterval] {
+        let marks = chaptersByEpisode[episodeID] ?? []
+        if !marks.isEmpty { return marks.map(\.startTime).sorted() }
+        return (setlists[episodeID]?.placements.map(\.startTime) ?? []).sorted()
+    }
+
+    func previewPastedTimeline(_ text: String, over times: [TimeInterval] = []) -> PastedTimelinePreview {
+        let names = times.isEmpty ? [] : ConcertTimelineParser.names(in: text)
+        if !names.isEmpty {
+            let disc = ConcertTimelineParser.layering(names, over: times)
+            return PastedTimelinePreview(
+                discs: disc.entries.isEmpty ? [] : [disc],
+                timedLines: 0,
+                names: names,
+                availableTimes: times
+            )
+        }
+        return PastedTimelinePreview(
             discs: ConcertTimelineParser.parse(text),
             timedLines: ConcertTimelineParser.timedLineCount(in: text)
         )
@@ -460,9 +502,13 @@ final class ConcertCoordinator: ObservableObject {
     /// A disc matches by the number the paste gave it, and by order when the
     /// paste gave none.
     @discardableResult
-    func applyPastedTimeline(_ text: String, forAnimeID animeID: UUID) async -> Int {
+    func applyPastedTimeline(
+        _ text: String,
+        over times: [TimeInterval] = [],
+        forAnimeID animeID: UUID
+    ) async -> Int {
         guard let database else { return 0 }
-        let parsed = ConcertTimelineParser.parse(text)
+        let parsed = previewPastedTimeline(text, over: times).discs
         guard !parsed.isEmpty else { return 0 }
         let episodes = (try? await database.episodes(animeID: animeID)) ?? []
         guard !episodes.isEmpty else { return 0 }

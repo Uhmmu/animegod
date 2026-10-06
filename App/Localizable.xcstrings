@@ -735,6 +735,28 @@
         }
       }
     },
+    "%lld names over %lld marks": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$lld names over %2$lld marks"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "曲名 %1$lld 件 / マーク %2$lld 件"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld 个歌名 / %2$lld 个时间点"
+          }
+        }
+      }
+    },
     "%lld of %lld": {
       "localizations": {
         "en": {
@@ -4925,6 +4947,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "EDR 显示器会优先选择检测到的、带兼容基础层的 Profile 8 版本；否则 SDR 版本仍排在第一。"
+          }
+        }
+      }
+    },
+    "ENCORE": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アンコール"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "安可"
           }
         }
       }
@@ -13744,6 +13782,22 @@
         }
       }
     },
+    "This disc already has %lld marks, so a list of **just song names** works too — one per line, in order. The times are shown beside them as you type.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このディスクには既に %lld 件のマークがあるので、**曲名だけ**の一覧でも構いません——1行1曲、順番どおりに。対応する時刻が右に表示されます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这张碟已经有 %lld 个时间点了，所以**只贴歌名**也行 —— 一行一首，按顺序。右边会实时显示它们对上的时间。"
+          }
+        }
+      }
+    },
     "This disc has not been identified": {
       "localizations": {
         "ja": {
@@ -15373,6 +15427,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ 无匹配"
+          }
+        }
+      }
+    },
+    "no name": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "曲名なし"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有歌名"
           }
         }
       }
