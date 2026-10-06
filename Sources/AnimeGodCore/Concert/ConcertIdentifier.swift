@@ -148,6 +148,27 @@ public struct ConcertIdentifier: Sendable {
         }
     }
 
+    /// The concert's own name, out of a catalogue's title for the release.
+    ///
+    /// MusicBrainz titles a live recording `<concert> at <venue>(<date>)` —
+    /// `永遠深夜万博「名巧は愚なるが如し」 at 大阪城ホール(2025.4.29)`. The venue is
+    /// not part of the name anybody else files it under, and leaving it on
+    /// makes both the search and the test of its answers wrong: a correct hit
+    /// would be only half the length of the query and fail on that alone.
+    static func concertName(in title: String) -> String {
+        for separator in [" at ", " At ", " AT "] {
+            guard let range = title.range(of: separator), range.lowerBound > title.startIndex else {
+                continue
+            }
+            let head = String(title[title.startIndex..<range.lowerBound])
+                .trimmingCharacters(in: .whitespaces)
+            // A title that is almost all venue is not a title with a venue on
+            // the end of it.
+            if head.count >= 4 { return head }
+        }
+        return title.trimmingCharacters(in: .whitespaces)
+    }
+
     /// What can be learned about a concert with no catalogue number anywhere.
     ///
     /// For the release that is only ever a BDRip: no disc, no number in the
@@ -247,9 +268,24 @@ public struct ConcertIdentifier: Sendable {
 
         // Only now is there a title worth searching Bangumi with: a real
         // release's, not the folder's.
-        if let bangumi, let query = ConcertReleaseMerge.merge(found)?.title, !query.isEmpty {
+        if let bangumi, let merged = ConcertReleaseMerge.merge(found)?.title,
+           case let query = Self.concertName(in: merged), !query.isEmpty {
+            let key = ConcertSetlistAligner.normalise(query)
             do {
+                // **The same test the title path uses, which this path never
+                // had.** Bangumi's search is loose and always answers: asked
+                // about `永遠深夜万博「名巧は愚なるが如し」` it returned 倉木麻衣's 2010
+                // single `永遠より ながく`, because both start with 永遠 — and that
+                // subject's cover, score and summary went onto the page while
+                // MusicBrainz supplied the title and all 23 songs. Bangumi has
+                // nothing for that concert at all, and nothing is the right
+                // answer.
                 let subjects = try await bangumi.releases(title: query, artist: nil)
+                    .filter {
+                        ConcertSetlistAligner.titlesMatch(
+                            ConcertSetlistAligner.normalise($0.title), key
+                        )
+                    }
                 // Both halves: the 演出 subject has the hall, the 音乐 subject has
                 // the setlist and a score. Neither has the other's.
                 for subject in [

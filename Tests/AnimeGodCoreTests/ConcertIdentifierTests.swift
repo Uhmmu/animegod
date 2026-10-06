@@ -148,6 +148,59 @@ struct ConcertIdentifierTests {
         #expect(await !log.asked.contains { $0.contains("BRMM-10837") })
     }
 
+    /// The real one, and the reason the attribution block was worth building.
+    ///
+    /// A corrected catalogue number gave MusicBrainz's right answer — the
+    /// title, the catalogue number and all 23 songs — and then Bangumi was
+    /// asked about that title with no test applied to what came back. It
+    /// answered 倉木麻衣's 2010 single `永遠より ながく`, because both start with
+    /// 永遠, and that subject's cover, score and summary went onto the page.
+    /// Bangumi has nothing for this concert; nothing is the right answer.
+    @Test func refusesABangumiHitThatMerelyStartsTheSame() async throws {
+        let log = Log()
+        let musicBrainz = FakeSource(
+            id: .musicBrainz,
+            byCatalogNumber: ["UPXH-29075": stub(
+                .musicBrainz, externalID: "right",
+                title: "永遠深夜万博「名巧は愚なるが如し」 at 大阪城ホール(2025.4.29)"
+            )],
+            full: ["right": stub(
+                .musicBrainz, externalID: "right",
+                title: "永遠深夜万博「名巧は愚なるが如し」 at 大阪城ホール(2025.4.29)",
+                isLive: true, songs: 23
+            )],
+            log: log
+        )
+        let wrongSubject = stub(.bangumi, externalID: "4239", title: "永遠より ながく／Drive me crazy <初回限定盤>")
+        let bangumi = FakeSource(
+            id: .bangumi, byTitle: [wrongSubject], full: ["4239": wrongSubject], log: log
+        )
+
+        let found = await ConcertIdentifier(musicBrainz: musicBrainz, bangumi: bangumi)
+            .identify(folderName: "UPXH-29075")
+
+        let release = try #require(found.release)
+        #expect(release.songCount == 23)
+        // Nothing of the single reached the record.
+        #expect(release.provider == .musicBrainz)
+        #expect(release.score == nil)
+        #expect(release.coverImageURLs.isEmpty)
+        #expect(await !log.asked.contains("bangumi:release:4239"))
+        // And the venue suffix came off the query, since nobody else files the
+        // concert under the hall it was in.
+        #expect(await log.asked.contains("bangumi:title:永遠深夜万博「名巧は愚なるが如し」"))
+    }
+
+    @Test(arguments: [
+        ("永遠深夜万博「名巧は愚なるが如し」 at 大阪城ホール(2025.4.29)", "永遠深夜万博「名巧は愚なるが如し」"),
+        ("MyGO!!!!! 6th LIVE「見つけた景色、たずさえて」", "MyGO!!!!! 6th LIVE「見つけた景色、たずさえて」"),
+        // Almost all venue: not a title with a venue on the end of it.
+        ("at 大阪城ホール", "at 大阪城ホール"),
+    ])
+    func cutsTheVenueOffACatalogueTitle(_ title: String, _ expected: String) {
+        #expect(ConcertIdentifier.concertName(in: title) == expected, "\(title)")
+    }
+
     // MARK: - What it refuses to do
 
     /// A folder with no catalogue number is left alone. A title search is not a
