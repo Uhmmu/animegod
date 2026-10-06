@@ -754,6 +754,13 @@ struct PosterView: View {
     @Environment(\.displayScale) private var displayScale
     @State private var image: CGImage?
     @State private var attempt = 0
+    /// The list the image on screen came from. Without it a poster outlives
+    /// the record it belonged to: when a cover is removed the list goes empty,
+    /// the loader has nothing to do and returns, and the old image is still
+    /// sitting in `@State` being drawn. That is how a concert whose wrong
+    /// Bangumi cover had just been taken away kept showing it on its card
+    /// while its own page — a fresh view — correctly showed none.
+    @State private var loadedFrom: [URL] = []
 
     init(url: URL?, height: CGFloat = 300) {
         urls = [url].compactMap { $0 }
@@ -795,6 +802,11 @@ struct PosterView: View {
             }
         }
         .task(id: TaskKey(urls: urls, attempt: attempt, maxPixel: maxPixel)) {
+            if loadedFrom != urls {
+                image = nil
+                attempt = 0
+                loadedFrom = urls
+            }
             guard attempt < urls.count else { return }
             if let loaded = await PosterImageCache.shared.image(for: urls[attempt], maxPixel: maxPixel) {
                 image = loaded
