@@ -78,6 +78,10 @@ final class ConcertCoordinator: ObservableObject {
         }
         do {
             let works = try await database.discWorks()
+            // Works no anime provider has matched. A music catalogue answering
+            // with a video release moves one of *these* in; it is not enough to
+            // contradict a provider that answered about the work.
+            let unmatched = Set(((try? await database.worksWithNoMetadata()) ?? []).map(\.animeID))
             var identified = 0
             for work in works {
                 // A record already there is left alone — unless it is a thin
@@ -90,7 +94,19 @@ final class ConcertCoordinator: ObservableObject {
                     // catalogue number, in which case the record is wrong
                     // rather than thin and keeping it is keeping the wrong
                     // concert on the page for ever.
-                    guard !existing.wasFiledUnderARealCatalogueNumber else { continue }
+                    guard !existing.wasFiledUnderARealCatalogueNumber else {
+                        // A finished record and a work still in the grid. The
+                        // catalogue answered and nothing it answered with said
+                        // `Live` — which is every disc only Discogs holds. The
+                        // answer is already on disk, so the move is decided from
+                        // it rather than by asking again.
+                        if work.kind != .live, existing.isMusicVideo,
+                           unmatched.contains(work.animeID),
+                           try await database.markAnimeAsConcert(id: work.animeID) {
+                            identified += 1
+                        }
+                        continue
+                    }
                     try await database.deleteConcertRelease(animeID: work.animeID)
                 }
                 progress = String(localized: "Looking up \(work.title)…")
@@ -103,9 +119,15 @@ final class ConcertCoordinator: ObservableObject {
                     continue
                 }
                 try await database.saveConcertRelease(release, forAnimeID: work.animeID)
-                // Only a source saying so moves a disc into the section. An
-                // anime Blu-ray has a catalogue number too.
-                if found.isConcert { try await database.markAnimeAsConcert(id: work.animeID) }
+                // A source saying so moves a disc into the section — or, for
+                // the discs no source says anything about, a music catalogue
+                // answering the number with something you watch, as long as no
+                // anime provider has an opinion about the work. A catalogue
+                // number on its own still moves nothing: an anime Blu-ray has
+                // one too, and `ANZX` is Aniplex's anime label as well.
+                if found.isConcert || (found.isMusicVideo && unmatched.contains(work.animeID)) {
+                    try await database.markAnimeAsConcert(id: work.animeID)
+                }
                 identified += 1
             }
             identified += await identifyConcertsNoProviderKnows(isAutomatic: isAutomatic)
@@ -192,7 +214,9 @@ final class ConcertCoordinator: ObservableObject {
                     found = byTitle
                 }
             }
-            guard let release = found.release, release.isLiveRecording else {
+            // These are the works no provider matched, so a music catalogue
+            // answering with a video release is the whole answer here.
+            guard let release = found.release, release.isLiveRecording || release.isMusicVideo else {
                 // No service knows it, and for a BDRip of a live plenty never
                 // will: no disc, no catalogue number, and no subject filed
                 // anywhere. Its own name is then the only evidence there is —
@@ -255,7 +279,12 @@ final class ConcertCoordinator: ObservableObject {
             }
             if let release = found.release {
                 try await database.saveConcertRelease(release, forAnimeID: animeID)
-                if found.isConcert { try await database.markAnimeAsConcert(id: animeID) }
+                // Asked by hand about one disc, so a catalogue answering with a
+                // video release is taken at its word here: there is no blank
+                // being filled behind anybody's back.
+                if found.isConcert || found.isMusicVideo {
+                    try await database.markAnimeAsConcert(id: animeID)
+                }
             } else if let failure = found.failures.values.first {
                 errorMessage = failure
             } else {

@@ -89,6 +89,7 @@ public enum ConcertReleaseFileReader {
         var otherFolderImages: [String: [URL]] = [:]
         var looseCovers: [URL] = []
         var cueURL: URL?
+        var infoTextURLs: [URL] = []
         var audioByFolder: [String: [URL]] = [:]
         var extras: [ConcertExtra] = []
 
@@ -133,6 +134,7 @@ public enum ConcertReleaseFileReader {
 
                 let ext = entry.pathExtension.lowercased()
                 if ext == "cue", cueURL == nil { cueURL = entry }
+                if ReleaseInfoText.extensions.contains(ext) { infoTextURLs.append(entry) }
                 if audioExtensions.contains(ext) {
                     audioByFolder[directory.path, default: []].append(entry)
                 }
@@ -177,6 +179,9 @@ public enum ConcertReleaseFileReader {
         if files.cueTracks.isEmpty {
             files.cueTracks = trackList(fromAudio: audioByFolder)
         }
+        if files.barcode == nil {
+            files.barcode = infoTextURLs.lazy.compactMap { ReleaseInfoText.barcode(at: $0) }.first
+        }
         return files
     }
 
@@ -192,6 +197,51 @@ public enum ConcertReleaseFileReader {
             .map { $0.deletingPathExtension().lastPathComponent }
             .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
         return ConcertSetlistTextParser.songs(in: names.joined(separator: "\n"))
+    }
+}
+
+/// The text file a release ships beside its discs, read for the one fact in it
+/// that is an exact key.
+///
+/// A cue sheet's `CATALOG` line is the usual source of a barcode and plenty of
+/// releases have no cue sheet at all. What this one had instead was the shop
+/// page, saved next to the discs: `EAN ‏ : ‎ 4988031567562` — and that number
+/// answers with exactly one release at **both** Discogs and MusicBrainz
+/// (measured: ずっと真夜中でいいのに。's *沈香学*, `UPCH-29455`, whose third disc is
+/// the live Blu-ray this folder holds). With no catalogue number anywhere in
+/// the folder it is the only key there is, and without it the work stays an
+/// anime called `ずっと真夜中でいいのに。 - 沈香学`.
+///
+/// **The keyword is required.** A bare thirteen-digit run in a product listing
+/// is as likely to be an ASIN, a phone number or a release date, and an exact
+/// key that is exactly wrong answers with somebody else's record.
+enum ReleaseInfoText {
+    static let extensions: Set<String> = ["txt", "nfo"]
+    /// Past any shop page. A larger file is a log or a subtitle, not a listing.
+    static let maximumBytes = 256 * 1024
+
+    static func barcode(at url: URL) -> String? {
+        guard let size = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize,
+              size > 0, size <= maximumBytes,
+              let data = try? Data(contentsOf: url), !data.isEmpty
+        else { return nil }
+        for encoding in CueSheet.encodings {
+            guard let text = String(data: data, encoding: encoding),
+                  !text.contains("\u{FFFD}")
+            else { continue }
+            if let barcode = barcode(in: text) { return barcode }
+        }
+        return nil
+    }
+
+    /// The digits after an `EAN` / `JAN` / `UPC` label. Amazon's own listing
+    /// separates the two with bidirectional marks (`EAN ‏ : ‎ 4988031567562`),
+    /// so anything that is not a digit is allowed between them.
+    static func barcode(in text: String) -> String? {
+        let pattern = #"(?i)(?:ean|jan|upc|barcode|バーコード|条形码|条碼)[^0-9]{0,24}(\d{12,13})"#
+        guard let range = text.range(of: pattern, options: .regularExpression) else { return nil }
+        let digits = text[range].filter(\.isNumber)
+        return digits.count >= 12 ? String(digits.suffix(13)) : nil
     }
 }
 

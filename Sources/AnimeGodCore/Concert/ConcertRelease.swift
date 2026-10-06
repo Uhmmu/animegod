@@ -324,6 +324,25 @@ public struct ConcertRelease: Codable, Hashable, Sendable, Identifiable {
         videoDiscs.reduce(0) { $0 + $1.songs.count }
     }
 
+    /// Whether a music catalogue answered with a release you **watch**.
+    ///
+    /// The only thing Discogs says that bears on "is this a concert", and it
+    /// says it without meaning to. `isLiveRecording` has exactly two sources —
+    /// MusicBrainz's `Live` secondary type and Bangumi's 演出 subject — and
+    /// Discogs publishes nothing of the sort: measured across `UPXH-29056`,
+    /// `ANZX-10294`, `BRMM-10876` and `BRMM-10679`, not one carries a `Live`
+    /// descriptor. So a Japanese live Blu-ray that **only** Discogs holds could
+    /// never move itself into the section, however exactly its catalogue number
+    /// answered. `UPXH-29056` is that disc: Discogs returns ずっと真夜中でいいのに。's
+    /// two-night Blu-ray with 46 songs, MusicBrainz has never heard of it, and
+    /// the work sat in the anime grid under the name `220824`.
+    ///
+    /// A music catalogue indexes music, so a *video* medium in one is a concert
+    /// or a music video and never an episode of a series. It is still weaker
+    /// than a source saying `Live`, which is why it may only fill a blank: the
+    /// pass that acts on it requires that no anime provider matched the work.
+    public var isMusicVideo: Bool { !videoDiscs.isEmpty }
+
     /// The disc an episode of this work stands for.
     ///
     /// A single-disc release has one answer. A box numbers its episodes after

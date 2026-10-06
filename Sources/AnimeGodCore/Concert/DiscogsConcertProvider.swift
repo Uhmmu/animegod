@@ -307,10 +307,7 @@ private extension DiscogsConcertProvider {
         ///
         /// Discogs numbers a track `1-01` on one release and `CD-1` on the
         /// next, so the disc is whatever the position's first part says it is,
-        /// and discs come out in the order they first appear. `formats` says
-        /// what each medium is but not which position prefix belongs to it, so
-        /// a single-medium release takes that format for every disc and a
-        /// mixed one leaves it unset rather than guessing.
+        /// and discs come out in the order they first appear.
         var discs: [ConcertDisc] {
             let singleFormat = (formats ?? []).count == 1 ? formats?.first?.name : nil
             var order: [String] = []
@@ -332,14 +329,45 @@ private extension DiscogsConcertProvider {
                 if grouped[position.discKey] == nil { order.append(position.discKey) }
                 grouped[position.discKey, default: []].append(track)
             }
+            let byPosition = Self.formatsByDisc(formats, discCount: order.count)
             return order.enumerated().map { index, key in
                 ConcertDisc(
                     position: Int(key) ?? (index + 1),
                     title: nil,
-                    format: singleFormat ?? Self.format(fromDiscKey: key),
+                    format: byPosition?[index] ?? singleFormat ?? Self.format(fromDiscKey: key),
                     tracks: grouped[key] ?? []
                 )
             }
+        }
+
+        /// What each disc is, read off `formats` by quantity.
+        ///
+        /// `formats` lists the media in the order they sit in the box with a
+        /// count each — `2 × CD`, then `1 × Blu-ray` — and the track list
+        /// numbers its discs `1-`, `2-`, `3-` in that same order, so the two
+        /// line up position by position. Without this a mixed release left
+        /// every format unset, and a release with no video disc is a release
+        /// with no setlist to show and nothing to say it is a concert.
+        ///
+        /// Measured on `4988031567562` — ずっと真夜中でいいのに。's *沈香学*, a
+        /// 2CD+BD album whose **third** disc is the live Blu-ray that is the
+        /// only thing in this library's folder. Nothing else in the answer says
+        /// which of the three it is.
+        ///
+        /// Only when the counts agree. A release whose discs are keyed by name
+        /// (`CD-1`, `BD-1`) already says what each one is, and a track list
+        /// that lists fewer discs than the box holds is one this cannot line
+        /// up — both keep the older reading rather than take a guess.
+        static func formatsByDisc(_ formats: [Format]?, discCount: Int) -> [String]? {
+            guard let formats, !formats.isEmpty, discCount > 0 else { return nil }
+            var expanded: [String] = []
+            for format in formats {
+                guard let name = format.name, !name.isEmpty else { return nil }
+                let quantity = max(Int(format.qty ?? "1") ?? 1, 1)
+                expanded.append(contentsOf: Array(repeating: name, count: quantity))
+                if expanded.count > discCount { return nil }
+            }
+            return expanded.count == discCount ? expanded : nil
         }
 
         /// `CD-1` names its medium where `1-01` numbers it.

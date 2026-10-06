@@ -158,6 +158,55 @@ struct ConcertReleaseFilesTests {
         #expect(files.extras.first?.itemCount == 2)
     }
 
+    /// The release with no cue sheet, no catalogue number in any name, and a
+    /// saved shop page sitting beside the disc.
+    ///
+    /// The real one: `ずっと真夜中でいいのに。 - 沈香学 [2023.06.07]`, one `.iso` and
+    /// a `.txt`. The EAN in that text is the only exact key in the whole
+    /// folder, and both Discogs and MusicBrainz answer it with one release —
+    /// whose third disc is the live Blu-ray the `.iso` holds. Without it the
+    /// work stays an anime named after the album.
+    @Test func readsABarcodeOutOfTheInfoTextWhenThereIsNoCueSheet() throws {
+        // Amazon's own listing, bidirectional marks and all.
+        let listing = """
+        登録情報\r
+        メーカー ‏ : ‎ Universal Music\r
+        EAN ‏ : ‎ 4988031567562\r
+        ASIN ‏ : ‎ B0BY1Y13WC\r
+        ディスク枚数 ‏ : ‎ 3\r
+        """
+        let root = try makeRelease([
+            "Release/20230115 ROAD GAME.iso": nil,
+            "Release/Release.txt": listing.data(using: .utf8)
+        ])
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let files = ConcertReleaseFileReader.read(folder: root)
+        #expect(files.barcode == "4988031567562")
+    }
+
+    /// The keyword is what makes it a barcode. A thirteen-digit run on its own
+    /// is as likely to be an ASIN or a date, and an exact key that is exactly
+    /// wrong answers with somebody else's record.
+    @Test func doesNotTakeAnyLongNumberForABarcode() {
+        #expect(ReleaseInfoText.barcode(in: "ディスク枚数 : 3\n4988031567562") == nil)
+        #expect(ReleaseInfoText.barcode(in: "JAN: 4988031567562") == "4988031567562")
+        #expect(ReleaseInfoText.barcode(in: "UPC 012345678905") == "012345678905")
+    }
+
+    /// A cue sheet's own `CATALOG` line is the better source and stays the one
+    /// that is used.
+    @Test func theCueSheetsBarcodeWins() throws {
+        let root = try makeRelease([
+            "Release/Live.mkv": nil,
+            "Release/OST/BRMM-10876.cue": cueSheet,
+            "Release/Release.txt": "EAN : 4988031567562".data(using: .utf8)
+        ])
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        #expect(ConcertReleaseFileReader.read(folder: root).barcode == "4562494358488")
+    }
+
     @Test func aFolderWithNothingInItSaysNothing() throws {
         let root = try makeRelease(["Release/Live.mkv": nil])
         defer { try? FileManager.default.removeItem(at: root) }

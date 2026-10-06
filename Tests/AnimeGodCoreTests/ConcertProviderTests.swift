@@ -19,6 +19,13 @@ struct ConcertProviderTests {
     {"id":30770007,"title":"結束バンド LIVE-恒星-","artists":[{"name":"Kessoku Band","anv":"結束バンド","join":"","role":"","tracks":"","id":12283549,"resource_url":"https://api.discogs.com/artists/12283549","thumbnail_url":"https://i.discogs.com/BMjajOwTBf2TAm2Z-Oe_pSPqFjRvfpnK3AAEJf_rIdo/rs:fit/g:sm/q:90/h:337/w:600/czM6Ly9kaXNjb2dz/LWRhdGFiYXNlLWlt/YWdlcy9BLTEyMjgz/NTQ5LTE2NzM1MzIx/MDMtNzM1OS5qcGVn.jpeg"}],"year":2023,"released":"2023-11-22","country":"Japan","labels":[{"name":"Aniplex","catno":"ANZX 10294","entity_type":"1","entity_type_name":"Label","id":51977,"resource_url":"https://api.discogs.com/labels/51977","thumbnail_url":"https://i.discogs.com/vsnLPoB0SLOLrdWTtxR2jV3Imc_LZZIJxZ5txhCW1jg/rs:fit/g:sm/q:90/h:175/w:600/czM6Ly9kaXNjb2dz/LWRhdGFiYXNlLWlt/YWdlcy9MLTUxOTc3/LTEzOTYxOTcxMDkt/MTMyMi5qcGVn.jpeg"}],"formats":[{"name":"Blu-ray","qty":"3","descriptions":["Blu-ray Audio","Limited Edition","Stereo","Multichannel"]}],"genres":["Rock","Stage & Screen"],"styles":["J-Rock","Anison"],"identifiers":[{"type":"Barcode","value":"4 534530 147127"}],"notes":"DISC 1:\nKessoku Band LIVE-Fixed Star- 2023.05.21 [Sun] @Zepp Haneda (TOKYO)\n\nDISC 1 audio formats:\nLinear PCM STEREO (48kHz/24bit)\nDTS-HD Master Audio 5.1ch surround (48kHz/24bit)\nAudio commentary: Linear PCM STEREO (48kHz/24bit)\n\nDISC 2:\nThis is Bocchi The Rock! 2023.04.23 [Sun] @ Hulic Hall Tokyo\n\nDISC 3:\nMaking of -Fixed Star- / Road to Guitar Hero Extra Edition\n\nDISC 2-3 audio formats:\nLinear PCM STEREO (48KHz/24bit, some 16bit)\n\nEXTRA [Complete production limited edition bonus]:\n01 Official Photo Book [Total 24 pages]\n02 “Into the Light” lyric video illustrations on 2 types of postcards\n","uri":"https://www.discogs.com/release/30770007-結束バンド-結束バンド-LIVE-恒星-","images":[{"type":"secondary","uri":"https://i.discogs.com/KqmylG7lVP6HOL-g-M1CP9u_6PsM4CkV4KfRPkTZ7rI/rs:fit/g:sm/q:90/h:600/w:445/czM6Ly9kaXNjb2dz/LWRhdGFiYXNlLWlt/YWdlcy9SLTMwNzcw/MDA3LTE3MTY1NjQ4/NDktNDY5NS5qcGVn.jpeg","resource_url":"https://i.discogs.com/KqmylG7lVP6HOL-g-M1CP9u_6PsM4CkV4KfRPkTZ7rI/rs:fit/g:sm/q:90/h:600/w:445/czM6Ly9kaXNjb2dz/LWRhdGFiYXNlLWlt/YWdlcy9SLTMwNzcw/MDA3LTE3MTY1NjQ4/NDktNDY5NS5qcGVn.jpeg","uri150":"https://i.discogs.com/GDaGx1rDDBtpX6S0l72S5ti9572trYJ6wBHfO5fiOEc/rs:fit/g:sm/q:40/h:150/w:150/czM6Ly9kaXNjb2dz/LWRhdGFiYXNlLWlt/YWdlcy9SLTMwNzcw/MDA3LTE3MTY1NjQ4/NDktNDY5NS5qcGVn.jpeg","width":445,"height":600}],"tracklist":[{"position":"1-01","type_":"track","title":"ひとりぼっち東京","duration":""},{"position":"1-02","type_":"track","title":"ギターと孤独と蒼い惑星","duration":""},{"position":"1-03","type_":"track","title":"Distortion!!","duration":""},{"position":"1-04","type_":"track","title":"ひみつ基地","duration":""},{"position":"1-05","type_":"track","title":"ひみつ基地","duration":""},{"position":"1-17","type_":"track","title":"オーディオコメンタリー","duration":""},{"position":"1-14","type_":"track","title":"[アンコール] 転がる岩、君に朝が降る","duration":""},{"position":"3-01","type_":"track","title":"Making of -恒星-","duration":""}]}
     """#
 
+    /// `GET /releases/27403659` — ずっと真夜中でいいのに。's *沈香学*, trimmed. A
+    /// 2CD+BD album whose **third** disc is the live Blu-ray, which is the only
+    /// thing in this library's folder for it.
+    static let discogsAlbumWithALiveDiscJSON = #"""
+    {"id":27403659,"title":"沈香学","artists":[{"name":"ZUTOMAYO","anv":"ずっと真夜中でいいのに。","join":"","role":"","tracks":"","id":6563295,"resource_url":"https://api.discogs.com/artists/6563295"}],"year":2023,"released":"2023-06-07","country":"Japan","labels":[{"name":"EMI Records Japan","catno":"UPCH-29455","entity_type":"1","entity_type_name":"Label","id":549130,"resource_url":"https://api.discogs.com/labels/549130"}],"formats":[{"name":"CD","qty":"2","descriptions":["Album","Deluxe Edition","Limited Edition"]},{"name":"Blu-ray","qty":"1","descriptions":[]}],"genres":["Rock","Pop"],"styles":["J-Rock","J-pop"],"identifiers":[{"type":"Barcode","value":"4988031567562"}],"uri":"https://www.discogs.com/release/27403659","images":[],"tracklist":[{"position":"","type_":"heading","title":"CD DISC 1","duration":""},{"position":"1-1","type_":"track","title":"花一匁","duration":""},{"position":"1-2","type_":"track","title":"残機","duration":""},{"position":"","type_":"heading","title":"CD DISC 2","duration":""},{"position":"2-1","type_":"track","title":"花一匁 (Instrumental)","duration":""},{"position":"2-2","type_":"track","title":"残機 (Instrumental)","duration":""},{"position":"","type_":"heading","title":"ROAD GAME #TECHNOPOOR MURAKUMO NO TSURUGI","duration":""},{"position":"3-1","type_":"track","title":"叢雲開幕","duration":""},{"position":"3-2","type_":"track","title":"サターン","duration":""},{"position":"3-3","type_":"track","title":"MILABO","duration":""}]}
+    """#
+
     /// `GET /release/295db787…?inc=recordings+artist-credits+labels+release-groups`
     static let musicBrainzReleaseJSON = #"""
     {"id":"295db787-13c3-4aae-8265-da1cfdd7a5dc","title":"結束バンドLIVE-恒星-","date":"2023-11-22","country":"JP","barcode":"4534530147127","artist-credit":[{"artist":{"disambiguation":"ぼっち・ざ・ろっく！","id":"c1b0fe0a-779d-43ed-b193-4370f0d0f88f","country":"JP","type-id":"e431f5f6-b5d2-343d-8b36-72607fffb74b","sort-name":"Kessoku Band","name":"結束バンド","type":"Group"},"name":"結束バンド","joinphrase":""}],"label-info":[{"catalog-number":"ANZX-10294","label":{"sort-name":"Aniplex","type-id":"b6285b2a-3514-3d43-80df-fcf528824ded","name":"Aniplex","type":"Imprint","id":"fa61217d-7501-4d3e-b7cd-04d9a3abe8fc","disambiguation":"","label-code":null}},{"catalog-number":"ANZX-10295","label":{"name":"Aniplex","type-id":"b6285b2a-3514-3d43-80df-fcf528824ded","sort-name":"Aniplex","type":"Imprint","label-code":null,"id":"fa61217d-7501-4d3e-b7cd-04d9a3abe8fc","disambiguation":""}},{"catalog-number":"ANZX-10296","label":{"type":"Imprint","type-id":"b6285b2a-3514-3d43-80df-fcf528824ded","sort-name":"Aniplex","name":"Aniplex","label-code":null,"id":"fa61217d-7501-4d3e-b7cd-04d9a3abe8fc","disambiguation":""}}],"release-group":{"primary-type":"Album","secondary-types":["Live"]},"media":[{"position":1,"format":"Blu-ray","title":"結束バンドLIVE-恒星-","track-count":16,"tracks":[{"position":1,"number":"1","title":"ひとりぼっち東京","length":233000},{"position":2,"number":"2","title":"ギターと孤独と蒼い惑星","length":239000},{"position":3,"number":"3","title":"ラブソングが歌えない","length":205000},{"position":4,"number":"4","title":"Distortion!!","length":215000}]},{"position":2,"format":"Blu-ray","title":"ぼっち・ざ・ろっく！です。","track-count":0,"tracks":[]},{"position":3,"format":"Blu-ray","title":"","track-count":2,"tracks":[{"position":1,"number":"","title":"Making of -恒星-","length":5886000},{"position":2,"number":"","title":"ギターヒーローへの道 番外編","length":3287000}]}]}
@@ -92,6 +99,47 @@ struct ConcertProviderTests {
         // same song listed plainly elsewhere still matches.
         let encore = try #require(first.tracks.first { $0.isEncore })
         #expect(encore.title == "転がる岩、君に朝が降る")
+    }
+
+    /// The live Blu-ray inside an album is the third disc, and nothing in the
+    /// answer says so except the order the media are listed in.
+    ///
+    /// `formats` is `2 × CD` then `1 × Blu-ray`, and the track list numbers its
+    /// discs `1-`, `2-`, `3-` in the same order, so the two line up by
+    /// position. Before this the format was left unset for every disc of a
+    /// mixed release — which left `videoDiscs` empty, and a release with no
+    /// video disc has no setlist to show and nothing to say it is a concert.
+    @Test func readsWhichDiscOfAMixedBoxIsTheVideo() async throws {
+        let provider = DiscogsConcertProvider(
+            credentials: .init(consumerKey: "k", consumerSecret: "s"),
+            session: ConcertStubURLProtocol.makeSession(),
+            baseURL: URL(string: "https://discogs.example.test")!
+        )
+        ConcertStubURLProtocol.reset(responses: ["/releases/27403659": Self.discogsAlbumWithALiveDiscJSON])
+
+        let release = try await provider.release(id: "27403659")
+
+        #expect(release.discs.map(\.position) == [1, 2, 3])
+        #expect(release.discs.map(\.format) == ["CD", "CD", "Blu-ray"])
+        // So the page shows the concert, not the album it came in.
+        #expect(release.videoDiscs.map(\.position) == [3])
+        #expect(release.videoDiscs.first?.songs.map(\.title) == ["叢雲開幕", "サターン", "MILABO"])
+        // And the work can move itself into the section: Discogs publishes no
+        // live flag of any kind, so this is the only thing in its answer that
+        // says the disc is music rather than an episode of something.
+        #expect(!release.isLiveRecording)
+        #expect(release.isMusicVideo)
+    }
+
+    /// A CD is not something you watch, so an album alone moves nothing.
+    @Test func anAudioOnlyReleaseIsNotAMusicVideo() {
+        let release = ConcertRelease(
+            provider: .discogs, externalID: "1", title: "沈香学",
+            discs: [ConcertDisc(position: 1, format: "CD", tracks: [
+                ConcertTrack(position: 1, title: "花一匁")
+            ])]
+        )
+        #expect(!release.isMusicVideo)
     }
 
     /// Discogs publishes no track lengths for any concert Blu-ray measured,

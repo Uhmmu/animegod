@@ -55,6 +55,15 @@ public struct ConcertIdentification: Sendable {
     /// anyone being asked. Only a source saying so counts.
     public var isConcert: Bool { release?.isLiveRecording == true }
 
+    /// A music catalogue answered this disc's number with a release you watch,
+    /// and nothing said `Live`.
+    ///
+    /// Half a verdict, deliberately. It is enough to move a work in **when no
+    /// anime provider has heard of it**, and the caller owns that half because
+    /// only the caller knows it. Discogs is the one source here with no live
+    /// flag at all, and it is the only source that has some of these discs.
+    public var isMusicVideo: Bool { release?.isMusicVideo == true }
+
     /// Nothing was found and nothing failed, so no service has this disc.
     public var isUnknown: Bool { release == nil && failures.isEmpty }
 }
