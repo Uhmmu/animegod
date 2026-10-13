@@ -134,6 +134,7 @@ position is still kept; it is a position, not a verdict.
 | 🏷 **Files itself** | `6th LIVE`, `演唱会`, `合同ライブ`, `12th☆LIVE` — a live is recognised when the download starts, and never raises the "which anime is this?" sheet |
 | 💿 **Two nights, one work** | `DAY1` + `DAY2`, however they arrived |
 | 🎸 **Grouped by band** | Each act in the order it played, the act you are collecting now on top |
+| 🎵 **Songs** | Versions and aliases grouped by song-name keywords: find every local BD, see its original track name, open the disc, or play at the saved song time |
 | 🖼 **Choose a cover** | Plenty of concerts have none anywhere; pick one and it stays |
 | 🗂 **Who said what** | Every field on the page names the source that answered it |
 

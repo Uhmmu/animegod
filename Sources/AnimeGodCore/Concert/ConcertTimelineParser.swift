@@ -47,6 +47,32 @@ public enum ConcertTimelineParser {
     /// is what makes it a sequence rather than a mention.
     public static let minimumEntries = 2
 
+    /// How near the beginning a backwards time has to land before it counts as
+    /// the next disc rather than a mistake in somebody's list.
+    ///
+    /// The rule used to be "any time that goes backwards is the next disc", and
+    /// that is wrong in the one way that costs the most. A real second night
+    /// starts over: its first song is a minute or two in. A hand-typed list of
+    /// twenty-five songs has one line out of order, and on this library's own
+    /// 9th LIVE paste it was `45:53 処救生` followed by `43:19 幕间3` — two and a
+    /// half minutes backwards, three quarters of the way through one night.
+    /// That split a single night in two and wrote the back half onto **the
+    /// other night's episode**, which is worse than refusing the paste: DAY2
+    /// came away holding DAY1's second half, times and all.
+    ///
+    /// So a backwards step is only a new disc when the list has plainly started
+    /// over — back to before this disc's own first song, or into the opening
+    /// few minutes. Anything else stays where it was pasted and is shown as out
+    /// of order, because a list that disagrees with itself is something to look
+    /// at rather than something to silently reshard.
+    public static let restartWindow: TimeInterval = 5 * 60
+
+    /// Whether a time that goes backwards is this list starting a new disc.
+    static func isRestart(_ time: TimeInterval, after entries: [Entry]) -> Bool {
+        guard let first = entries.first else { return false }
+        return time <= max(first.startTime, restartWindow)
+    }
+
     /// How many lines carried a time at all, whatever became of them.
     ///
     /// So a refusal can say which refusal it is: nothing in the text looked
@@ -74,11 +100,12 @@ public enum ConcertTimelineParser {
             guard !line.isEmpty else { continue }
 
             if let entry = entry(in: line, isEncore: isEncore) {
-                // Times only ever go forwards inside one disc. A line that goes
-                // backwards is the next disc, even when the paste forgot to say
-                // so — which is how a list of two nights with no headings still
-                // comes apart correctly.
-                if let last = current.entries.last, entry.startTime < last.startTime {
+                // A list of two nights with no headings still comes apart
+                // correctly, because the second night starts over. A single
+                // line out of order in the middle of one night does not, and
+                // must not: see `restartWindow`.
+                if let last = current.entries.last, entry.startTime < last.startTime,
+                   isRestart(entry.startTime, after: current.entries) {
                     flush()
                 }
                 current.entries.append(entry)
@@ -183,6 +210,21 @@ public enum ConcertTimelineParser {
 }
 
 public extension ConcertTimelineParser.Disc {
+    /// Which entries step backwards from the one before them.
+    ///
+    /// Kept rather than sorted away. A list that disagrees with itself is
+    /// somebody's typo, and the line it is on is the only thing worth knowing
+    /// about it — silently reordering would hide the one fact that lets it be
+    /// fixed, and silently splitting the disc is what used to happen instead.
+    var outOfOrderIndices: Set<Int> {
+        var found: Set<Int> = []
+        for index in entries.indices.dropFirst()
+        where entries[index].startTime < entries[index - 1].startTime {
+            found.insert(index)
+        }
+        return found
+    }
+
     /// The pasted disc as a programme: the songs in the order they happened,
     /// and where each one starts.
     ///

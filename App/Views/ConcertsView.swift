@@ -255,6 +255,7 @@ private struct IncomingConcertCard: View {
 /// Where a concert's page is reached from.
 struct ConcertRoute: Hashable {
     let animeID: UUID
+    var discNumber: Int? = nil
 }
 
 private struct ConcertCard: View {

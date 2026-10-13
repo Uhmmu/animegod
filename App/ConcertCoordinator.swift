@@ -11,6 +11,7 @@ import Foundation
 @MainActor
 final class ConcertCoordinator: ObservableObject {
     @Published private(set) var concerts: [LibraryConcert] = []
+    @Published private(set) var songs: [LibraryConcertSong] = []
     /// Disc works that are not concerts — an anime Blu-ray is a disc too. Kept
     /// so the section can offer them: a disc no service has heard of still has
     /// to be reachable.
@@ -53,7 +54,9 @@ final class ConcertCoordinator: ObservableObject {
         do {
             let loaded = try await database.concerts()
             let discs = try await database.discWorks()
+            let loadedSongs = try await database.concertSongs()
             concerts = loaded
+            songs = loadedSongs
             unidentifiedDiscs = discs
                 .filter { $0.kind != .live }
                 .map(\.animeID)
@@ -63,6 +66,12 @@ final class ConcertCoordinator: ObservableObject {
     }
 
     // MARK: - Identifying
+
+    private func reloadSongs() async {
+        guard let database else { return }
+        do { songs = try await database.concertSongs() }
+        catch { errorMessage = error.localizedDescription }
+    }
 
     /// Looks up every disc in the library that has not been identified yet.
     ///
@@ -362,7 +371,7 @@ final class ConcertCoordinator: ObservableObject {
     func adoptFileChapters(forAnimeID animeID: UUID, episodes: [EpisodeMedia]) async -> Int {
         guard let database, let resolver = fileChaptersResolver else { return 0 }
         var adopted = 0
-        for episode in episodes {
+        for (index, episode) in episodes.enumerated() {
             // A hand-made correction is never overwritten, and neither is a
             // programme already taken off this file.
             if let stored = try? await database.concertSetlist(episodeID: episode.episode.id),
@@ -374,10 +383,15 @@ final class ConcertCoordinator: ObservableObject {
             let disc = ConcertTimelineParser.Disc(entries: marks.map {
                 ConcertTimelineParser.Entry(startTime: $0.startTime, title: $0.title, isEncore: false)
             })
-            let number = episode.episode.numberText.flatMap { Int($0) } ?? 1
+            // Its own place in the programme when the file is not numbered.
+            // Falling back to 1 meant two unnumbered nights both claimed disc
+            // one, and the second night's chapters landed on the first night's
+            // page — the same shape of fault as a pasted night overwriting the
+            // other one.
+            let number = episode.episode.numberText.flatMap { Int($0) } ?? (index + 1)
             var numbered = disc
             numbered.number = number
-            adopted += await apply(discs: [numbered], forAnimeID: animeID)
+            adopted += await apply(discs: [numbered], forAnimeID: animeID, method: .chapterTitles)
         }
         return adopted
     }
@@ -442,10 +456,10 @@ final class ConcertCoordinator: ObservableObject {
     /// `title` is for a work whose files have not landed yet: a download that
     /// named itself a concert is marked the moment it starts, and the section's
     /// own list is built from media files, so it cannot supply the name.
-    func markAsConcert(animeID: UUID, title: String? = nil) async {
+    func markAsConcert(animeID: UUID, title: String? = nil, manually: Bool = false) async {
         guard let database else { return }
         do {
-            try await database.markAnimeAsConcert(id: animeID)
+            try await database.markAnimeAsConcert(id: animeID, manually: manually)
             await reload()
             // A work moved in by hand is usually one nothing could identify: a
             // BDRip, no disc, no catalogue number anywhere. Bangumi is the one
@@ -468,14 +482,36 @@ final class ConcertCoordinator: ObservableObject {
         }
     }
 
+    /// Takes a work out of the section because a person said to.
+    ///
+    /// Recorded as their decision, so the automatic pass cannot put it back
+    /// at the next launch — which is what it did, every launch, for anything
+    /// whose name reads as a live.
     func removeFromConcerts(animeID: UUID) async {
         guard let database else { return }
         do {
-            try await database.unmarkAnimeAsConcert(id: animeID)
+            try await database.unmarkAnimeAsConcert(id: animeID, manually: true)
             await reload()
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    // MARK: - What counts as a concert
+
+    /// Whether this work is a concert.
+    ///
+    /// **The one answer**, and it is the library's own `kind` rather than
+    /// "a provider answered about it". Those two were being used
+    /// interchangeably and they are not the same thing: a BDRip with no
+    /// catalogue number that none of the four sources has heard of is still a
+    /// concert, and asking `release != nil` filed it back under anime — danmaku
+    /// matched, subtitles searched for, a watched tick offered, and the one
+    /// control a live is actually reached for, the song list, replaced by two
+    /// that have nothing to show. Two of this library's twenty-four concerts
+    /// are in exactly that state.
+    func isConcert(animeID: UUID) -> Bool {
+        concerts.contains { $0.id == animeID }
     }
 
     // MARK: - The timeline
@@ -522,6 +558,7 @@ final class ConcertCoordinator: ObservableObject {
             )
             setlists[episodeID] = alignment
             chaptersByEpisode[episodeID] = chapters
+            await reloadSongs()
             return alignment.placements.isEmpty ? nil : alignment
         } catch {
             errorMessage = error.localizedDescription
@@ -572,16 +609,27 @@ final class ConcertCoordinator: ObservableObject {
         var entryCount: Int { discs.reduce(0) { $0 + $1.entries.count } }
         var isUsable: Bool { !discs.isEmpty }
 
+        /// Lines whose time steps backwards from the line above them, which is
+        /// a typo in the list rather than the next night. Counted so the sheet
+        /// can point at them before anything is written.
+        var outOfOrderCount: Int { discs.reduce(0) { $0 + $1.outOfOrderIndices.count } }
+
         /// What the paste will become, time by time, for the list on screen.
-        var pairs: [(time: TimeInterval?, name: String?, isEncore: Bool)] {
+        var pairs: [(time: TimeInterval?, name: String?, isEncore: Bool, isOutOfOrder: Bool)] {
             guard isLayeringNames else {
-                return discs.flatMap(\.entries).map { ($0.startTime, $0.title, $0.isEncore) }
+                return discs.flatMap { disc in
+                    let backwards = disc.outOfOrderIndices
+                    return disc.entries.enumerated().map { index, entry in
+                        (entry.startTime, entry.title, entry.isEncore, backwards.contains(index))
+                    }
+                }
             }
             let times = availableTimes.sorted()
             return (0..<max(times.count, names.count)).map { index in
                 (times.indices.contains(index) ? times[index] : nil,
                  names.indices.contains(index) ? names[index].title : nil,
-                 names.indices.contains(index) ? names[index].isEncore : false)
+                 names.indices.contains(index) ? names[index].isEncore : false,
+                 false)
             }
         }
     }
@@ -623,17 +671,21 @@ final class ConcertCoordinator: ObservableObject {
     /// lists — the encore, the curtain call. It is stored as a hand-made
     /// correction, so nothing computed may overwrite it.
     ///
-    /// A disc matches by the number the paste gave it, and by order when the
-    /// paste gave none.
+    /// A disc matches by the number the paste gave it, and otherwise by order
+    /// **from the disc the page was showing**. Pasting one night's list while
+    /// looking at the second night used to write it onto the first, because a
+    /// paste with no `DAY2` heading in it counts from one regardless of what
+    /// the viewer had open.
     @discardableResult
     func applyPastedTimeline(
         _ text: String,
         over times: [TimeInterval] = [],
-        forAnimeID animeID: UUID
+        forAnimeID animeID: UUID,
+        startingAtDisc first: Int? = nil
     ) async -> Int {
         guard let database else { return 0 }
         let parsed = previewPastedTimeline(text, over: times).discs
-        return await apply(discs: parsed, forAnimeID: animeID)
+        return await apply(discs: parsed, forAnimeID: animeID, method: .pasted, startingAtDisc: first)
     }
 
     /// Writes a set of discs in as the programme, each one replacing whatever
@@ -643,7 +695,9 @@ final class ConcertCoordinator: ObservableObject {
     @discardableResult
     private func apply(
         discs parsed: [ConcertTimelineParser.Disc],
-        forAnimeID animeID: UUID
+        forAnimeID animeID: UUID,
+        method: ConcertSetlistAlignment.Method,
+        startingAtDisc first: Int? = nil
     ) async -> Int {
         guard let database, !parsed.isEmpty else { return 0 }
         let episodes = (try? await database.episodes(animeID: animeID)) ?? []
@@ -651,16 +705,18 @@ final class ConcertCoordinator: ObservableObject {
 
         var release = (try? await database.concertRelease(animeID: animeID))
         var applied = 0
+        let base = (first ?? 1) - 1
 
         for (index, disc) in parsed.enumerated() {
-            let number = disc.number ?? index + 1
+            let number = disc.number ?? base + index + 1
+            let position = number - 1
             let episode = episodes.first { $0.episode.numberText.flatMap { Int($0) } == number }
-                ?? (episodes.indices.contains(index) ? episodes[index] : nil)
+                ?? (episodes.indices.contains(position) ? episodes[position] : nil)
             guard let episode else { continue }
 
             let (tracks, placements) = disc.programme()
             let alignment = ConcertSetlistAlignment(
-                placements: placements, method: .chapterTitles, confidence: 1
+                placements: placements, method: method, confidence: 1
             )
             try? await database.saveConcertSetlist(StoredConcertSetlist(
                 episodeID: episode.episode.id, alignment: alignment,
@@ -719,5 +775,6 @@ final class ConcertCoordinator: ObservableObject {
         try? await database.saveConcertSetlist(
             StoredConcertSetlist(episodeID: episodeID, alignment: moved, chapters: chapters, isManual: true)
         )
+        await reloadSongs()
     }
 }

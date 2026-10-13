@@ -11,8 +11,12 @@ import Foundation
 /// light, to show it stays dark. Prints the folder and quits. It captures
 /// only its own windows, which needs no Screen Recording permission.
 enum AppearanceSnapshotSmokeTest {
+    static var songsOnly: Bool {
+        ProcessInfo.processInfo.arguments.contains("-smokeSongSnapshots")
+    }
+
     static var isRequested: Bool {
-        ProcessInfo.processInfo.arguments.contains("-smokeAppearanceSnapshots")
+        songsOnly || ProcessInfo.processInfo.arguments.contains("-smokeAppearanceSnapshots")
     }
 
     @MainActor
@@ -37,7 +41,7 @@ enum AppearanceSnapshotSmokeTest {
             for section in sections {
                 show(section)
                 // Artwork and provider-backed pages load asynchronously.
-                let slow = ["detail", "concertDetail", "bangumiCharts"].contains(section)
+                let slow = ["detail", "concertDetail", "songDetail", "songBD", "bangumiCharts"].contains(section)
                 try? await Task.sleep(for: .seconds(slow ? 4 : 2))
                 let url = folder.appendingPathComponent("\(mode.rawValue)-\(section).png")
                 if let data = WindowSnapshot.png(of: window) {
@@ -47,6 +51,10 @@ enum AppearanceSnapshotSmokeTest {
                     print("SMOKE appearance capture failed for \(section)")
                 }
             }
+        }
+        if songsOnly {
+            print("SMOKE songs count=\(model.concertSection.songs.count) folder=\(folder.path)")
+            exit(model.concertSection.songs.isEmpty ? 1 : 0)
         }
         // The player window must stay dark while the app is light.
         AppearanceMode.apply(.light)

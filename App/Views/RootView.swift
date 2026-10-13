@@ -5,6 +5,7 @@ private enum SidebarItem: String, Hashable, CaseIterable {
     case library
     case continueWatching
     case concerts
+    case songs
     case bangumiCharts
     case releases
     case rankings
@@ -35,6 +36,7 @@ struct RootView: View {
                     // not something anyone is partway through a season of, and
                     // the viewer asked for it off the home screen.
                     Label("Concerts", systemImage: "music.mic").tag(SidebarItem.concerts)
+                    Label("Songs", systemImage: "music.note.list").tag(SidebarItem.songs)
                 }
                 Section("Discover") {
                     Label("Bangumi Charts", systemImage: "chart.bar.doc.horizontal").tag(SidebarItem.bangumiCharts)
@@ -67,27 +69,39 @@ struct RootView: View {
             // NavigationLink(value:) inside the detail views needs a stack to
             // push onto; without this wrapper, library cards do nothing.
             NavigationStack(path: $navigationPath) {
-                switch selection {
-                case .library: LibraryView(downloads: model.downloads, subscriptions: model.subscriptions)
-                case .continueWatching: ContinueWatchingView()
-                case .concerts:
-                    ConcertsView(section: model.concertSection, downloads: model.downloads, navigationPath: $navigationPath)
-                        .navigationDestination(for: ConcertRoute.self) { route in
-                            ConcertDetailView(section: model.concertSection, animeID: route.animeID)
-                        }
-                case .bangumiCharts: BangumiChartsView()
-                case .releases: ReleaseSearchView(search: model.releaseSearch, downloads: model.downloads, subscriptions: model.subscriptions)
-                        .navigationTitle("Find Releases")
-                case .rankings: RankingsView()
-                case .diary: DiaryView()
-                case .statistics: StatisticsView()
-                case .folders: LibraryRootsView()
-                case .episodeCache: EpisodeCacheView(cache: model.episodeCache)
-                case .downloads: DownloadsView(downloads: model.downloads)
-                case .seeding: SeedingView(downloads: model.downloads)
-                case .subscriptions: SubscriptionsView(subscriptions: model.subscriptions, downloads: model.downloads)
-                case .settings: SettingsView(translation: model.translation, danmaku: model.danmakuPreferences, torrentSources: model.torrentSources, subtitles: model.subtitlePreferences, downloads: model.downloads, subscriptions: model.subscriptions, link: model.link, database: model.libraryDatabase)
-                case nil: ContentUnavailableView("Choose a section", systemImage: "sidebar.left")
+                Group {
+                    switch selection {
+                    case .library: LibraryView(downloads: model.downloads, subscriptions: model.subscriptions)
+                    case .continueWatching: ContinueWatchingView()
+                    case .concerts:
+                        ConcertsView(section: model.concertSection, downloads: model.downloads, navigationPath: $navigationPath)
+                    case .songs:
+                        SongsView(section: model.concertSection, navigationPath: $navigationPath)
+                    case .bangumiCharts: BangumiChartsView()
+                    case .releases: ReleaseSearchView(search: model.releaseSearch, downloads: model.downloads, subscriptions: model.subscriptions)
+                            .navigationTitle("Find Releases")
+                    case .rankings: RankingsView()
+                    case .diary: DiaryView()
+                    case .statistics: StatisticsView()
+                    case .folders: LibraryRootsView()
+                    case .episodeCache: EpisodeCacheView(cache: model.episodeCache)
+                    case .downloads: DownloadsView(downloads: model.downloads)
+                    case .seeding: SeedingView(downloads: model.downloads)
+                    case .subscriptions: SubscriptionsView(subscriptions: model.subscriptions, downloads: model.downloads)
+                    case .settings: SettingsView(translation: model.translation, danmaku: model.danmakuPreferences, torrentSources: model.torrentSources, subtitles: model.subtitlePreferences, downloads: model.downloads, subscriptions: model.subscriptions, link: model.link, database: model.libraryDatabase)
+                    case nil: ContentUnavailableView("Choose a section", systemImage: "sidebar.left")
+                    }
+                }
+                // Both sections can reach a BD; register on the stack content
+                // so the song -> BD path retains its back navigation.
+                .navigationDestination(for: ConcertRoute.self) { route in
+                    ConcertDetailView(
+                        section: model.concertSection, animeID: route.animeID,
+                        initialDiscNumber: route.discNumber
+                    )
+                }
+                .navigationDestination(for: SongRoute.self) { route in
+                    SongDetailView(section: model.concertSection, songID: route.songID)
                 }
             }
         }
@@ -140,9 +154,27 @@ struct RootView: View {
             // A concert's page shares nothing with an anime's, so it has to be
             // walked too or the one screen built from scratch is the one screen
             // never drawn.
-            let sections = SidebarItem.allCases.map(\.rawValue) + ["detail", "concertDetail"]
+            let sections = AppearanceSnapshotSmokeTest.songsOnly
+                ? ["songs", "songDetail", "songBD"]
+                : SidebarItem.allCases.map(\.rawValue) + ["detail", "concertDetail", "songDetail"]
             await AppearanceSnapshotSmokeTest.run(model: model, sections: sections, openPlayer: { openWindow(id: "player") }) { name in
                 switch name {
+                case "songDetail", "songBD":
+                    selection = .songs
+                    navigationPath = NavigationPath()
+                    if let song = model.concertSection.songs.max(by: { $0.discCount < $1.discCount }) {
+                        Task { @MainActor in
+                            try? await Task.sleep(for: .milliseconds(300))
+                            navigationPath.append(SongRoute(songID: song.id))
+                            if name == "songBD", let appearance = song.appearances.first {
+                                try? await Task.sleep(for: .milliseconds(300))
+                                navigationPath.append(ConcertRoute(
+                                    animeID: appearance.concert.id, discNumber: appearance.discNumber
+                                ))
+                            }
+                            print("SMOKE songs route=\(name) song=\(song.title) BDs=\(song.discCount)")
+                        }
+                    }
                 case "detail":
                     selection = .library
                     let item = model.library.first { model.metadataByAnimeID[$0.id] != nil } ?? model.library.first
@@ -150,10 +182,8 @@ struct RootView: View {
                 case "concertDetail":
                     selection = .concerts
                     navigationPath = NavigationPath()
-                    // A beat before pushing: the destination for `ConcertRoute`
-                    // is declared *by* `ConcertsView`, so appending in the same
-                    // update that selects the section pushes onto a stack that
-                    // does not know the route yet, and the push is dropped.
+                    // Let the sidebar selection settle before pushing, so its
+                    // path reset does not discard the smoke test's route.
                     if let concert = model.concertSection.concerts.first {
                         Task { @MainActor in
                             try? await Task.sleep(for: .milliseconds(300))
@@ -260,6 +290,12 @@ struct RootView: View {
                 waited += 1
             }
             let arguments = ProcessInfo.processInfo.arguments
+            if arguments.contains("-smokeSong"),
+               let appearance = model.concertSection.songs.flatMap(\.appearances).first(where: { $0.startTime != nil }) {
+                print("SMOKE song playback title=\(appearance.track.title) BD=\(appearance.concert.displayTitle) disc=\(appearance.discNumber) start=\(appearance.startTime!)")
+                await model.play(appearance.episode, startingAt: appearance.startTime)
+                return
+            }
             if let flag = arguments.firstIndex(of: "-smokeMatch"), flag + 1 < arguments.count {
                 let needle = arguments[flag + 1]
                 FileHandle.standardError.write(Data("SMOKE match needle=\(needle) library=\(model.library.count)\n".utf8))

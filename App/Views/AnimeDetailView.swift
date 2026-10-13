@@ -3,6 +3,9 @@ import SwiftUI
 
 struct AnimeDetailView: View {
     @EnvironmentObject private var model: AppModel
+    /// Pops this page when the work stops being an anime — it is about to
+    /// disappear from the library this page was pushed from.
+    @Environment(\.dismiss) private var dismiss
     /// Observed directly: AppModel deliberately does not republish download
     /// progress (it ticks once a second and would re-render every view in the
     /// app), so a page that shows arriving episodes has to watch it itself.
@@ -91,6 +94,19 @@ struct AnimeDetailView: View {
             Button { showingMatch = true } label: {
                 Label(metadata == nil ? "Match Metadata" : "Change Match", systemImage: "link.badge.plus")
             }
+            // What this work *is*, where it is actually looked at. The move
+            // existed only in the grid's right-click menu, which is not
+            // somewhere anybody finds it — and a live filed as an anime is
+            // noticed on its page, not on its card.
+            Button {
+                Task {
+                    await model.concertSection.markAsConcert(animeID: anime.id, manually: true)
+                    dismiss()
+                }
+            } label: {
+                Label("This Is a Concert", systemImage: "music.mic")
+            }
+            .help("Move this out of the anime library and into Concerts.")
         }
         .sheet(isPresented: $showingMatch) {
             MetadataMatchView(anime: anime)

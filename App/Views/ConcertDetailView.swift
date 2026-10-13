@@ -12,6 +12,7 @@ import SwiftUI
 /// page — clickable, timed, and honest about where the times came from.
 struct ConcertDetailView: View {
     @EnvironmentObject private var model: AppModel
+    @Environment(\.dismiss) private var dismiss
     @ObservedObject var section: ConcertCoordinator
     let animeID: UUID
 
@@ -20,6 +21,12 @@ struct ConcertDetailView: View {
     @State private var catalogNumberEntry = ""
     @State private var isCorrectingCatalogNumber = false
     @State private var showingTimelinePaste = false
+
+    init(section: ConcertCoordinator, animeID: UUID, initialDiscNumber: Int? = nil) {
+        self.section = section
+        self.animeID = animeID
+        _selectedDiscNumber = State(initialValue: initialDiscNumber)
+    }
 
     private var concert: LibraryConcert? {
         section.concerts.first { $0.id == animeID }
@@ -41,6 +48,7 @@ struct ConcertDetailView: View {
                         credits(release)
                     } else {
                         programme(nil)
+                        noSetlistAnywhere
                         unidentified
                     }
                 }
@@ -49,12 +57,28 @@ struct ConcertDetailView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .navigationTitle(concert?.displayTitle ?? String(localized: "Concert"))
+        .toolbar {
+            // The way back. It was in the section's right-click menu only, and
+            // it did not hold: the next automatic pass read the name, saw a
+            // live, and moved the work straight back in. It is a decision now,
+            // and nothing automatic argues with it.
+            Button {
+                Task {
+                    await section.removeFromConcerts(animeID: animeID)
+                    dismiss()
+                }
+            } label: {
+                Label("Not a Concert", systemImage: "film")
+            }
+            .help("Move this back into the anime library. Nothing will move it in again on its own.")
+        }
         .sheet(isPresented: $showingTimelinePaste) {
             ConcertTimelinePasteSheet(
                 section: section,
                 animeID: animeID,
                 existingTimes: playableEpisode(forDiscNumber: selectedDiscNumber)
-                    .map { section.existingTimes(forEpisodeID: $0.episode.id) } ?? []
+                    .map { section.existingTimes(forEpisodeID: $0.episode.id) } ?? [],
+                discNumber: selectedDiscNumber
             ) {
                 showingTimelinePaste = false
                 Task { await load() }
@@ -166,13 +190,17 @@ struct ConcertDetailView: View {
     // MARK: - The setlist, which is the page
 
     private var discNumbers: [Int?] {
-        let numbers = episodes.map { $0.episode.numberText.flatMap { Int($0) } }
+        let numbers = episodes.enumerated().map { index, episode -> Int? in
+            episode.episode.numberText.flatMap { Int($0) } ?? (index + 1)
+        }
         return numbers.isEmpty ? [nil] : numbers
     }
 
     private func playableEpisode(forDiscNumber number: Int?) -> EpisodeMedia? {
         guard let number else { return episodes.first }
-        return episodes.first { $0.episode.numberText.flatMap { Int($0) } == number } ?? episodes.first
+        return episodes.enumerated().first {
+            ($0.element.episode.numberText.flatMap { Int($0) } ?? ($0.offset + 1)) == number
+        }?.element
     }
 
     @ViewBuilder
@@ -317,6 +345,7 @@ struct ConcertDetailView: View {
     private func timelineDescription(_ alignment: ConcertSetlistAlignment) -> String {
         switch alignment.method {
         case .chapterTitles: String(localized: "Times from the disc's chapters")
+        case .pasted: String(localized: "Times pasted in")
         case .durations: alignment.isTrustworthy
             ? String(localized: "Times matched to the disc")
             : String(localized: "Times are a guess")
@@ -330,6 +359,8 @@ struct ConcertDetailView: View {
         switch alignment.method {
         case .chapterTitles:
             String(localized: "The disc names its own chapters after the songs, so these times are the disc's.")
+        case .pasted:
+            String(localized: "Somebody typed this timeline in. Nothing computed may overwrite it — paste it again to change it.")
         case .durations:
             String(localized: "No source publishes where a song starts, so the published song lengths were matched against the disc's chapter marks.")
         case .oneToOne:
@@ -687,6 +718,24 @@ struct ConcertDetailView: View {
     }
 
     // MARK: - Nothing matched
+
+    /// A concert with no release at all, which is the state that needed the
+    /// escape hatch most and was the one state without it.
+    ///
+    /// "Paste Times" lived inside the setlist section, and the setlist section
+    /// is only drawn when a provider answered — so the two discs here that
+    /// nobody has heard of were the two with no way to type a timeline in.
+    /// Pasting has never needed a release: it writes one of its own.
+    private var noSetlistAnywhere: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Setlist")
+                .font(.title2.weight(.semibold))
+            Text("No source has a track list for this disc, so there is nothing to lay over it. A setlist pasted in becomes the programme — songs, times, and a chapter to jump to for each one.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+            Button("Paste a Timeline") { showingTimelinePaste = true }
+        }
+    }
 
     private var unidentified: some View {
         VStack(alignment: .leading, spacing: 10) {

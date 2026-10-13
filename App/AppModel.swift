@@ -1063,7 +1063,16 @@ final class AppModel: ObservableObject {
     /// season one episode into its run has exactly one main episode on disk,
     /// and giving it a film's ten-minute tail would mark the premiere watched
     /// most of the way through.
+    ///
+    /// A concert is asked about first, and has to be: `library` **excludes**
+    /// concerts — they have their own section and the grid would open an anime
+    /// page over one — so a concert looked up here found no entry, no reported
+    /// kind and no episode count, and fell through to `.series`. The rule then
+    /// marked a live Blu-ray watched five minutes from the end and offered a
+    /// tick for finishing it, which is the one thing `.untracked` exists to
+    /// stop.
     func watchedKind(forAnimeID animeID: UUID) -> WatchedWorkKind {
+        if concertSection.isConcert(animeID: animeID) { return .untracked }
         let entry = library.first { $0.id == animeID }
         let reported = (metadataSourcesByAnimeID[animeID] ?? [])
             .compactMap(\.kind)

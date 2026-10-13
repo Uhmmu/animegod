@@ -1331,7 +1331,7 @@ struct PlayerScreen: View {
             // none: plenty of rips have had theirs stripped, and the page has to
             // be able to tell that apart from a disc nobody has opened yet.
             guard !state.isDirectPlayback, state.duration > 0,
-                  model.concertSection.release(forAnimeID: state.currentEpisode.episode.animeID) != nil
+                  model.concertSection.isConcert(animeID: state.currentEpisode.episode.animeID)
             else { return }
             let alignment = await model.concertSection.resolveSetlist(
                 for: state.currentEpisode,
@@ -1356,10 +1356,12 @@ struct PlayerScreen: View {
             // A concert has neither. Nobody comments on a live Blu-ray on
             // dandanplay and nobody subtitles one, so matching and searching
             // for them is a window opening over a concert to report that it
-            // found nothing — twice.
-            state.isConcert = model.concertSection.release(
-                forAnimeID: state.currentEpisode.episode.animeID
-            ) != nil
+            // found nothing — twice. Read off the library's own kind, not off
+            // whether a catalogue answered: a concert nobody has heard of is
+            // still a concert.
+            state.isConcert = model.concertSection.isConcert(
+                animeID: state.currentEpisode.episode.animeID
+            )
             if !state.isConcert {
                 state.updateDanmakuSearchContext(titleCandidates: danmakuTitleCandidates)
                 state.danmaku.attach(preferences: model.danmakuPreferences)

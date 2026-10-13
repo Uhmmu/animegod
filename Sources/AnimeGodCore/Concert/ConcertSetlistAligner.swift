@@ -9,6 +9,11 @@ public struct ConcertSetlistAlignment: Codable, Hashable, Sendable {
     public enum Method: String, Codable, Hashable, Sendable {
         /// The disc named its own chapters after the songs. Nothing to infer.
         case chapterTitles
+        /// Somebody typed the times in. Its own case because the page says
+        /// where a timeline came from, and a paste was being filed as
+        /// `chapterTitles` — so a list typed in by hand was credited to the
+        /// disc's own chapter marks, on discs that have none.
+        case pasted
         /// Song lengths matched against the spans between chapter marks.
         case durations
         /// As many chapters as songs and no lengths to check with, so the

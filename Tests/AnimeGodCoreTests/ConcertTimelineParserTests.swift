@@ -111,6 +111,58 @@ struct ConcertTimelineParserTests {
         #expect(discs[1].entries.map(\.title) == ["D", "E", "F"])
     }
 
+    /// One line out of order is a typo in somebody's list, not the next night.
+    ///
+    /// The real paste this came from: MyGO's 9th LIVE DAY1, twenty-five lines
+    /// typed out by hand, with `45:53 処救生` written before `43:19 幕间3`. The
+    /// old rule cut the night in two there and the back half was written onto
+    /// **DAY2's episode** — the second night came away holding the first
+    /// night's second half, times and all. A night that is really over starts
+    /// over; this one keeps going.
+    @Test func oneLineOutOfOrderIsNotTheNextNight() {
+        let text = """
+        35:47 描绘未来
+        39:42 輪符雨
+        45:53 処救生
+        43:19 幕间3
+        49:36 一同歌唱一同奏响
+        """
+        let discs = ConcertTimelineParser.parse(text)
+        #expect(discs.count == 1)
+        #expect(discs[0].entries.count == 5)
+        // And it is pointed at rather than quietly sorted away.
+        #expect(discs[0].outOfOrderIndices == [3])
+    }
+
+    /// The rule it replaced still has to work: a second night starts near zero.
+    @Test func aListThatStartsOverIsStillTheNextNight() {
+        let text = """
+        45:53 処救生
+        51:20 迷星叫
+        1:12 迷路日々
+        6:30 明弦音
+        """
+        let discs = ConcertTimelineParser.parse(text)
+        #expect(discs.count == 2)
+        #expect(discs[0].entries.map(\.title) == ["処救生", "迷星叫"])
+        #expect(discs[1].entries.map(\.title) == ["迷路日々", "明弦音"])
+        #expect(discs[0].outOfOrderIndices.isEmpty)
+    }
+
+    /// A night whose own first song is late still comes apart, because the
+    /// restart is measured against where this disc began as well as the clock.
+    @Test func aLateOpenerStillEndsItsNight() {
+        let text = """
+        8:10 A
+        14:02 B
+        7:30 C
+        13:44 D
+        """
+        let discs = ConcertTimelineParser.parse(text)
+        #expect(discs.count == 2)
+        #expect(discs[1].entries.map(\.title) == ["C", "D"])
+    }
+
     @Test(arguments: ["Day1", "DAY 2", "Disc 1", "ディスク2", "1日目", "第2日", "[DAY1]"])
     func knowsADiscHeading(_ line: String) {
         #expect(ConcertTimelineParser.discHeading(ConcertTimelineParser.normalise(line)) != nil)

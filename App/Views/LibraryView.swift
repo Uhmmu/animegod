@@ -278,7 +278,7 @@ struct LibraryView: View {
             // own — a BDRip whose folder never carried a catalogue number is
             // the ordinary case, and there is no automatic answer for it.
             Button("Move to Concerts") {
-                Task { await model.concertSection.markAsConcert(animeID: item.anime.id) }
+                Task { await model.concertSection.markAsConcert(animeID: item.anime.id, manually: true) }
             }
         }
     }

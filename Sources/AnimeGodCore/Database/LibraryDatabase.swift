@@ -2235,6 +2235,21 @@ public actor LibraryDatabase {
                 table.add(column: "attribution", .blob)
             }
         }
+        migrator.registerMigration("v17_manual_work_kind") { db in
+            // The viewer said what this work is, and nothing automatic may
+            // argue with it afterwards.
+            //
+            // "Not a Concert" set `kind` back to unknown and that was the whole
+            // of it — so the very next launch's concert pass saw a work with no
+            // metadata whose name reads as a live, and moved it straight back
+            // in. The decision has to be remembered, not just acted on once.
+            // The same flag covers the other direction: a work moved in by hand
+            // is one no source could place, and a later pass must not take a
+            // provider's word over the person's.
+            try db.alter(table: "anime") { table in
+                table.add(column: "kindIsManual", .boolean).notNull().defaults(to: false)
+            }
+        }
         return migrator
     }
 }

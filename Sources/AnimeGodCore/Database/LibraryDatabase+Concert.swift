@@ -118,7 +118,7 @@ public extension LibraryDatabase {
                 FROM anime
                 JOIN episode ON episode.animeID = anime.id
                 JOIN mediaFile ON mediaFile.episodeID = episode.id
-                WHERE anime.kind <> ?
+                WHERE anime.kind <> ? AND anime.kindIsManual = 0
                 GROUP BY anime.id
                 """, arguments: [AnimeKind.live.rawValue])
             return rows.compactMap { row in
@@ -142,7 +142,8 @@ public extension LibraryDatabase {
                 JOIN episode ON episode.animeID = anime.id
                 JOIN mediaFile ON mediaFile.episodeID = episode.id
                 LEFT JOIN animeMetadata ON animeMetadata.animeID = anime.id
-                WHERE anime.kind <> ? AND animeMetadata.animeID IS NULL
+                WHERE anime.kind <> ? AND anime.kindIsManual = 0
+                      AND animeMetadata.animeID IS NULL
                 GROUP BY anime.id
                 """, arguments: [AnimeKind.live.rawValue])
             return rows.compactMap { row in
@@ -153,12 +154,22 @@ public extension LibraryDatabase {
     }
 
     /// Takes a work back out of the concert section.
+    ///
+    /// `manually` records that a person said so, and that is what makes it
+    /// stick: without it the next automatic pass reads the name, sees a live,
+    /// and moves the work straight back in — which is what "Not a Concert"
+    /// used to do: once, until the next launch.
     @discardableResult
-    func unmarkAnimeAsConcert(id: UUID, becoming kind: AnimeKind = .unknown) throws -> Bool {
+    func unmarkAnimeAsConcert(
+        id: UUID, becoming kind: AnimeKind = .unknown, manually: Bool = false
+    ) throws -> Bool {
         try database.write { db in
             try db.execute(
-                sql: "UPDATE anime SET kind = ?, updatedAt = ? WHERE id = ? AND kind = ?",
-                arguments: [kind.rawValue, Date(), id.uuidString, AnimeKind.live.rawValue]
+                sql: """
+                    UPDATE anime SET kind = ?, kindIsManual = ?, updatedAt = ?
+                    WHERE id = ? AND kind = ?
+                    """,
+                arguments: [kind.rawValue, manually, Date(), id.uuidString, AnimeKind.live.rawValue]
             )
             return db.changesCount > 0
         }
@@ -310,12 +321,22 @@ public extension LibraryDatabase {
     }
 
     /// Marks a work as a concert, so it leaves the grid and joins the section.
+    ///
+    /// An automatic pass may not overrule a person: a work somebody took out
+    /// of the section by hand stays out, however much its name reads as a
+    /// live. Only another hand-made decision clears that.
     @discardableResult
-    func markAnimeAsConcert(id: UUID) throws -> Bool {
+    func markAnimeAsConcert(id: UUID, manually: Bool = false) throws -> Bool {
         try database.write { db in
             try db.execute(
-                sql: "UPDATE anime SET kind = ?, updatedAt = ? WHERE id = ? AND kind <> ?",
-                arguments: [AnimeKind.live.rawValue, Date(), id.uuidString, AnimeKind.live.rawValue]
+                sql: """
+                    UPDATE anime SET kind = ?, kindIsManual = ?, updatedAt = ?
+                    WHERE id = ? AND kind <> ? AND (kindIsManual = 0 OR ?)
+                    """,
+                arguments: [
+                    AnimeKind.live.rawValue, manually, Date(),
+                    id.uuidString, AnimeKind.live.rawValue, manually
+                ]
             )
             return db.changesCount > 0
         }

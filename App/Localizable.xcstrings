@@ -703,6 +703,22 @@
         }
       }
     },
+    "%lld line goes back in time": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 行の時刻が前の行より前です"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 行的时间比上一行早"
+          }
+        }
+      }
+    },
     "%lld min of music": {
       "localizations": {
         "ja": {
@@ -7949,6 +7965,38 @@
         }
       }
     },
+    "Move this back into the anime library. Nothing will move it in again on its own.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アニメのライブラリへ戻します。以降、自動処理が再び移動させることはありません。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把它移回番剧库。之后不会再有任何自动流程把它移回来。"
+          }
+        }
+      }
+    },
+    "Move this out of the anime library and into Concerts.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アニメのライブラリからライブへ移動します。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把它从番剧库移到演唱会分区。"
+          }
+        }
+      }
+    },
     "Move to %@": {
       "localizations": {
         "ja": {
@@ -9082,6 +9130,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "没有任何来源收录「%@」。要能查到，文件夹名里需要带品番 —— ANZX-10294、BRMM-10716 这种。"
+          }
+        }
+      }
+    },
+    "No source has a track list for this disc, so there is nothing to lay over it. A setlist pasted in becomes the programme — songs, times, and a chapter to jump to for each one.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このディスクのトラックリストはどの情報源にもないため、重ねるものがありません。貼り付けたセットリストがそのまま進行表になります——曲名、時刻、そして曲ごとに飛べるチャプター。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有任何来源有这张碟的曲目表，也就没有东西可以贴到它上面。粘贴进来的歌单就是节目单本身——歌名、时间，以及每首歌各自可以跳转的章节。"
           }
         }
       }
@@ -12800,18 +12864,34 @@
         }
       }
     },
-    "Songs": {
+    "Somebody typed this timeline in. Nothing computed may overwrite it — paste it again to change it.": {
       "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "曲"
+            "value": "このタイムラインは手入力です。自動で算出した結果が上書きすることはありません——変更するにはもう一度貼り付けてください。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "曲目"
+            "value": "这条时间轴是手动输入的。任何自动算出来的结果都不会覆盖它 —— 要改就再粘贴一次。"
+          }
+        }
+      }
+    },
+    "Songs": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "楽曲"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "歌曲"
           }
         }
       }
@@ -13814,6 +13894,22 @@
         }
       }
     },
+    "This Is a Concert": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "これはライブです"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这是演唱会"
+          }
+        }
+      }
+    },
     "This disc already has %lld marks, so a list of **just song names** works too — one per line, in order. The times are shown beside them as you type.": {
       "localizations": {
         "ja": {
@@ -13986,6 +14082,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "时间已与碟片对齐"
+          }
+        }
+      }
+    },
+    "Times pasted in": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "時刻は貼り付けられたもの"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "时间是粘贴进来的"
           }
         }
       }
@@ -15006,6 +15118,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "每一场演了什么、按顺序、标出安可 —— 唯一一个讲的是演唱会本身而不是它的碟片的来源。没有单曲时长，日文曲名返回的是罗马字。"
+          }
+        }
+      }
+    },
+    "What was read, line by line, appears here.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "読み取った内容が 1 行ずつここに表示されます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "读出来的内容会逐行显示在这里。"
           }
         }
       }
@@ -16181,6 +16309,166 @@
           "stringUnit": {
             "state": "translated",
             "value": "“%1$@”：没有新内容（检查了 %2$lld 个资源）"
+          }
+        }
+      }
+    },
+    "Song": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "歌曲"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "楽曲"
+          }
+        }
+      }
+    },
+    "No songs yet": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂无歌曲"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "楽曲がまだありません"
+          }
+        }
+      }
+    },
+    "Songs from your concert setlists appear here. Identify a BD or paste its song timeline on the concert page.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这里汇总演唱会曲目。识别 BD，或在演唱会详情页粘贴歌曲时间轴，即可加入歌曲。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ライブのセットリストにある曲がここに表示されます。BD を識別するか、公演ページで曲のタイムラインを貼り付けてください。"
+          }
+        }
+      }
+    },
+    "Search songs, artists or BDs": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜索歌曲、艺人或 BD"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "楽曲・アーティスト・BD を検索"
+          }
+        }
+      }
+    },
+    "%lld BDs": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 张 BD"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 枚の BD"
+          }
+        }
+      }
+    },
+    "Appears on %lld BDs": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "收录于 %lld 张 BD"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 枚の BD に収録"
+          }
+        }
+      }
+    },
+    "BDs featuring this song": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "收录这首歌曲的 BD"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この曲を収録した BD"
+          }
+        }
+      }
+    },
+    "Open BD": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开 BD"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BD を開く"
+          }
+        }
+      }
+    },
+    "Play Song": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "播放歌曲"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "曲を再生"
+          }
+        }
+      }
+    },
+    "Song no longer in the library": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这首歌曲已不在资料库中"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この曲はライブラリにありません"
           }
         }
       }

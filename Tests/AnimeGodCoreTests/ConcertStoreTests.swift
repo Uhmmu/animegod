@@ -108,6 +108,50 @@ struct ConcertStoreTests {
         #expect(concert.displayTitle == "結束バンドLIVE-恒星-")
     }
 
+    /// "Not a Concert" has to hold, and it did not.
+    ///
+    /// It set `kind` back and that was all, so the next automatic pass saw a
+    /// work with no metadata whose name reads as a live and moved it straight
+    /// back in — every launch, with no way to say otherwise. The decision is
+    /// recorded now, and the two queries the pass draws its candidates from
+    /// stop offering the work at all.
+    @Test func aHandMadeDecisionIsNotUndoneByThePass() async throws {
+        let (database, root) = try await library()
+        let disc = try await importDisc(into: database, root: root)
+        try await database.markAnimeAsConcert(id: disc.animeID)
+
+        #expect(try await database.unmarkAnimeAsConcert(id: disc.animeID, manually: true))
+        #expect(try await database.concerts().isEmpty)
+        #expect(try await database.library().count == 1)
+
+        // The pass cannot see it, and could not move it even if it did.
+        #expect(try await database.worksWithNoMetadata().isEmpty)
+        #expect(try await database.worksThatAreNotConcerts().isEmpty)
+        #expect(try await database.markAnimeAsConcert(id: disc.animeID) == false)
+        #expect(try await database.concerts().isEmpty)
+    }
+
+    /// And the person can still change their mind.
+    @Test func anotherHandMadeDecisionOverridesTheFirst() async throws {
+        let (database, root) = try await library()
+        let disc = try await importDisc(into: database, root: root)
+        try await database.markAnimeAsConcert(id: disc.animeID)
+        try await database.unmarkAnimeAsConcert(id: disc.animeID, manually: true)
+
+        #expect(try await database.markAnimeAsConcert(id: disc.animeID, manually: true))
+        #expect(try await database.concerts().count == 1)
+    }
+
+    /// An ordinary automatic move still works on a work nobody has ruled on.
+    @Test func thePassStillMovesWorksNobodyHasRuledOn() async throws {
+        let (database, root) = try await library()
+        let disc = try await importDisc(into: database, root: root)
+
+        #expect(try await database.worksWithNoMetadata().count == 1)
+        #expect(try await database.markAnimeAsConcert(id: disc.animeID))
+        #expect(try await database.concerts().count == 1)
+    }
+
     // MARK: - The release
 
     @Test func roundTripsAReleaseWithItsDiscs() async throws {
