@@ -615,7 +615,19 @@ struct SubscriptionEditor: View {
                         draft.queries = TorrentSearchCoordinator.splitQueries(queryText)
                         draft.includeKeywords = splitKeywords(includeText)
                         draft.excludeKeywords = splitKeywords(excludeText)
+                        let previousFloor = draft.minimumEpisode
                         draft.minimumEpisode = Double(minimumEpisodeText.trimmingCharacters(in: .whitespaces))
+                        // Lowering the floor by hand is how a rule that lost
+                        // an episode is put back on it, and the page counts
+                        // from `latestEpisode` — left where it was, the rule
+                        // would take EP 3 while saying it waits for EP 4.
+                        // Only a floor the user *lowered* moves it: a floor
+                        // behind what has been published is the ordinary
+                        // case, not a correction.
+                        if let floor = draft.minimumEpisode, let latest = draft.latestEpisode,
+                           latest > floor, floor < (previousFloor ?? 0) {
+                            draft.latestEpisode = floor
+                        }
                         save(draft)
                         dismiss()
                     }

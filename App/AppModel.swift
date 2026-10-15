@@ -1388,6 +1388,11 @@ final class AppModel: ObservableObject {
             downloads.onWorkStarted = { [weak self] workKey in
                 Task { await self?.offerIncomingMatch(seriesTitle: workKey) }
             }
+            // A deleted download is an episode the rule that started it is no
+            // longer getting, so the rule goes back to waiting for it.
+            downloads.onRemoved = { [weak self] record in
+                Task { await self?.subscriptions.downloadWasRemoved(record) }
+            }
             subscriptions.ownedEpisodesProvider = { [weak self] animeID in
                 guard let self, let database = self.database else { return [] }
                 let episodes = (try? await database.episodes(animeID: animeID)) ?? []

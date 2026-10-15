@@ -115,6 +115,9 @@ final class TorrentDownloadManager: ObservableObject {
     /// matched to an anime while it downloads rather than afterwards. Fires
     /// once per work: a set is one show, not twelve.
     var onWorkStarted: ((String) -> Void)?
+    /// Called when a download is removed from the list, so the subscription
+    /// that started it learns the episode it was bringing is not coming.
+    var onRemoved: ((TorrentDownloadRecord) -> Void)?
 
     /// Unpack `.rar`/`.zip`/`.7z` releases once they finish. On by default:
     /// an archive that is not opened is a download with no episode in it.
@@ -857,6 +860,9 @@ final class TorrentDownloadManager: ObservableObject {
         let hash = item.record.infoHash
         Task { try? await database?.removeTorrentDownload(infoHash: hash) }
         refresh()
+        // After the refresh, so whoever is told can read `items` and see the
+        // downloads that are left rather than this one as well.
+        onRemoved?(item.record)
     }
 
     func revealInFinder(_ item: TorrentDownloadItem) {

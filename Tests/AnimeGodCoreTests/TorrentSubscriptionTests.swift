@@ -461,3 +461,71 @@ struct TorrentSubscriptionFromSetTests {
         #expect(late == Date(timeIntervalSince1970: 1_780_000_000 + 21 * 86_400))
     }
 }
+
+/// Deleting a download the rule started — because nothing is seeding it, or
+/// it is crawling — must give the episode back. The floor is moved past an
+/// episode the moment it starts downloading, so without this the episode is
+/// behind the floor for ever and the rule waits for the one after it.
+struct TorrentSubscriptionGiveBackTests {
+    private func rule(floor: Double?, latest: Double?) -> TorrentSubscription {
+        TorrentSubscription(
+            title: "Ave Mujica",
+            queries: ["Ave Mujica"],
+            group: "LoliHouse",
+            minimumEpisode: floor,
+            includesExistingReleases: true,
+            latestEpisode: latest,
+            createdAt: Date(timeIntervalSince1970: 1_780_000_000)
+        )
+    }
+
+    @Test func theRuleGoesBackToWaitingForTheEpisodeItLost() {
+        let followed = rule(floor: 3, latest: 3)
+        #expect(followed.nextEpisode == 4)
+
+        let after = followed.givingBack(episode: 3, stillCovered: [1, 2])
+        #expect(after?.minimumEpisode == 2)
+        #expect(after?.latestEpisode == 2)
+        #expect(after?.nextEpisode == 3)
+    }
+
+    @Test func theFloorLandsOnWhatTheRuleStillHas() {
+        // Episodes 1-4 are on disk and 5 was deleted: the floor belongs at
+        // 4, not at 4.something guessed from the number removed.
+        let after = rule(floor: 5, latest: 5).givingBack(episode: 5, stillCovered: [1, 2, 3, 4])
+        #expect(after?.minimumEpisode == 4)
+    }
+
+    @Test func withNothingLeftToCountFromItStepsBackOneEpisodeOnly() {
+        // The one download was deleted. Clearing the floor outright would
+        // start the season again from episode one.
+        let after = rule(floor: 3, latest: 3).givingBack(episode: 3, stillCovered: [])
+        #expect(after?.minimumEpisode == 2)
+
+        // Nothing below episode one to go back to.
+        let first = rule(floor: 1, latest: 1).givingBack(episode: 1, stillCovered: [])
+        #expect(first?.minimumEpisode == nil)
+        #expect(first?.nextEpisode == nil)
+    }
+
+    @Test func aRuleThatHasMovedOnKeepsItsFloor() {
+        // Episode 4 has been taken since. The floor cannot hold a gap, so
+        // pulling it back to 2 would re-offer episode 4 as well — a worse
+        // answer than the one episode that stays missing.
+        #expect(rule(floor: 4, latest: 4).givingBack(episode: 3, stillCovered: [1, 2, 4]) == nil)
+        // Nor does a download of something the rule never counted move it.
+        #expect(rule(floor: 3, latest: 3).givingBack(episode: 0, stillCovered: []) == nil)
+    }
+
+    @Test func theEpisodeIsEligibleAgainAfterwards() throws {
+        let release = result(
+            "[LoliHouse] Ave Mujica - 03 [WebRip 1080p HEVC-10bit AAC][简繁内封字幕]",
+            hash: "a", team: "LoliHouse"
+        )
+        let followed = rule(floor: 3, latest: 3)
+        #expect(!TorrentSubscriptionMatcher.acceptsWork(release, rule: followed))
+
+        let after = try #require(followed.givingBack(episode: 3, stillCovered: [1, 2]))
+        #expect(TorrentSubscriptionMatcher.acceptsWork(release, rule: after))
+    }
+}

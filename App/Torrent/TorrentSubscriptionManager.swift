@@ -261,6 +261,42 @@ final class TorrentSubscriptionManager: ObservableObject {
         await reload()
     }
 
+    // MARK: - A download that is not coming
+
+    /// Removing a download a rule started gives its episode back to the rule.
+    ///
+    /// The rule moves its floor past an episode the moment it starts
+    /// downloading it, so that one release per episode is ever taken. That
+    /// makes deleting the download — because nothing is seeding it, or it is
+    /// crawling — a dead end: the episode is behind the floor, no later
+    /// check considers it, and the page sits on "waiting for EP 4" with
+    /// EP 3 missing and nothing saying why.
+    ///
+    /// What the episode was is read from the match the rule recorded when it
+    /// took the release, not from the download's label: that is the number
+    /// the floor was moved by, so it is the number to move back.
+    func downloadWasRemoved(_ record: TorrentDownloadRecord) async {
+        guard let database, let subscriptionID = record.subscriptionID,
+              let rule = subscriptions.first(where: { $0.id == subscriptionID }) else { return }
+        guard let matches = try? await database.torrentSubscriptionMatches(subscriptionID: subscriptionID),
+              let episode = matches.first(where: { $0.infoHash == record.infoHash })?.episode else { return }
+
+        // What the rule still has: the episodes of its downloads that are
+        // left, plus whatever is on disk. A download kept while its task was
+        // removed is in the library, so it counts there.
+        var covered: Set<Double> = []
+        if let animeID = rule.animeID, let provider = ownedEpisodesProvider {
+            covered = await provider(animeID)
+        }
+        let live = Set(downloads?.items.map(\.record.infoHash) ?? [])
+            .subtracting([record.infoHash])
+        covered.formUnion(matches.filter { live.contains($0.infoHash) }.compactMap(\.episode))
+
+        guard let updated = rule.givingBack(episode: episode, stillCovered: covered) else { return }
+        await save(updated)
+        note(String(localized: "“\(rule.title)”: \(episodeText(episode)) was removed — watching for it again."))
+    }
+
     // MARK: - Checking
 
     private func startTimer() {

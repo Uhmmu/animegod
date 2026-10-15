@@ -540,4 +540,41 @@ extension TorrentSubscription {
         if let latest = schedule.latestEpisode, latest > (latestEpisode ?? 0) { latestEpisode = latest }
         if let expected = schedule.expectedEpisodeCount { expectedEpisodeCount = expected }
     }
+
+    /// Gives an episode back to the rule, because the download that was
+    /// bringing it has been removed.
+    ///
+    /// Taking an episode moves the floor past it — that is what stops the
+    /// rule fetching three encodes of the same episode, and it is why the
+    /// floor is raised the moment a download starts rather than when it
+    /// finishes. Deleting that download is the user saying this copy is not
+    /// coming, so the floor has to move back: otherwise the rule waits for
+    /// the episode after one nobody has, for ever, and the page says
+    /// "waiting for EP 4" while EP 3 is missing.
+    ///
+    /// It undoes exactly one step. The floor is a floor and cannot hold a
+    /// gap, so a rule that has since taken a *later* episode keeps its floor
+    /// — pulling it back would re-offer everything in between, which is a
+    /// worse answer than the one missing episode. `stillCovered` is what the
+    /// rule still has — the episodes of its other downloads and whatever is
+    /// in the library — so the floor lands on the highest of those below the
+    /// one given back rather than on a guess.
+    ///
+    /// The match itself is deliberately *not* forgotten: that exact release
+    /// is the one the user just threw away, usually because nothing was
+    /// seeding it, and the next check offering it again would be a loop.
+    /// Another release of the same episode is what this reopens.
+    public func givingBack(episode: Double, stillCovered: Set<Double>) -> TorrentSubscription? {
+        guard episode > 0 else { return nil }
+        guard minimumEpisode == episode || latestEpisode == episode else { return nil }
+        let below = stillCovered.filter { $0 < episode }.max()
+            // Nothing left to count from: step back by one episode rather
+            // than to nothing, or a rule with one download deleted would
+            // start the season again from the beginning.
+            ?? (episode > 1 ? episode - 1 : nil)
+        var updated = self
+        if minimumEpisode == episode { updated.minimumEpisode = below }
+        if latestEpisode == episode { updated.latestEpisode = below }
+        return updated
+    }
 }

@@ -16269,6 +16269,28 @@
         }
       }
     },
+    "“%@”: %@ was removed — watching for it again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "“%1$@”: %2$@ was removed — watching for it again."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」：%@ のダウンロードを削除しました — もう一度探します。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」：%@ 的下载已删除 —— 将重新寻找这一集。"
+          }
+        }
+      }
+    },
     "“%@”: %lld releases need a look — another fansub or another encode.": {
       "localizations": {
         "en": {
