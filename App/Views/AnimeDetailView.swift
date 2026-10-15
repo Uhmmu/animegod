@@ -273,6 +273,8 @@ struct AnimeDetailView: View {
                     if let due = rule.estimatedNextEpisodeAt() {
                         Text("Waiting for EP \(TorrentEpisodeLabel.text(for: next)) · expected \(due.formatted(.relative(presentation: .named)))")
                             .help(due.formatted(date: .complete, time: .shortened))
+                    } else if rule.isBehindWhatIsPublished {
+                        Text("Waiting for EP \(TorrentEpisodeLabel.text(for: next)) · already published")
                     } else {
                         Text("Waiting for EP \(TorrentEpisodeLabel.text(for: next))")
                     }

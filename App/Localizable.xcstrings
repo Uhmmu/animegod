@@ -14972,6 +14972,22 @@
         }
       }
     },
+    "Waiting for EP %@ · already published": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第 %@ 話を待機中 · 公開済み"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等待第 %@ 话 · 已发布"
+          }
+        }
+      }
+    },
     "Waiting for EP %@ · expected %@": {
       "localizations": {
         "en": {

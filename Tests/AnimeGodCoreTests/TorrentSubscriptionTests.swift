@@ -436,7 +436,12 @@ struct TorrentSubscriptionFromSetTests {
     @Test func theNextEpisodeIsSearchedForByNumberToo() {
         var rule = TorrentSubscription(title: "Ave Mujica", queries: ["Ave Mujica", "颂乐人偶"], minimumEpisode: 10)
         #expect(rule.searchQueries() == ["Ave Mujica", "颂乐人偶", "Ave Mujica 11"])
+        // Episode 12 is out and this rule still has ten of them: the number
+        // worth putting in a query is the one missing, not the one after
+        // everybody else's newest.
         rule.latestEpisode = 12
+        #expect(rule.searchQueries().last == "Ave Mujica 11")
+        rule.minimumEpisode = 12
         #expect(rule.searchQueries().last == "Ave Mujica 13")
     }
 
@@ -485,8 +490,27 @@ struct TorrentSubscriptionGiveBackTests {
 
         let after = followed.givingBack(episode: 3, stillCovered: [1, 2])
         #expect(after?.minimumEpisode == 2)
-        #expect(after?.latestEpisode == 2)
         #expect(after?.nextEpisode == 3)
+        // Episode 3 was published and still is. What changed is that this
+        // rule no longer has it, which is what the page should say.
+        #expect(after?.latestEpisode == 3)
+        #expect(after?.isBehindWhatIsPublished == true)
+        #expect(after?.estimatedNextEpisodeAt() == nil)
+    }
+
+    @Test func theWaitIsForTheEpisodeMissingNotTheOnePublished() {
+        // The state the real library was found in: the floor says the rule
+        // has two, the indexes say three are out. Counting from what is
+        // published reads "waiting for EP 4" with EP 3 nowhere.
+        let behind = rule(floor: 2, latest: 3)
+        #expect(behind.nextEpisode == 3)
+        #expect(behind.isBehindWhatIsPublished)
+        // And the numbered query goes after the episode that is missing.
+        #expect(behind.searchQueries().contains("Ave Mujica 03"))
+
+        let keepingUp = rule(floor: 3, latest: 3)
+        #expect(keepingUp.nextEpisode == 4)
+        #expect(!keepingUp.isBehindWhatIsPublished)
     }
 
     @Test func theFloorLandsOnWhatTheRuleStillHas() {
@@ -502,10 +526,19 @@ struct TorrentSubscriptionGiveBackTests {
         let after = rule(floor: 3, latest: 3).givingBack(episode: 3, stillCovered: [])
         #expect(after?.minimumEpisode == 2)
 
-        // Nothing below episode one to go back to.
+        // Nothing below episode one to go back to; the rule then follows
+        // whatever appears, and counts from what has been published.
         let first = rule(floor: 1, latest: 1).givingBack(episode: 1, stillCovered: [])
         #expect(first?.minimumEpisode == nil)
-        #expect(first?.nextEpisode == nil)
+        #expect(first?.nextEpisode == 2)
+    }
+
+    @Test func anEpisodePublishedStaysPublished() {
+        // Only the floor moves: nothing about deleting a download unpublishes
+        // the episode, and `latestEpisode` is what the indexes reported.
+        let after = rule(floor: 3, latest: 5).givingBack(episode: 3, stillCovered: [1, 2])
+        #expect(after?.minimumEpisode == 2)
+        #expect(after?.latestEpisode == 5)
     }
 
     @Test func aRuleThatHasMovedOnKeepsItsFloor() {

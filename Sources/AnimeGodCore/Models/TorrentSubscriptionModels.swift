@@ -126,16 +126,37 @@ public struct TorrentSubscription: Identifiable, Hashable, Sendable {
         self.lastMatchedAt = lastMatchedAt
     }
 
-    /// The episode the rule is waiting for.
+    /// The episode the rule is waiting for: the one after what it *has*,
+    /// not the one after what the world has published.
+    ///
+    /// The two agree for as long as a rule keeps up, and part the moment it
+    /// does not — an episode nobody seeded, one taken and then deleted, one
+    /// only another fansub published and the rule is still asking about.
+    /// Counting from `latestEpisode` then reads "waiting for EP 4" while
+    /// EP 3 is the episode missing, which is wrong twice over: on the page,
+    /// and in the numbered query `searchQueries()` builds from it, which
+    /// went looking for an episode nobody has published yet instead of the
+    /// one that is sitting there.
     public var nextEpisode: Double? {
-        if let latestEpisode { return latestEpisode + 1 }
-        return minimumEpisode.map { $0 + 1 }
+        if let minimumEpisode { return minimumEpisode + 1 }
+        return latestEpisode.map { $0 + 1 }
+    }
+
+    /// The episode being waited for is already out. The rule is behind the
+    /// schedule rather than ahead of it, so there is no date to wait for —
+    /// what it is waiting on is a release it can take.
+    public var isBehindWhatIsPublished: Bool {
+        guard let next = nextEpisode, let latestEpisode else { return false }
+        return next <= latestEpisode
     }
 
     /// When the next episode is due at the rhythm observed so far. Stepped
     /// forward past slots that have already gone by, so a late episode reads
     /// as "due now" rather than as a date last week.
     public func estimatedNextEpisodeAt(now: Date = .now) -> Date? {
+        // Nothing to estimate: the episode being waited for has been
+        // published and the wait is for a copy of it, not for a broadcast.
+        guard !isBehindWhatIsPublished else { return nil }
         guard let lastReleaseAt, let interval = averageIntervalSeconds, interval > 0 else { return nil }
         guard interval <= TorrentReleaseSchedule.maximumBroadcastInterval else { return nil }
         var next = lastReleaseAt.addingTimeInterval(interval)
@@ -564,17 +585,19 @@ extension TorrentSubscription {
     /// is the one the user just threw away, usually because nothing was
     /// seeding it, and the next check offering it again would be a loop.
     /// Another release of the same episode is what this reopens.
+    ///
+    /// Only the floor moves. `latestEpisode` is what has been *published*,
+    /// which deleting a download does not change — and with the floor back
+    /// where it belongs the page says "waiting for EP 3, already published",
+    /// which is the whole truth of the situation.
     public func givingBack(episode: Double, stillCovered: Set<Double>) -> TorrentSubscription? {
-        guard episode > 0 else { return nil }
-        guard minimumEpisode == episode || latestEpisode == episode else { return nil }
-        let below = stillCovered.filter { $0 < episode }.max()
+        guard episode > 0, minimumEpisode == episode else { return nil }
+        var updated = self
+        updated.minimumEpisode = stillCovered.filter { $0 < episode }.max()
             // Nothing left to count from: step back by one episode rather
             // than to nothing, or a rule with one download deleted would
             // start the season again from the beginning.
             ?? (episode > 1 ? episode - 1 : nil)
-        var updated = self
-        if minimumEpisode == episode { updated.minimumEpisode = below }
-        if latestEpisode == episode { updated.latestEpisode = below }
         return updated
     }
 }
