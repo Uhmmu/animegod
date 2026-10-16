@@ -312,8 +312,12 @@ written for that app works here unchanged.
   to a player, and the quick guess is used only if nothing better arrives.
 - Hotlink-protected streams are fetched with the referer the site expects,
   which is also what the player is given.
-- Nothing from here is added to your library, written to the database, or kept
-  after you close the window.
+- **The section is its own, and the watch record is shared.** An episode
+  watched here resumes where you left it, can be marked seen, and turns up in
+  the diary and the statistics beside everything else — filed under the rule's
+  name and the episode's page URL, which is the one thing about a stream that
+  does not change. Nothing else is shared: an online work has no files, so it
+  stays out of the library grid and the Continue Watching shelf.
 
 </details>
 
