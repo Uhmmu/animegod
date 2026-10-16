@@ -16838,6 +16838,54 @@
           }
         }
       }
+    },
+    "Finding the video was cancelled.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "動画の検索を中止しました。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已取消查找视频。"
+          }
+        }
+      }
+    },
+    "No video was found on that page.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このページで動画が見つかりませんでした。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个页面上没有找到视频。"
+          }
+        }
+      }
+    },
+    "The page did not give up a video within %lld seconds.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 秒以内にページから動画を取得できませんでした。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 秒内没能从这个页面取到视频。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

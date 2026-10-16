@@ -227,6 +227,17 @@ struct RootView: View {
             await LinkSmokeTest.run(model: model)
         }
         .task {
+            // Exercises the rule-based online sources end to end, headless:
+            //
+            //     AnimeGod -smokeOnlineSource "药师少女"
+            //
+            // Needs no library, so it does not wait for one: every step is
+            // against a live site, which is the half the core's own tests
+            // over captured pages cannot reach.
+            guard OnlineSourceSmokeTest.isRequested else { return }
+            await OnlineSourceSmokeTest.run()
+        }
+        .task {
             // Fills in every metadata source the library is missing, headless:
             //
             //     AnimeGod -smokeEnrichMetadata
