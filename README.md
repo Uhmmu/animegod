@@ -49,6 +49,7 @@ question **once** instead of at every launch.
 | 💬 **Danmaku** | dandanplay and Bilibili, merged, with filters and a comment manager |
 | 🈳 **Subtitles** | Finds and loads Chinese subtitles automatically when a release has none |
 | 🎤 **Concerts** | Live Blu-rays in their own section: setlist, hall, song timeline, grouped by band |
+| 🌐 **Online sources** | Watch straight from a streaming site: short XPath rules, every source searched at once |
 | 🧲 **Releases** | Ten anime indexes and five general ones at once, whole seasons assembled per fansub |
 | ⬇️ **Downloads** | Built-in BitTorrent engine, a season per folder, play while downloading, auto-unpack |
 | 🔔 **Subscriptions** | One click on an airing season; every episode after it arrives by itself |
@@ -61,6 +62,7 @@ question **once** instead of at every launch.
 [Library](#library) · [Metadata](#metadata) · [Concerts](#concerts) ·
 [Player](#player) ·
 [Danmaku](#danmaku-弹幕) · [Online subtitles](#online-subtitles-在线字幕) ·
+[Online sources](#online-sources) ·
 [Find releases](#find-releases) · [Downloads](#downloads) ·
 [Subscriptions](#subscriptions) · [Episode cache](#episode-cache) ·
 [iPhone](#iphone) ·
@@ -263,6 +265,55 @@ when it is confident. Otherwise a small badge offers the candidates.
 - Releases whose name says Chinese subtitles are burned in (`[CHT]`,
   `[简日内嵌]`) are skipped by default — a setting.
 - Keys live in AnimeGod's local settings file, not the Keychain.
+
+</details>
+
+## Online sources
+
+Sometimes the episode you want is on a site, not on your disk. An **online
+source** is a short rule — at most five XPath selectors and a URL — describing
+how one site lists its shows, so a site that renames, reshuffles or breaks is a
+rule update rather than an app update. Rules use the **Kazumi** format, so one
+written for that app works here unchanged.
+
+| | |
+|---|---|
+| 🔍 **One search, every source** | All installed rules answer at once, results grouped per site |
+| 🧩 **Rules, not code** | Install from the shared catalog, or paste one in as JSON or base64 |
+| 🎞 **Plays in the same player** | libmpv, with danmaku and subtitles as usual |
+| 🛣 **Every playback line** | A site's second and third upload are there when the first is down |
+
+- **The sources carry different shows**, and which one has this week's episode
+  is not knowable in advance — so a search goes to all of them and the results
+  stay grouped by site. The same show from two sites is two episode lists and
+  two streams, not a duplicate to fold away.
+- **Each source says what it did.** "Nothing found" is its own answer, not an
+  error: a site that has never carried a show is not a site you need to go and
+  fix. A rule whose selectors have gone stale says so instead.
+- **The stream is found by letting the page play.** A site assembles its video
+  URL in its own JavaScript, usually two iframes deep, so the episode page is
+  loaded in a headless browser and watched. That takes a few seconds, and the
+  episode says so while it happens.
+
+<details>
+<summary>Installing rules, and why the browser is not optional</summary>
+
+- **Settings → Online Sources** lists what is installed, installs from the
+  shared catalog, and updates what the catalog is ahead of. A rule can also be
+  pasted in as a JSON object, a list of them, or the base64 blob they get
+  shared as — and your installed rules can be copied back out the same way.
+- The catalog is a file on GitHub, which not every network can reach; the
+  browser offers a **mirror** when it cannot.
+- **A URL read out of the page is not good enough.** On one real episode the
+  page's own JSON carried a complete media URL that answers `401` to every
+  request, while the URL its player actually plays is the same path without the
+  port — and that one serves video. So candidates are ranked: a `<video>`
+  element's source or a playlist the page fetched wins over a URL merely handed
+  to a player, and the quick guess is used only if nothing better arrives.
+- Hotlink-protected streams are fetched with the referer the site expects,
+  which is also what the player is given.
+- Nothing from here is added to your library, written to the database, or kept
+  after you close the window.
 
 </details>
 
