@@ -18,9 +18,13 @@ let package = Package(
         // keeps the app's security-scoped folder access, which a spawned
         // helper would not inherit.
         .target(name: "CLibArchive", linkerSettings: [.linkedLibrary("archive")]),
+        // libxml2's HTML parser and XPath engine, which a source rule is
+        // written in. `XMLDocument` would do on the Mac and does not exist
+        // on iOS, and the core builds for both.
+        .target(name: "CLibXML2", linkerSettings: [.linkedLibrary("xml2")]),
         .target(
             name: "AnimeGodCore",
-            dependencies: [.product(name: "GRDB", package: "GRDB.swift"), "CLibArchive"],
+            dependencies: [.product(name: "GRDB", package: "GRDB.swift"), "CLibArchive", "CLibXML2"],
             // User-visible core strings (display names, errors) are looked
             // up in this catalog with `bundle: .module`. Xcode compiles it;
             // command-line `swift test` copies it as is and so falls back

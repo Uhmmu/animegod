@@ -256,6 +256,8 @@ snapshots are clean.
 | Seeding · peers | 做种 · 用户 | シード · ピア |
 | Subscriptions | 订阅 | 購読 |
 | Episode Cache | 剧集缓存 | エピソードキャッシュ |
+| Online source · rule | 在线源 · 规则 | オンラインソース · ルール |
+| Playback line (one upload of a work) | 播放线路 | 再生ライン |
 | Continue Watching | 继续观看 | 続きを見る |
 | Anime Diary | 观看日记 | 視聴日記 |
 | Shoutbox / Reviews / Discussions (Bangumi) | 吐槽 / 日志 / 讨论 | ひとこと / レビュー / ディスカッション |

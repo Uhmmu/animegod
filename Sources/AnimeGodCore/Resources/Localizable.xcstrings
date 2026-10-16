@@ -487,6 +487,22 @@
         }
       }
     },
+    "Episode %lld": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第%lld話"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第 %lld 集"
+          }
+        }
+      }
+    },
     "Episode not stated": {
       "localizations": {
         "ja": {
@@ -627,6 +643,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "最大"
+          }
+        }
+      }
+    },
+    "Line %lld": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再生ライン %lld"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "播放线路 %lld"
+          }
+        }
+      }
+    },
+    "Line %lld has no episodes": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再生ライン %lld に再生できる話がありません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "播放线路 %lld 没有可用剧集"
           }
         }
       }
@@ -919,6 +967,22 @@
         }
       }
     },
+    "Nothing found.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "什么都没找到。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "何も見つかりませんでした。"
+          }
+        }
+      }
+    },
     "Official site": {
       "localizations": {
         "ja": {
@@ -1123,6 +1187,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "发售日期"
+          }
+        }
+      }
+    },
+    "Result %lld has no link": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 件目の結果にリンクがありません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第 %lld 条结果没有链接"
+          }
+        }
+      }
+    },
+    "Result %lld has no name": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 件目の結果に名称がありません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第 %lld 条结果没有名称"
           }
         }
       }
@@ -1447,6 +1543,38 @@
         }
       }
     },
+    "The rule builds an address that is not valid.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "规则拼出的地址不合法。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ルールが組み立てたアドレスが不正です。"
+          }
+        }
+      }
+    },
+    "The rule has no %@.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "规则缺少 %@。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ルールに %@ がありません。"
+          }
+        }
+      }
+    },
     "The service answered HTTP %lld.": {
       "localizations": {
         "ja": {
@@ -1491,6 +1619,54 @@
           "stringUnit": {
             "state": "translated",
             "value": "服务返回了意外的响应。"
+          }
+        }
+      }
+    },
+    "The site answered %lld.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "站点返回了 %lld。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サイトが %lld を返しました。"
+          }
+        }
+      }
+    },
+    "The site answered with a verification page.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "站点返回了验证页面。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サイトが認証ページを返しました。"
+          }
+        }
+      }
+    },
+    "The site's answer could not be read.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "站点的返回内容无法解析。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サイトの応答を読み取れませんでした。"
           }
         }
       }
@@ -1609,6 +1785,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "本片文件"
+          }
+        }
+      }
+    },
+    "This rule needs a newer version of AnimeGod.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这条规则需要更新版本的 AnimeGod。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このルールは新しいバージョンの AnimeGod が必要です。"
           }
         }
       }
