@@ -8,6 +8,7 @@ private enum SidebarItem: String, Hashable, CaseIterable {
     case songs
     case bangumiCharts
     case releases
+    case online
     case rankings
     case diary
     case statistics
@@ -41,6 +42,10 @@ struct RootView: View {
                 Section("Discover") {
                     Label("Bangumi Charts", systemImage: "chart.bar.doc.horizontal").tag(SidebarItem.bangumiCharts)
                     Label("Find Releases", systemImage: "arrow.down.circle").tag(SidebarItem.releases)
+                    // Watching from a site rather than from this Mac. Under
+                    // Discover rather than Sources, because a source here is
+                    // somebody's website and nothing it plays is kept.
+                    Label("Online", systemImage: "globe").tag(SidebarItem.online)
                 }
                 Section("Personal") {
                     Label("My Rankings", systemImage: "list.number").tag(SidebarItem.rankings)
@@ -80,6 +85,12 @@ struct RootView: View {
                     case .bangumiCharts: BangumiChartsView()
                     case .releases: ReleaseSearchView(search: model.releaseSearch, downloads: model.downloads, subscriptions: model.subscriptions)
                             .navigationTitle("Find Releases")
+                    case .online:
+                        if let online = model.online {
+                            OnlineView(online: online)
+                        } else {
+                            ProgressView()
+                        }
                     case .rankings: RankingsView()
                     case .diary: DiaryView()
                     case .statistics: StatisticsView()
@@ -88,7 +99,7 @@ struct RootView: View {
                     case .downloads: DownloadsView(downloads: model.downloads)
                     case .seeding: SeedingView(downloads: model.downloads)
                     case .subscriptions: SubscriptionsView(subscriptions: model.subscriptions, downloads: model.downloads)
-                    case .settings: SettingsView(translation: model.translation, danmaku: model.danmakuPreferences, torrentSources: model.torrentSources, subtitles: model.subtitlePreferences, downloads: model.downloads, subscriptions: model.subscriptions, link: model.link, database: model.libraryDatabase)
+                    case .settings: SettingsView(translation: model.translation, danmaku: model.danmakuPreferences, torrentSources: model.torrentSources, subtitles: model.subtitlePreferences, downloads: model.downloads, subscriptions: model.subscriptions, link: model.link, online: model.online, database: model.libraryDatabase)
                     case nil: ContentUnavailableView("Choose a section", systemImage: "sidebar.left")
                     }
                 }

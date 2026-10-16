@@ -9,6 +9,8 @@ struct SettingsView: View {
     @ObservedObject var downloads: TorrentDownloadManager
     @ObservedObject var subscriptions: TorrentSubscriptionManager
     @ObservedObject var link: LinkServer
+    /// Nil until `AppModel.prepare()` has settled where rules are stored.
+    var online: OnlineCoordinator?
     let database: LibraryDatabase?
     @State private var savedFeedback = false
     @State private var danmakuSavedFeedback = false
@@ -148,6 +150,7 @@ struct SettingsView: View {
 
             downloadsSection
             subscriptionsSection
+            if let online { OnlineSourceSettings(online: online) }
             concertSourcesSection
 
             Section("Release Sources") {

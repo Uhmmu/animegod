@@ -242,6 +242,7 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
         startAutoCacheIfNeeded(for: file, playedFromCache: resolved.playedFromCache)
         loadDanmaku(for: file, url: resolved.url)
         loadSubtitles(for: file, url: resolved.url)
+        controller?.httpHeaders = directPlayback?.headers ?? [:]
         controller?.play(url: resolved.url, position: livePosition)
     }
 
@@ -289,6 +290,7 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
         didApplySubtitlePreference = false
         loadDanmaku(for: episode.mediaFile, url: url)
         loadSubtitles(for: episode.mediaFile, url: url)
+        controller?.httpHeaders = directPlayback?.headers ?? [:]
         controller?.play(url: url, position: position)
     }
 

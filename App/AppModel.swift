@@ -52,6 +52,14 @@ final class AppModel: ObservableObject {
     /// Local episode copies: auto-cached while playing from an external
     /// drive, manually cacheable, playable when the drive is unplugged.
     let episodeCache = EpisodeCacheStore()
+    /// The rule-based online sources. Observed directly by its own view
+    /// rather than republished through here: a search is twelve sites
+    /// answering independently, and nothing else should re-render each time
+    /// one of them replies.
+    ///
+    /// Created in `prepare()`, because it stores its rules beside the
+    /// library database and that path is settled there.
+    private(set) var online: OnlineCoordinator?
     /// The embedded BitTorrent engine and the downloads it is running.
     let downloads = TorrentDownloadManager()
     /// The concert section. Observed directly by the views that show it rather
@@ -286,10 +294,11 @@ final class AppModel: ObservableObject {
         )
     }
 
-    /// Plays a file straight from disk — a download in progress or one that
-    /// finished outside any library folder. The episode it carries is a
+    /// Plays something that is not in the library — a download in progress,
+    /// a file that finished outside any library folder, or a stream resolved
+    /// from an online source, which is what `headers` is for. The episode it carries is a
     /// stand-in for the player's UI only and is never saved.
-    func playFile(at url: URL, title: String, infoHash: String? = nil) {
+    func playFile(at url: URL, title: String, infoHash: String? = nil, headers: [String: String] = [:]) {
         let animeID = UUID()
         let episode = Episode(animeID: animeID, number: nil, title: title, sortIndex: 0)
         let file = MediaFile(
@@ -304,7 +313,9 @@ final class AppModel: ObservableObject {
             startIndex: 0,
             roots: roots,
             cache: nil,
-            directPlayback: PlayerRequest.DirectPlayback(url: url, title: title, infoHash: infoHash)
+            directPlayback: PlayerRequest.DirectPlayback(
+                url: url, title: title, infoHash: infoHash, headers: headers
+            )
         )
     }
 
@@ -1512,6 +1523,9 @@ final class AppModel: ObservableObject {
             try FileManager.default.createDirectory(at: applicationSupport, withIntermediateDirectories: true)
             let database = try LibraryDatabase(url: applicationSupport.appending(path: "library.sqlite"))
             self.database = database
+            let online = OnlineCoordinator(supportDirectory: applicationSupport)
+            self.online = online
+            await online.load()
             roots = try await database.libraryRoots()
             downloads.folders.updateLibraryRoots(roots)
             await episodeCache.prepare(database: database)
@@ -1696,6 +1710,9 @@ struct PlayerRequest: Identifiable {
         let url: URL
         let title: String
         let infoHash: String?
+        /// Headers the bytes have to be fetched with. Empty for a local
+        /// file; a scraped stream is usually behind a hotlink check.
+        var headers: [String: String] = [:]
     }
 
     let id = UUID()

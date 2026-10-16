@@ -183,6 +183,22 @@
         }
       }
     },
+    "%@ lists this work but no playable episodes. Its rule may be out of date.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ はこの作品を収録していますが、再生できる話がありません。ルールが古い可能性があります。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 收录了这部作品，但没有可播放的剧集。它的规则可能已经过期。"
+          }
+        }
+      }
+    },
     "%@ matched automatically (%lld%%) — use Change Match if it's wrong": {
       "localizations": {
         "en": {
@@ -314,6 +330,28 @@
         }
       }
     },
+    "%@ · %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@ · %2$lld"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · %lld"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · %lld"
+          }
+        }
+      }
+    },
     "%@ — read-only, re-pick to allow": {
       "localizations": {
         "ja": {
@@ -415,6 +453,60 @@
     "%lld": {
       "shouldTranslate": false
     },
+    "%lld BDs": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 枚の BD"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 张 BD"
+          }
+        }
+      }
+    },
+    "%lld card(s) merged into “%@”: %lld episode(s) moved and %lld joined episodes already there.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$lld card(s) merged into “%2$@”: %3$lld episode(s) moved and %4$lld joined episodes already there."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld 件のカードを「%2$@」に統合しました：%3$lld 話を移動し、%4$lld 話は既存のエピソードにまとめました。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已将 %1$lld 个条目合并到「%2$@」：移动了 %3$lld 集，另有 %4$lld 集并入已有的剧集。"
+          }
+        }
+      }
+    },
+    "%lld cards look like one work": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 件のカードが同じ作品のようです"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 个条目看起来是同一部作品"
+          }
+        }
+      }
+    },
     "%lld concerts": {
       "localizations": {
         "ja": {
@@ -497,6 +589,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld 条，分 %lld 张碟"
+          }
+        }
+      }
+    },
+    "%lld episode(s)": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 話"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 集"
           }
         }
       }
@@ -980,6 +1088,22 @@
         }
       }
     },
+    "%lld result(s)": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 件の結果"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 条结果"
+          }
+        }
+      }
+    },
     "%lld songs": {
       "localizations": {
         "ja": {
@@ -1277,6 +1401,54 @@
           "stringUnit": {
             "state": "translated",
             "value": "标有 [CHT] 或 [简日内嵌] 且没有中文字幕轨的资源，字幕是压制在画面里的。"
+          }
+        }
+      }
+    },
+    "A rule is shared as JSON, as a list of them, or as a base64 blob out of a chat message. Any of the three works.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ルールは JSON 単体、その配列、チャットからコピーした base64 のいずれでも読み込めます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "规则可以是一段 JSON、一组 JSON，或是从聊天里复制来的 base64，三种都认。"
+          }
+        }
+      }
+    },
+    "A source is a short rule describing how one site lists its shows — at most five selectors and a URL. Rules are shared in the format Kazumi uses, so one written for that app works here.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "オンラインソースとは、あるサイトが作品をどう並べているかを記した短いルールです（セレクタ 5 つと URL のみ）。Kazumi と同じ形式なので、あちら向けのルールもそのまま使えます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一个在线源就是一小段规则，描述某个站点怎么列出它的番剧——最多五条选择器加一个网址。规则沿用 Kazumi 的格式，所以给那个 App 写的规则在这里同样能用。"
+          }
+        }
+      }
+    },
+    "A source is a short rule describing how one site lists its shows. Install a few in Settings → Online Sources.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "オンラインソースとは、あるサイトが作品をどう並べているかを記した短いルールです。「設定 → オンラインソース」から追加してください。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一个在线源就是一小段规则，描述某个站点怎么列出它的番剧。到「设置 → 在线源」里装几个。"
           }
         }
       }
@@ -2004,6 +2176,22 @@
         }
       }
     },
+    "Appears on %lld BDs": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 枚の BD に収録"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "收录于 %lld 张 BD"
+          }
+        }
+      }
+    },
     "Applies to what a download gives back while it runs, and to finished releases when sharing is on": {
       "localizations": {
         "ja": {
@@ -2192,6 +2380,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "没有中文字幕时自动搜索中文字幕"
+          }
+        }
+      }
+    },
+    "BDs featuring this song": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この曲を収録した BD"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "收录这首歌曲的 BD"
+          }
+        }
+      }
+    },
+    "Back to Results": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "検索結果に戻る"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "返回结果"
           }
         }
       }
@@ -2576,6 +2796,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "两个弹幕池都会获取并合并；两边都有的弹幕只显示一次，保留弹弹play 的那条。"
+          }
+        }
+      }
+    },
+    "Browse Rules…": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ルールを見る…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "浏览规则…"
           }
         }
       }
@@ -3551,6 +3787,22 @@
         }
       }
     },
+    "Copy Installed Rules": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "導入済みルールをコピー"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制已装规则"
+          }
+        }
+      }
+    },
     "Copy Magnet Link": {
       "localizations": {
         "ja": {
@@ -3827,6 +4079,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "无法加载剧集缓存列表：%@"
+          }
+        }
+      }
+    },
+    "Could not merge “%@”: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Could not merge “%1$@”: %2$@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%1$@」を統合できませんでした：%2$@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法合并「%1$@」：%2$@"
           }
         }
       }
@@ -5614,6 +5888,22 @@
         }
       }
     },
+    "Every rule is already up to date.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "すべてのルールは最新です。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所有规则都已是最新。"
+          }
+        }
+      }
+    },
     "Everything the subscriptions have done this session": {
       "localizations": {
         "ja": {
@@ -6048,6 +6338,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在 %@ 上查找最接近的剧集…"
+          }
+        }
+      }
+    },
+    "Finding the video was cancelled.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "動画の検索を中止しました。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已取消查找视频。"
+          }
+        }
+      }
+    },
+    "Finding the video — the site's own player has to run first.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "動画を探しています — サイト側のプレーヤーを一度動かす必要があります。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在找视频——得先让站点自己的播放器跑一遍。"
           }
         }
       }
@@ -6764,6 +7086,22 @@
         }
       }
     },
+    "Import": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "読み込む"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导入"
+          }
+        }
+      }
+    },
     "Import Keys Saved in the Keychain": {
       "localizations": {
         "ja": {
@@ -6814,6 +7152,22 @@
         }
       }
     },
+    "Import…": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "読み込む…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导入…"
+          }
+        }
+      }
+    },
     "In Library": {
       "localizations": {
         "ja": {
@@ -6858,6 +7212,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "随碟附带"
+          }
+        }
+      }
+    },
+    "Install": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "追加"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "安装"
+          }
+        }
+      }
+    },
+    "Installed": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "追加済み"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已安装"
           }
         }
       }
@@ -7190,6 +7576,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "浅色"
+          }
+        }
+      }
+    },
+    "Line": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ライン"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "线路"
           }
         }
       }
@@ -7718,6 +8120,22 @@
         }
       }
     },
+    "Matched to the same entry: %@": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同じ作品にマッチしています：%@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "匹配到同一条目：%@"
+          }
+        }
+      }
+    },
     "Matches AnimeGod could not make on its own appear here. It looks for metadata by itself after every scan, so this fills in without being asked.": {
       "localizations": {
         "ja": {
@@ -7815,6 +8233,22 @@
         }
       }
     },
+    "Merge": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "統合"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "合并"
+          }
+        }
+      }
+    },
     "Merge Duplicate Comments": {
       "localizations": {
         "ja": {
@@ -7827,6 +8261,114 @@
           "stringUnit": {
             "state": "translated",
             "value": "合并重复弹幕"
+          }
+        }
+      }
+    },
+    "Merge Into Another Work": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "別の作品に統合"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "合并到另一部作品"
+          }
+        }
+      }
+    },
+    "Merge Into Another Work…": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "別の作品に統合…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "合并到另一部作品…"
+          }
+        }
+      }
+    },
+    "Merge Into “%@”": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」に統合"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "合并到「%@」"
+          }
+        }
+      }
+    },
+    "Merged": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "統合しました"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已合并"
+          }
+        }
+      }
+    },
+    "Merged “%@” into “%@”: %lld episode(s) moved and %lld joined episodes already there.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Merged “%1$@” into “%2$@”: %3$lld episode(s) moved and %4$lld joined episodes already there."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%1$@」を「%2$@」に統合しました：%3$lld 話を移動し、%4$lld 話は既存のエピソードにまとめました。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已将「%1$@」合并到「%2$@」：移动了 %3$lld 集，另有 %4$lld 集并入已有的剧集。"
+          }
+        }
+      }
+    },
+    "Merged “%@” into “%@”: %lld episode(s) moved.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Merged “%1$@” into “%2$@”: %3$lld episode(s) moved."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%1$@」を「%2$@」に統合しました：%3$lld 話を移動しました。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已将「%1$@」合并到「%2$@」：移动了 %3$lld 集。"
           }
         }
       }
@@ -7849,6 +8391,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "合并会把 %1$lld 秒内重复的弹幕只显示一次，并标上 ×N 计数。降低密度会均匀减少弹幕；重复 %2$lld 次及以上的弹幕总会保留。"
+          }
+        }
+      }
+    },
+    "Merging…": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "統合中…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在合并…"
           }
         }
       }
@@ -8313,6 +8871,22 @@
         }
       }
     },
+    "Needs a newer AnimeGod": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新しい AnimeGod が必要"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要更新版本的 AnimeGod"
+          }
+        }
+      }
+    },
     "Network error: %@": {
       "localizations": {
         "ja": {
@@ -8632,6 +9206,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "没有在线元数据"
+          }
+        }
+      }
+    },
+    "No Other Work Matches": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "該当する作品がありません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有匹配的其他作品"
           }
         }
       }
@@ -8957,6 +9547,22 @@
         }
       }
     },
+    "No episodes found": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "話が見つかりません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有找到剧集"
+          }
+        }
+      }
+    },
     "No fansub in these results published more than one numbered episode of the same shape. Batches are left out on purpose — switch to Releases to see them.": {
       "localizations": {
         "ja": {
@@ -9085,6 +9691,22 @@
         }
       }
     },
+    "No songs yet": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "楽曲がまだありません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂无歌曲"
+          }
+        }
+      }
+    },
     "No source has a release under %@.": {
       "localizations": {
         "ja": {
@@ -9162,6 +9784,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "没有任何来源会公布某首歌从哪里开始，所以这些时间是把公布的曲目时长和碟片自己的章节标记对齐算出来的。"
+          }
+        }
+      }
+    },
+    "No sources installed": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "オンラインソースがありません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还没有装在线源"
           }
         }
       }
@@ -9247,6 +9885,22 @@
         }
       }
     },
+    "No video was found on that page.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このページで動画が見つかりませんでした。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个页面上没有找到视频。"
+          }
+        }
+      }
+    },
     "Nobody published %@": {
       "localizations": {
         "ja": {
@@ -9275,6 +9929,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "无"
+          }
+        }
+      }
+    },
+    "None installed.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未追加です。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一个都没装。"
           }
         }
       }
@@ -9403,6 +10073,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "未开始（已到时限）"
+          }
+        }
+      }
+    },
+    "Not the Same": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "別の作品です"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不是同一部"
           }
         }
       }
@@ -9567,6 +10253,22 @@
         }
       }
     },
+    "Nothing on disk is renamed or moved.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ディスク上のファイルの名前変更や移動は行いません。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "磁盘上的文件不会被重命名，也不会被移动。"
+          }
+        }
+      }
+    },
     "Nothing to Review": {
       "localizations": {
         "ja": {
@@ -9627,6 +10329,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ 年还没有观看记录。"
+          }
+        }
+      }
+    },
+    "Nothing yet": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "まだ何もありません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还没有内容"
           }
         }
       }
@@ -9743,6 +10461,22 @@
         }
       }
     },
+    "Online Sources": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "オンラインソース"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在线源"
+          }
+        }
+      }
+    },
     "Online Subtitles": {
       "localizations": {
         "ja": {
@@ -9755,6 +10489,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "在线字幕"
+          }
+        }
+      }
+    },
+    "Online sources": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "オンラインソース"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在线源"
           }
         }
       }
@@ -9905,6 +10655,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "不透明度 %lld%%"
+          }
+        }
+      }
+    },
+    "Open BD": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BD を開く"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开 BD"
           }
         }
       }
@@ -10252,6 +11018,22 @@
         }
       }
     },
+    "Paste a rule": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ルールを貼り付け"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "粘贴规则"
+          }
+        }
+      }
+    },
     "Paste a setlist with times into this disc — for the concerts no source can place.": {
       "localizations": {
         "ja": {
@@ -10536,6 +11318,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "立即播放"
+          }
+        }
+      }
+    },
+    "Play Song": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "曲を再生"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "播放歌曲"
           }
         }
       }
@@ -11985,6 +12783,22 @@
         }
       }
     },
+    "Search ^[%lld installed source](inflect: true).": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "追加済みの %lld 件のソースを検索します。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜索已装的 %lld 个在线源。"
+          }
+        }
+      }
+    },
     "Search a season that is still airing under Find Releases, switch to Episode Sets, and press Subscribe. What is out downloads now; every episode after it arrives on its own, from the same fansub, into the same folder.": {
       "localizations": {
         "ja": {
@@ -12065,6 +12879,22 @@
         }
       }
     },
+    "Search by any name the work is known by — the folder's, or the one a metadata source gave it.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "作品が持つどの名前でも検索できます——フォルダの名前でも、メタデータソースが付けた名前でも。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可以用这部作品的任意名称来搜索——文件夹的名字，或者某个元数据来源给它的名字。"
+          }
+        }
+      }
+    },
     "Search comments": {
       "localizations": {
         "ja": {
@@ -12093,6 +12923,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "搜索这一集的所有弹幕。"
+          }
+        }
+      }
+    },
+    "Search every source": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "すべてのソースを検索"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜索所有在线源"
           }
         }
       }
@@ -12130,6 +12976,38 @@
       }
     },
     "Search library": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ライブラリを検索"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜索资料库"
+          }
+        }
+      }
+    },
+    "Search songs, artists or BDs": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "楽曲・アーティスト・BD を検索"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜索歌曲、艺人或 BD"
+          }
+        }
+      }
+    },
+    "Search the Library": {
       "localizations": {
         "ja": {
           "stringUnit": {
@@ -12880,6 +13758,38 @@
         }
       }
     },
+    "Song": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "楽曲"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "歌曲"
+          }
+        }
+      }
+    },
+    "Song no longer in the library": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この曲はライブラリにありません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这首歌曲已不在资料库中"
+          }
+        }
+      }
+    },
     "Songs": {
       "localizations": {
         "ja": {
@@ -12892,6 +13802,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "歌曲"
+          }
+        }
+      }
+    },
+    "Songs from your concert setlists appear here. Identify a BD or paste its song timeline on the concert page.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ライブのセットリストにある曲がここに表示されます。BD を識別するか、公演ページで曲のタイムラインを貼り付けてください。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这里汇总演唱会曲目。识别 BD，或在演唱会详情页粘贴歌曲时间轴，即可加入歌曲。"
           }
         }
       }
@@ -13670,6 +14596,38 @@
         }
       }
     },
+    "That is not a source rule AnimeGod can read.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "これは AnimeGod が読めるソースルールではありません。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这不是 AnimeGod 能读的源规则。"
+          }
+        }
+      }
+    },
+    "The catalog is a file on GitHub, which is not reachable from every network. Try the mirror, or import a rule by hand.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ルール一覧は GitHub 上のファイルで、ネットワークによっては到達できません。ミラーを試すか、手動で読み込んでください。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "规则仓库是 GitHub 上的一个文件，不是每个网络都能连上。可以换镜像，或者手动导入一条规则。"
+          }
+        }
+      }
+    },
     "The catalogue number, the label, the barcode and the shape of the box. Without a key its search answers 200 with nothing at all, which looks exactly like “no such release”.": {
       "localizations": {
         "ja": {
@@ -13814,6 +14772,22 @@
         }
       }
     },
+    "The page did not give up a video within %lld seconds.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 秒以内にページから動画を取得できませんでした。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 秒内没能从这个页面取到视频。"
+          }
+        }
+      }
+    },
     "The player window always stays dark.": {
       "localizations": {
         "ja": {
@@ -13826,6 +14800,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "播放器窗口始终保持深色。"
+          }
+        }
+      }
+    },
+    "The rule catalog could not be reached": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ルール一覧に接続できません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连不上规则仓库"
+          }
+        }
+      }
+    },
+    "The rule catalog could not be reached: %@": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ルール一覧に接続できません：%@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连不上规则仓库：%@"
           }
         }
       }
@@ -13970,6 +14976,60 @@
           "stringUnit": {
             "state": "translated",
             "value": "这条记录保存的时候还没有逐字段记来源。重新查一次就会记上。"
+          }
+        }
+      }
+    },
+    "This rule is written for schema %@; this build reads %lld.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "This rule is written for schema %1$@; this build reads %2$lld."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このルールはスキーマ %@ 向けです。このビルドが読めるのは %lld までです。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这条规则按 %@ 版规则格式写的，当前版本只能读到 %lld。"
+          }
+        }
+      }
+    },
+    "This rule needs a newer version of AnimeGod.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このルールは新しいバージョンの AnimeGod が必要です。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这条规则需要更新版本的 AnimeGod。"
+          }
+        }
+      }
+    },
+    "This source has nothing for that search.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このソースには該当する結果がありません。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个源没有搜到东西。"
           }
         }
       }
@@ -14438,6 +15498,22 @@
         }
       }
     },
+    "Try the Mirror": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ミラーを試す"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "试试镜像"
+          }
+        }
+      }
+    },
     "Turn on at least one release source in Settings.": {
       "localizations": {
         "ja": {
@@ -14712,6 +15788,60 @@
           "stringUnit": {
             "state": "translated",
             "value": "已将“%1$@”解压到 %2$@。"
+          }
+        }
+      }
+    },
+    "Update": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新"
+          }
+        }
+      }
+    },
+    "Update All": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "すべて更新"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全部更新"
+          }
+        }
+      }
+    },
+    "Updated %lld; %lld failed.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Updated %1$lld; %2$lld failed."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 件を更新、%lld 件が失敗しました。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新了 %lld 条，%lld 条失败。"
           }
         }
       }
@@ -15330,6 +16460,38 @@
         }
       }
     },
+    "^[%lld rule](inflect: true) in the file could not be read.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ファイル内の %lld 件のルールを読み取れませんでした。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文件里有 %lld 条规则读不出来。"
+          }
+        }
+      }
+    },
+    "^[%lld rule](inflect: true) in the rules file could not be read and was left alone.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ルールファイル内の %lld 件を読み取れなかったため、そのまま残しました。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "规则文件里有 %lld 条读不出来，已原样保留。"
+          }
+        }
+      }
+    },
     "assrt.net API token": {
       "localizations": {
         "ja": {
@@ -15784,6 +16946,44 @@
         }
       }
     },
+    "v%@": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v%@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v%@"
+          }
+        }
+      }
+    },
+    "v%@ · updated %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "v%1$@ · updated %2$@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v%@ · %@に更新"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v%@ · %@更新"
+          }
+        }
+      }
+    },
     "watched": {
       "localizations": {
         "ja": {
@@ -16087,6 +17287,28 @@
     "“%@”": {
       "shouldTranslate": false
     },
+    "“%@” could not be installed: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "“%1$@” could not be installed: %2$@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」を追加できませんでした：%@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」安装失败：%@"
+          }
+        }
+      }
+    },
     "“%@” has finished, but its files are no longer where it left them. It is paused rather than downloaded again — move them back, or resume it to fetch them afresh.": {
       "localizations": {
         "ja": {
@@ -16231,6 +17453,38 @@
         }
       }
     },
+    "“%@” needs a newer version of AnimeGod.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」には新しいバージョンの AnimeGod が必要です。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」需要更新版本的 AnimeGod。"
+          }
+        }
+      }
+    },
+    "“%@” will be dissolved. Its episodes, files, watch history, downloads and subscriptions move to the work you pick, and its card disappears.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」は解消されます。エピソード、ファイル、視聴履歴、ダウンロード、購読はすべて選んだ作品へ移り、このカードはなくなります。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」将被解散。它的剧集、文件、观看记录、下载任务和订阅都会转移到你选中的作品，它的卡片随之消失。"
+          }
+        }
+      }
+    },
     "“%@” will stop checking for new episodes. Downloads it already started are kept.": {
       "localizations": {
         "ja": {
@@ -16347,542 +17601,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "“%1$@”：没有新内容（检查了 %2$lld 个资源）"
-          }
-        }
-      }
-    },
-    "Song": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "歌曲"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "楽曲"
-          }
-        }
-      }
-    },
-    "No songs yet": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "暂无歌曲"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "楽曲がまだありません"
-          }
-        }
-      }
-    },
-    "Songs from your concert setlists appear here. Identify a BD or paste its song timeline on the concert page.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "这里汇总演唱会曲目。识别 BD，或在演唱会详情页粘贴歌曲时间轴，即可加入歌曲。"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ライブのセットリストにある曲がここに表示されます。BD を識別するか、公演ページで曲のタイムラインを貼り付けてください。"
-          }
-        }
-      }
-    },
-    "Search songs, artists or BDs": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "搜索歌曲、艺人或 BD"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "楽曲・アーティスト・BD を検索"
-          }
-        }
-      }
-    },
-    "%lld BDs": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld 张 BD"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld 枚の BD"
-          }
-        }
-      }
-    },
-    "Appears on %lld BDs": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "收录于 %lld 张 BD"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld 枚の BD に収録"
-          }
-        }
-      }
-    },
-    "BDs featuring this song": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "收录这首歌曲的 BD"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "この曲を収録した BD"
-          }
-        }
-      }
-    },
-    "Open BD": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "打开 BD"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "BD を開く"
-          }
-        }
-      }
-    },
-    "Play Song": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "播放歌曲"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "曲を再生"
-          }
-        }
-      }
-    },
-    "Song no longer in the library": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "这首歌曲已不在资料库中"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "この曲はライブラリにありません"
-          }
-        }
-      }
-    },
-    "%lld card(s) merged into “%@”: %lld episode(s) moved and %lld joined episodes already there.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "new",
-            "value": "%1$lld card(s) merged into “%2$@”: %3$lld episode(s) moved and %4$lld joined episodes already there."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$lld 件のカードを「%2$@」に統合しました：%3$lld 話を移動し、%4$lld 話は既存のエピソードにまとめました。"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已将 %1$lld 个条目合并到「%2$@」：移动了 %3$lld 集，另有 %4$lld 集并入已有的剧集。"
-          }
-        }
-      }
-    },
-    "%lld cards look like one work": {
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld 件のカードが同じ作品のようです"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld 个条目看起来是同一部作品"
-          }
-        }
-      }
-    },
-    "%lld episode(s)": {
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld 話"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld 集"
-          }
-        }
-      }
-    },
-    "Could not merge “%@”: %@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "new",
-            "value": "Could not merge “%1$@”: %2$@"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "「%1$@」を統合できませんでした：%2$@"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "无法合并「%1$@」：%2$@"
-          }
-        }
-      }
-    },
-    "Matched to the same entry: %@": {
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "同じ作品にマッチしています：%@"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "匹配到同一条目：%@"
-          }
-        }
-      }
-    },
-    "Merge": {
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "統合"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "合并"
-          }
-        }
-      }
-    },
-    "Merge Into Another Work": {
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "別の作品に統合"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "合并到另一部作品"
-          }
-        }
-      }
-    },
-    "Merge Into Another Work…": {
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "別の作品に統合…"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "合并到另一部作品…"
-          }
-        }
-      }
-    },
-    "Merge Into “%@”": {
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "「%@」に統合"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "合并到「%@」"
-          }
-        }
-      }
-    },
-    "Merged": {
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "統合しました"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已合并"
-          }
-        }
-      }
-    },
-    "Merged “%@” into “%@”: %lld episode(s) moved and %lld joined episodes already there.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "new",
-            "value": "Merged “%1$@” into “%2$@”: %3$lld episode(s) moved and %4$lld joined episodes already there."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "「%1$@」を「%2$@」に統合しました：%3$lld 話を移動し、%4$lld 話は既存のエピソードにまとめました。"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已将「%1$@」合并到「%2$@」：移动了 %3$lld 集，另有 %4$lld 集并入已有的剧集。"
-          }
-        }
-      }
-    },
-    "Merged “%@” into “%@”: %lld episode(s) moved.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "new",
-            "value": "Merged “%1$@” into “%2$@”: %3$lld episode(s) moved."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "「%1$@」を「%2$@」に統合しました：%3$lld 話を移動しました。"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已将「%1$@」合并到「%2$@」：移动了 %3$lld 集。"
-          }
-        }
-      }
-    },
-    "Merging…": {
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "統合中…"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在合并…"
-          }
-        }
-      }
-    },
-    "No Other Work Matches": {
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "該当する作品がありません"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "没有匹配的其他作品"
-          }
-        }
-      }
-    },
-    "Not the Same": {
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "別の作品です"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "不是同一部"
-          }
-        }
-      }
-    },
-    "Nothing on disk is renamed or moved.": {
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ディスク上のファイルの名前変更や移動は行いません。"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "磁盘上的文件不会被重命名，也不会被移动。"
-          }
-        }
-      }
-    },
-    "Search by any name the work is known by — the folder's, or the one a metadata source gave it.": {
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "作品が持つどの名前でも検索できます——フォルダの名前でも、メタデータソースが付けた名前でも。"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "可以用这部作品的任意名称来搜索——文件夹的名字，或者某个元数据来源给它的名字。"
-          }
-        }
-      }
-    },
-    "Search the Library": {
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ライブラリを検索"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "搜索资料库"
-          }
-        }
-      }
-    },
-    "“%@” will be dissolved. Its episodes, files, watch history, downloads and subscriptions move to the work you pick, and its card disappears.": {
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "「%@」は解消されます。エピソード、ファイル、視聴履歴、ダウンロード、購読はすべて選んだ作品へ移り、このカードはなくなります。"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "「%@」将被解散。它的剧集、文件、观看记录、下载任务和订阅都会转移到你选中的作品，它的卡片随之消失。"
-          }
-        }
-      }
-    },
-    "Finding the video was cancelled.": {
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "動画の検索を中止しました。"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已取消查找视频。"
-          }
-        }
-      }
-    },
-    "No video was found on that page.": {
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "このページで動画が見つかりませんでした。"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "这个页面上没有找到视频。"
-          }
-        }
-      }
-    },
-    "The page did not give up a video within %lld seconds.": {
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld 秒以内にページから動画を取得できませんでした。"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld 秒内没能从这个页面取到视频。"
           }
         }
       }

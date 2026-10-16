@@ -583,6 +583,31 @@ final class MPVPlayerController: NSViewController {
         }
     }
 
+    /// Headers every HTTP request for the current file carries.
+    ///
+    /// A stream scraped off a site is usually behind a hotlink check, and
+    /// what satisfies it is the referer a browser on that page would have
+    /// sent — measured: one CDN here answers 401 without it. Set before
+    /// `play`, and applied on every load, so a renderer rebuild (which
+    /// reloads the file) does not drop them.
+    var httpHeaders: [String: String] = [:]
+
+    /// Applied as a property rather than a startup option, because mpv is
+    /// already initialized by the time a stream is chosen. The list is
+    /// comma-separated with no escaping, so a value containing a comma is
+    /// dropped rather than sent as two broken headers.
+    private func applyHTTPHeaders() {
+        guard !httpHeaders.isEmpty else {
+            setString("http-header-fields", "")
+            return
+        }
+        let fields = httpHeaders
+            .filter { !$0.value.contains(",") }
+            .sorted { $0.key < $1.key }
+            .map { "\($0.key): \($0.value)" }
+        setString("http-header-fields", fields.joined(separator: ","))
+    }
+
     /// The folder handed to libbluray for an unpacked Blu-ray. Kept apart from
     /// `currentURL`, which stays the path the library knows the disc by — a
     /// renderer rebuild reloads from `currentURL` and would otherwise point
@@ -592,6 +617,7 @@ final class MPVPlayerController: NSViewController {
     private func loadWithMPV(url: URL, position: Double) {
         if mpv == nil { setupMPV() }
         guard mpv != nil else { return }
+        applyHTTPHeaders()
         var options: [String] = []
         if position > 0 { options.append("start=\(position)") }
         if currentDiscImageKind == .blurayDisc {
