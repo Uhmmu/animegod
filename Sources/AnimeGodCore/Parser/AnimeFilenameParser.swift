@@ -331,6 +331,13 @@ public struct AnimeFilenameParser: Sendable {
         for pattern in noisePatterns {
             result = result.replacingOccurrences(of: pattern, with: " ", options: .regularExpression)
         }
+        // Which subtitle languages the release carries is not part of the
+        // work's name, and leaving it on splits one show into one work per
+        // team: `[UHA-WINGS][…][CHS_JP&CHT_JP].mkv` and
+        // `[Studio GreenTea] … [JPSC].mp4` in one folder were two works.
+        // Before the brackets are flattened, because a group that is nothing
+        // but a tag is the common case and the safest one to recognise.
+        result = SubtitleLanguageTag.removingTags(from: result)
         result = result.replacingOccurrences(of: #"[\[\](){}]+"#, with: " ", options: .regularExpression)
         result = result.replacingOccurrences(of: #"\s*[-–—]\s*$"#, with: "", options: .regularExpression)
         result = result.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
@@ -366,6 +373,7 @@ public struct AnimeFilenameParser: Sendable {
         let technical = #"(?i)(?:^|[^a-z0-9])(?:4k|hdr|uhd|2160p?|1080p?|720p?|480p?|bd(?:rip)?|blu-?ray|web(?:-?dl)?|hevc|x26[45]|avc|av1|10bit|ma10p|flac|aac|ddp|dts|mkv|mp4|chs|cht|jpn|eng|gb|简繁|字幕|外挂|内封)(?:[^a-z0-9]|$)"#
         // "前篇+后篇"-style bracket labels describe the release set, not a work.
         let partSet = ["前篇", "前編", "后篇", "後編", "上巻", "下巻", "上卷", "下卷"]
+        if SubtitleLanguageTag.isTag(value) { return true }
         return folded.range(of: technical, options: .regularExpression) != nil ||
             partSet.contains { folded.contains($0) } ||
             folded.contains("www.") || folded.contains(".com") || folded.contains("首发") || folded.contains("更多")

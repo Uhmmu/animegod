@@ -22,7 +22,10 @@ struct AnimeFilenameParserTests {
 
     @Test func parsesChineseSeasonAndEpisode() {
         let result = parser.parse(url: URL(fileURLWithPath: "/Anime/动画名称 第三季 第16集 简繁日内封 1080p HEVC.mkv"))
-        #expect(result.title == "动画名称 简繁日内封")
+        // 简繁日内封 says which subtitles the file carries. This expectation
+        // used to keep it, and keeping it is what filed one show once per
+        // fansub team.
+        #expect(result.title == "动画名称")
         #expect(result.season == 3)
         #expect(result.episode == 16)
     }
