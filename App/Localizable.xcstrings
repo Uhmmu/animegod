@@ -16510,6 +16510,334 @@
           }
         }
       }
+    },
+    "%lld card(s) merged into “%@”: %lld episode(s) moved and %lld joined episodes already there.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$lld card(s) merged into “%2$@”: %3$lld episode(s) moved and %4$lld joined episodes already there."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld 件のカードを「%2$@」に統合しました：%3$lld 話を移動し、%4$lld 話は既存のエピソードにまとめました。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已将 %1$lld 个条目合并到「%2$@」：移动了 %3$lld 集，另有 %4$lld 集并入已有的剧集。"
+          }
+        }
+      }
+    },
+    "%lld cards look like one work": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 件のカードが同じ作品のようです"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 个条目看起来是同一部作品"
+          }
+        }
+      }
+    },
+    "%lld episode(s)": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 話"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 集"
+          }
+        }
+      }
+    },
+    "Could not merge “%@”: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Could not merge “%1$@”: %2$@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%1$@」を統合できませんでした：%2$@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法合并「%1$@」：%2$@"
+          }
+        }
+      }
+    },
+    "Matched to the same entry: %@": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同じ作品にマッチしています：%@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "匹配到同一条目：%@"
+          }
+        }
+      }
+    },
+    "Merge": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "統合"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "合并"
+          }
+        }
+      }
+    },
+    "Merge Into Another Work": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "別の作品に統合"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "合并到另一部作品"
+          }
+        }
+      }
+    },
+    "Merge Into Another Work…": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "別の作品に統合…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "合并到另一部作品…"
+          }
+        }
+      }
+    },
+    "Merge Into “%@”": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」に統合"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "合并到「%@」"
+          }
+        }
+      }
+    },
+    "Merged": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "統合しました"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已合并"
+          }
+        }
+      }
+    },
+    "Merged “%@” into “%@”: %lld episode(s) moved and %lld joined episodes already there.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Merged “%1$@” into “%2$@”: %3$lld episode(s) moved and %4$lld joined episodes already there."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%1$@」を「%2$@」に統合しました：%3$lld 話を移動し、%4$lld 話は既存のエピソードにまとめました。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已将「%1$@」合并到「%2$@」：移动了 %3$lld 集，另有 %4$lld 集并入已有的剧集。"
+          }
+        }
+      }
+    },
+    "Merged “%@” into “%@”: %lld episode(s) moved.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Merged “%1$@” into “%2$@”: %3$lld episode(s) moved."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%1$@」を「%2$@」に統合しました：%3$lld 話を移動しました。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已将「%1$@」合并到「%2$@」：移动了 %3$lld 集。"
+          }
+        }
+      }
+    },
+    "Merging…": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "統合中…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在合并…"
+          }
+        }
+      }
+    },
+    "No Other Work Matches": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "該当する作品がありません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有匹配的其他作品"
+          }
+        }
+      }
+    },
+    "Not the Same": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "別の作品です"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不是同一部"
+          }
+        }
+      }
+    },
+    "Nothing on disk is renamed or moved.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ディスク上のファイルの名前変更や移動は行いません。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "磁盘上的文件不会被重命名，也不会被移动。"
+          }
+        }
+      }
+    },
+    "Search by any name the work is known by — the folder's, or the one a metadata source gave it.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "作品が持つどの名前でも検索できます——フォルダの名前でも、メタデータソースが付けた名前でも。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可以用这部作品的任意名称来搜索——文件夹的名字，或者某个元数据来源给它的名字。"
+          }
+        }
+      }
+    },
+    "Search the Library": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ライブラリを検索"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜索资料库"
+          }
+        }
+      }
+    },
+    "“%@” will be dissolved. Its episodes, files, watch history, downloads and subscriptions move to the work you pick, and its card disappears.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」は解消されます。エピソード、ファイル、視聴履歴、ダウンロード、購読はすべて選んだ作品へ移り、このカードはなくなります。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」将被解散。它的剧集、文件、观看记录、下载任务和订阅都会转移到你选中的作品，它的卡片随之消失。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

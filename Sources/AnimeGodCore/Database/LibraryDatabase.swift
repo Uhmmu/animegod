@@ -249,6 +249,251 @@ public actor LibraryDatabase {
         )
     }
 
+    /// Folds one work into another and dissolves it: the same show, filed
+    /// twice because two teams named its folder differently.
+    ///
+    /// `migrateIdentity` is the other half of this and was written for a
+    /// different situation — a work that *lost* all its files to a rename, so
+    /// only its bindings and history needed a new home. Here both rows hold
+    /// files, which is everything this has to do that the other does not:
+    /// episodes move, two teams' episode 1 is **one** episode with two files
+    /// rather than a collision on `(animeID, identityKey)`, and the rows that
+    /// merely point at an anime — the downloads, the subscription, the
+    /// subtitles the player cached — have to come along or the season goes on
+    /// downloading into a card that no longer exists.
+    ///
+    /// Nothing on disk is touched. The files stay where they are, under the
+    /// folder names the teams chose; this moves rows, and a rescan afterwards
+    /// finds the same files already filed under the one work.
+    @discardableResult
+    public func mergeWork(_ sourceID: UUID, into targetID: UUID) throws -> WorkMergeSummary {
+        guard sourceID != targetID else { return WorkMergeSummary() }
+        return try database.write { db in
+            let source = sourceID.uuidString
+            let target = targetID.uuidString
+            guard try Bool.fetchOne(db, sql: "SELECT EXISTS(SELECT 1 FROM anime WHERE id = ?)", arguments: [source]) == true,
+                  try Bool.fetchOne(db, sql: "SELECT EXISTS(SELECT 1 FROM anime WHERE id = ?)", arguments: [target]) == true
+            else {
+                throw DatabaseError(message: "cannot merge: one of the works is not in the library")
+            }
+            var summary = WorkMergeSummary()
+
+            summary.providerLinksMoved = try Int.fetchOne(db, sql: """
+                SELECT COUNT(*) FROM externalAnimeID
+                WHERE animeID = ? AND provider NOT IN (SELECT provider FROM externalAnimeID WHERE animeID = ?)
+                """, arguments: [source, target]) ?? 0
+            summary.adoptedProfile = try Bool.fetchOne(db, sql: """
+                SELECT EXISTS(SELECT 1 FROM animeProfile WHERE animeID = ?)
+                   AND NOT EXISTS(SELECT 1 FROM animeProfile WHERE animeID = ?)
+                """, arguments: [source, target]) ?? false
+            summary.watchEventsMoved = try Int.fetchOne(
+                db, sql: "SELECT COUNT(*) FROM watchEvent WHERE animeID = ?", arguments: [source]
+            ) ?? 0
+
+            // Episodes first, and before anything is deleted: a watch event
+            // points at an episode with `ON DELETE SET NULL`, so dropping the
+            // source's episode 1 before its events are repointed would erase
+            // the diary entry rather than move it.
+            let episodes = try Row.fetchAll(
+                db,
+                sql: "SELECT id, identityKey FROM episode WHERE animeID = ?",
+                arguments: [source]
+            )
+            for row in episodes {
+                let episodeID: String = row["id"]
+                let identity: String = row["identityKey"]
+                guard let twin = try String.fetchOne(
+                    db,
+                    sql: "SELECT id FROM episode WHERE animeID = ? AND identityKey = ?",
+                    arguments: [target, identity]
+                ) else {
+                    try db.execute(
+                        sql: "UPDATE episode SET animeID = ? WHERE id = ?",
+                        arguments: [target, episodeID]
+                    )
+                    summary.episodesMoved += 1
+                    summary.mediaFilesMoved += try Int.fetchOne(
+                        db, sql: "SELECT COUNT(*) FROM mediaFile WHERE episodeID = ?", arguments: [episodeID]
+                    ) ?? 0
+                    continue
+                }
+                // The target already has this episode, from the other team.
+                // One episode with two files is a shape the library already
+                // understands — it is how a DoVi and an SDR encode of one
+                // film are filed — so the files move onto it and the
+                // duplicate row is dissolved.
+                summary.mediaFilesMoved += try Int.fetchOne(
+                    db, sql: "SELECT COUNT(*) FROM mediaFile WHERE episodeID = ?", arguments: [episodeID]
+                ) ?? 0
+                try db.execute(
+                    sql: "UPDATE mediaFile SET episodeID = ? WHERE episodeID = ?",
+                    arguments: [twin, episodeID]
+                )
+                // The further-along position wins, exactly as it does when a
+                // file moves between works during a scan. Watched never goes
+                // back down: `MAX` of the two flags.
+                try db.execute(sql: """
+                    INSERT INTO playbackProgress (episodeID, position, duration, updatedAt, isWatched)
+                    SELECT ?, position, duration, updatedAt, isWatched FROM playbackProgress WHERE episodeID = ?
+                    ON CONFLICT(episodeID) DO UPDATE SET
+                        position = CASE WHEN excluded.updatedAt > playbackProgress.updatedAt THEN excluded.position ELSE playbackProgress.position END,
+                        duration = CASE WHEN excluded.updatedAt > playbackProgress.updatedAt THEN excluded.duration ELSE playbackProgress.duration END,
+                        updatedAt = MAX(excluded.updatedAt, playbackProgress.updatedAt),
+                        isWatched = MAX(excluded.isWatched, playbackProgress.isWatched)
+                    """, arguments: [twin, episodeID])
+                try db.execute(
+                    sql: "UPDATE watchEvent SET episodeID = ? WHERE episodeID = ?",
+                    arguments: [twin, episodeID]
+                )
+                // A concert's song timeline belongs to the disc it was
+                // aligned against, so the target's own is never overwritten.
+                try db.execute(sql: """
+                    INSERT INTO concertSetlist (episodeID, method, confidence, placements, chapters, isManual, updatedAt)
+                    SELECT ?, method, confidence, placements, chapters, isManual, updatedAt
+                    FROM concertSetlist WHERE episodeID = ?
+                    ON CONFLICT(episodeID) DO NOTHING
+                    """, arguments: [twin, episodeID])
+                try db.execute(sql: "DELETE FROM episode WHERE id = ?", arguments: [episodeID])
+                summary.episodesAbsorbed += 1
+            }
+
+            try Self.migrateIdentity(from: source, to: target, in: db)
+
+            // The rows that only point at a work. A download still running
+            // keeps its files and its folder — it is bound to a card, and
+            // deleting the card it is bound to is what made a subscription
+            // lose the season it was following.
+            summary.downloadsMoved = try Int.fetchOne(
+                db, sql: "SELECT COUNT(*) FROM torrentDownload WHERE animeID = ?", arguments: [source]
+            ) ?? 0
+            try db.execute(
+                sql: "UPDATE torrentDownload SET animeID = ? WHERE animeID = ?",
+                arguments: [target, source]
+            )
+            summary.subscriptionsMoved = try Int.fetchOne(
+                db, sql: "SELECT COUNT(*) FROM torrentSubscription WHERE animeID = ?", arguments: [source]
+            ) ?? 0
+            try db.execute(
+                sql: "UPDATE torrentSubscription SET animeID = ? WHERE animeID = ?",
+                arguments: [target, source]
+            )
+            summary.subtitlesMoved = try Int.fetchOne(
+                db, sql: "SELECT COUNT(*) FROM subtitleDownload WHERE animeID = ?", arguments: [source]
+            ) ?? 0
+            try db.execute(
+                sql: "UPDATE subtitleDownload SET animeID = ? WHERE animeID = ?",
+                arguments: [target, source]
+            )
+
+            // A concert record is one per work and holds a setlist somebody
+            // may have pasted in by hand, so it is taken only into a work
+            // that has none.
+            if try Bool.fetchOne(db, sql: """
+                SELECT EXISTS(SELECT 1 FROM concertRelease WHERE animeID = ?)
+                   AND NOT EXISTS(SELECT 1 FROM concertRelease WHERE animeID = ?)
+                """, arguments: [source, target]) == true {
+                try db.execute(
+                    sql: "UPDATE concertRelease SET animeID = ? WHERE animeID = ?",
+                    arguments: [target, source]
+                )
+                summary.adoptedConcertRelease = true
+            }
+
+            // A cover the viewer chose, and a kind the viewer declared, are
+            // statements — they outlive the row they were made on. Neither
+            // ever overwrites one already on the target.
+            if let poster = try String.fetchOne(db, sql: "SELECT posterPath FROM anime WHERE id = ?", arguments: [source]),
+               !poster.isEmpty,
+               (try String.fetchOne(db, sql: "SELECT posterPath FROM anime WHERE id = ?", arguments: [target]) ?? "").isEmpty {
+                try db.execute(
+                    sql: "UPDATE anime SET posterPath = ?, updatedAt = ? WHERE id = ?",
+                    arguments: [poster, Date.now, target]
+                )
+                summary.adoptedPoster = true
+            }
+            let sourceKind: String = try String.fetchOne(db, sql: "SELECT kind FROM anime WHERE id = ?", arguments: [source]) ?? AnimeKind.unknown.rawValue
+            let sourceKindIsManual = try Bool.fetchOne(db, sql: "SELECT kindIsManual FROM anime WHERE id = ?", arguments: [source]) ?? false
+            let targetKind: String = try String.fetchOne(db, sql: "SELECT kind FROM anime WHERE id = ?", arguments: [target]) ?? AnimeKind.unknown.rawValue
+            let targetKindIsManual = try Bool.fetchOne(db, sql: "SELECT kindIsManual FROM anime WHERE id = ?", arguments: [target]) ?? false
+            if sourceKind != targetKind,
+               sourceKind != AnimeKind.unknown.rawValue,
+               targetKind == AnimeKind.unknown.rawValue || (sourceKindIsManual && !targetKindIsManual) {
+                try db.execute(
+                    sql: "UPDATE anime SET kind = ?, kindIsManual = ?, updatedAt = ? WHERE id = ?",
+                    arguments: [sourceKind, sourceKindIsManual || targetKindIsManual, Date.now, target]
+                )
+                summary.adoptedKind = true
+            }
+
+            // The dissolved row's name, and every name already pointing at
+            // it, now point at the target. Recorded *before* the delete, so
+            // the aliases are read off the row while it is still there, and
+            // the cascade then takes the old alias rows with it.
+            if let row = try Row.fetchOne(
+                db, sql: "SELECT title, normalizedTitle FROM anime WHERE id = ?", arguments: [source]
+            ) {
+                try db.execute(sql: """
+                    INSERT INTO animeTitleAlias (normalizedTitle, animeID, title, mergedAt)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT(normalizedTitle) DO UPDATE SET animeID = excluded.animeID, mergedAt = excluded.mergedAt
+                    """, arguments: [row["normalizedTitle"] as String, target, row["title"] as String, Date.now])
+            }
+            // Merging A into B and then B into C has to leave A pointing at C,
+            // or the scan recreates A beside it.
+            try db.execute(
+                sql: "UPDATE animeTitleAlias SET animeID = ? WHERE animeID = ?",
+                arguments: [target, source]
+            )
+            // An alias for the surviving row's own name would be dead weight
+            // and a foot-gun if that row is ever renamed.
+            try db.execute(sql: """
+                DELETE FROM animeTitleAlias
+                WHERE normalizedTitle = (SELECT normalizedTitle FROM anime WHERE id = ?)
+                """, arguments: [target])
+
+            // Cascades through everything still hanging off it; by now that
+            // is only rows this deliberately left behind — a second profile,
+            // a provider the target already had.
+            try db.execute(sql: "DELETE FROM anime WHERE id = ?", arguments: [source])
+            return summary
+        }
+    }
+
+    /// Library rows the metadata providers say are one work.
+    ///
+    /// Read whole rather than filtered, because the answer is a set of groups
+    /// and a group is only a duplicate in the company of its siblings.
+    public func duplicateWorkGroups() throws -> [DuplicateWorkDetector.Group] {
+        try database.read { db in
+            let works = try Row.fetchAll(db, sql: """
+                SELECT anime.id AS id, anime.title AS title, anime.kind AS kind, anime.createdAt AS createdAt,
+                       (SELECT COUNT(*) FROM mediaFile
+                        JOIN episode ON episode.id = mediaFile.episodeID
+                        WHERE episode.animeID = anime.id) AS fileCount
+                FROM anime
+                """).compactMap { row -> DuplicateWorkDetector.Work? in
+                    guard let id = UUID(uuidString: row["id"]),
+                          let kind = AnimeKind(rawValue: row["kind"] as String)
+                    else { return nil }
+                    return DuplicateWorkDetector.Work(
+                        id: id,
+                        title: row["title"],
+                        kind: kind,
+                        fileCount: row["fileCount"],
+                        createdAt: row["createdAt"]
+                    )
+                }
+            let links = try Row.fetchAll(db, sql: "SELECT animeID, provider, externalID FROM externalAnimeID")
+                .compactMap { row -> DuplicateWorkDetector.Link? in
+                    guard let id = UUID(uuidString: row["animeID"]),
+                          let provider = MetadataProviderID(rawValue: row["provider"] as String)
+                    else { return nil }
+                    return DuplicateWorkDetector.Link(animeID: id, provider: provider, externalID: row["externalID"])
+                }
+            return DuplicateWorkDetector.groups(works: works, links: links)
+        }
+    }
+
     /// The anime a work is filed under, created if the library has never
     /// seen it.
     ///
@@ -1636,6 +1881,20 @@ public actor LibraryDatabase {
         if let id = try String.fetchOne(db, sql: "SELECT id FROM anime WHERE normalizedTitle = ?", arguments: [normalized]) {
             return id
         }
+        // A name a merge dissolved. Without this the next scan undoes the
+        // merge: both of the Kurumi titles are derived from files in *one*
+        // folder — the teams' `[JPSC]` and `[CHS_JP&CHT_JP]` tags end up in
+        // the title — so the row that was folded away is recreated by the
+        // same parse that created it the first time, and the work is two
+        // cards again. The same lesson as `kindIsManual`: a decision somebody
+        // made has to be remembered, not just acted on once.
+        if let id = try String.fetchOne(
+            db,
+            sql: "SELECT animeID FROM animeTitleAlias WHERE normalizedTitle = ?",
+            arguments: [normalized]
+        ) {
+            return id
+        }
         let id = UUID().uuidString
         try db.execute(
             sql: "INSERT INTO anime (id, title, normalizedTitle, sortTitle, kind, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -2249,6 +2508,25 @@ public actor LibraryDatabase {
             try db.alter(table: "anime") { table in
                 table.add(column: "kindIsManual", .boolean).notNull().defaults(to: false)
             }
+        }
+        migrator.registerMigration("v18_merged_work_titles") { db in
+            // The names a merge dissolved, so the next scan does not undo it.
+            //
+            // Two fansubs' episodes of one season sit in one folder, and the
+            // titles the parser derives from them differ only by the teams'
+            // own tags — `FX Senshi Kurumi-chan JPSC` against
+            // `FX Senshi Kurumi-chan CHS_JP&CHT_JP`. Merging the two rows is
+            // therefore not enough on its own: the parse that produced the
+            // second title produces it again on the next scan, and
+            // `findOrCreateAnime` would create the row a second time. It
+            // consults this first.
+            try db.create(table: "animeTitleAlias") { table in
+                table.column("normalizedTitle", .text).primaryKey()
+                table.column("animeID", .text).notNull().references("anime", onDelete: .cascade)
+                table.column("title", .text).notNull()
+                table.column("mergedAt", .datetime).notNull()
+            }
+            try db.create(index: "animeTitleAlias_anime", on: "animeTitleAlias", columns: ["animeID"])
         }
         return migrator
     }

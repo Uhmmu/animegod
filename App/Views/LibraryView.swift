@@ -31,6 +31,8 @@ struct LibraryView: View {
     @ObservedObject var downloads: TorrentDownloadManager
     @ObservedObject var subscriptions: TorrentSubscriptionManager
     @State private var searchText = ""
+    /// The work the merge sheet is about: the card that would be dissolved.
+    @State private var merging: Anime?
     @AppStorage(LibrarySortOrder.storageKey) private var sortOrder: LibrarySortOrder = .title
 
     /// The name shown on the card, which is the name the grid is ordered by.
@@ -280,6 +282,11 @@ struct LibraryView: View {
             Button("Move to Concerts") {
                 Task { await model.concertSection.markAsConcert(animeID: item.anime.id, manually: true) }
             }
+            // The same show split between two fansubs. Nothing automatic can
+            // see it: the two folder names differ by the teams' own subtitle
+            // tags, which is a real difference between two names and no
+            // difference at all between two works.
+            Button("Merge Into Another Work…") { merging = item.anime }
         }
     }
 
@@ -296,20 +303,32 @@ struct LibraryView: View {
                 }
             } else {
                 ScrollView {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 170), spacing: 18)], spacing: 24) {
-                        // Downloads sit above the shelves rather than inside
-                        // one: a work still arriving has no watch state yet.
-                        ForEach(incoming) { work in incomingCard(work) }
-                        if sortOrder == .watchStatus {
-                            ForEach(watchShelves) { shelf in
-                                Section {
-                                    ForEach(shelf.items) { item in libraryCard(item) }
-                                } header: {
-                                    shelfHeader(shelf)
+                    VStack(alignment: .leading, spacing: 18) {
+                        // What the providers noticed: two cards a source
+                        // matched to one subject. Above the grid rather than
+                        // in a sheet of its own — it is a fact about these
+                        // cards, and this is where they are — and outside the
+                        // grid because an adaptive `LazyVGrid` has no way to
+                        // span a row.
+                        ForEach(model.duplicateGroups) { group in
+                            DuplicateWorksBanner(group: group)
+                        }
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 170), spacing: 18)], spacing: 24) {
+                            // Downloads sit above the shelves rather than
+                            // inside one: a work still arriving has no watch
+                            // state yet.
+                            ForEach(incoming) { work in incomingCard(work) }
+                            if sortOrder == .watchStatus {
+                                ForEach(watchShelves) { shelf in
+                                    Section {
+                                        ForEach(shelf.items) { item in libraryCard(item) }
+                                    } header: {
+                                        shelfHeader(shelf)
+                                    }
                                 }
+                            } else {
+                                ForEach(filtered) { item in libraryCard(item) }
                             }
-                        } else {
-                            ForEach(filtered) { item in libraryCard(item) }
                         }
                     }
                     .padding(24)
@@ -321,6 +340,17 @@ struct LibraryView: View {
             }
         }
         .navigationTitle("All Anime")
+        .sheet(item: $merging) { anime in
+            MergeWorkView(source: anime)
+        }
+        .alert(
+            "Merged",
+            isPresented: Binding(get: { model.mergeReport != nil }, set: { if !$0 { model.mergeReport = nil } })
+        ) {
+            Button("OK") { model.mergeReport = nil }
+        } message: {
+            Text(model.mergeReport ?? "")
+        }
         .toolbar {
             ToolbarItem {
                 Picker("Sort By", selection: $sortOrder) {

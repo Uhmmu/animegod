@@ -927,7 +927,10 @@ final class TorrentDownloadManager: ObservableObject {
 
     // MARK: - Refreshing
 
-    private func reloadRecords() async {
+    /// Not private: a merge rewrites the `animeID` of every download bound
+    /// to the dissolved work, and a list holding the old binding shows a card
+    /// pointing at a row that is gone.
+    func reloadRecords() async {
         guard let database else { return }
         do {
             let stored = try await database.torrentDownloads()

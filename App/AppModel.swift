@@ -21,6 +21,13 @@ final class AppModel: ObservableObject {
     @Published private(set) var watchHistory: [WatchEvent] = []
     @Published private(set) var diarySummary = DiarySummary(totalWatchTime: 0, sessionCount: 0, completedEpisodeCount: 0, animeCount: 0)
     @Published private(set) var pendingMatches: [PendingMetadataMatch] = []
+    /// Library rows the metadata providers say are one work, waiting to be
+    /// offered. Never merged on their own: see `refreshDuplicateWorks()`.
+    @Published private(set) var duplicateGroups: [DuplicateWorkDetector.Group] = []
+    /// What the last merge moved. Shown once, as a confirmation rather than an
+    /// error — a merge is irreversible and the counts are the only account of
+    /// it.
+    @Published var mergeReport: String?
     /// Set when an automatic pass ended with matches it could not make on its
     /// own. RootView shows the review sheet off this.
     @Published var wantsMatchReview = false
@@ -665,6 +672,16 @@ final class AppModel: ObservableObject {
     }
     private static let askedMatchesKey = "metadata.askedMatches"
 
+    /// Duplicate groups the viewer said no to. Persisted for the same reason
+    /// the match review's dismissals are: this is checked after every
+    /// automatic metadata pass, and a provider that files two seasons under
+    /// one subject would otherwise raise the same question at every launch.
+    private var dismissedDuplicates: Set<String> {
+        get { Set(UserDefaults.standard.stringArray(forKey: Self.dismissedDuplicatesKey) ?? []) }
+        set { UserDefaults.standard.set(Array(newValue), forKey: Self.dismissedDuplicatesKey) }
+    }
+    private static let dismissedDuplicatesKey = "library.dismissedDuplicates"
+
     /// Anime rows for downloads that were linked in an earlier run, so their
     /// cards still open and still show a cover after a relaunch.
     func loadIncomingAnime(ids: [UUID]) async {
@@ -779,11 +796,125 @@ final class AppModel: ObservableObject {
             let posts = (try? await provider.communityPosts(externalID: candidate.externalID)) ?? []
             try await database.save(metadata: metadata, communityPosts: posts, matchConfidence: 1, isManualMatch: true)
             await reloadMetadata()
+            // Linking by hand is the other way a subject lands on two works:
+            // the viewer picks for this card what the pass already picked for
+            // its twin.
+            await refreshDuplicateWorks()
             return true
         } catch {
             errorMessage = String(localized: "Could not load \(candidate.provider.displayName) metadata: \(error.localizedDescription)")
             return false
         }
+    }
+
+    // MARK: - One work filed twice
+
+    /// Folds one library card into another: the same show, split in two
+    /// because its episodes arrived from two fansubs.
+    ///
+    /// A season in its first week cannot be downloaded as a set, so episode
+    /// one arrives on its own under whichever team published it and the rest
+    /// arrives a week later under another. The two names are not spellings of
+    /// each other — the teams' own subtitle tags are in them — so nothing
+    /// automatic can tell them from two different shows.
+    ///
+    /// The files are not touched. They stay where they are, under the names
+    /// the teams gave them; this moves rows, and the scan afterwards is what
+    /// confirms it — the merge records the dissolved row's name, so the same
+    /// parse that produced it lands on the surviving work instead of
+    /// recreating the card.
+    @discardableResult
+    func merge(_ source: Anime, into target: Anime) async -> Bool {
+        guard let database, source.id != target.id else { return false }
+        do {
+            let summary = try await database.mergeWork(source.id, into: target.id)
+            duplicateGroups.removeAll { $0.works.contains { $0.id == source.id } }
+            // The downloads list holds its own copy of each record's anime,
+            // so a merge it is not told about leaves a card bound to a row
+            // that is gone.
+            await downloads.reloadRecords()
+            await subscriptions.reload()
+            await rescanAfterMerge()
+            if summary.episodesAbsorbed > 0 {
+                mergeReport = String(
+                    localized: "Merged “\(source.title)” into “\(target.title)”: \(summary.episodesMoved) episode(s) moved and \(summary.episodesAbsorbed) joined episodes already there."
+                )
+            } else {
+                mergeReport = String(
+                    localized: "Merged “\(source.title)” into “\(target.title)”: \(summary.episodesMoved) episode(s) moved."
+                )
+            }
+            return true
+        } catch {
+            errorMessage = String(localized: "Could not merge “\(source.title)”: \(error.localizedDescription)")
+            return false
+        }
+    }
+
+    /// Folds a whole group into its primary, in one pass.
+    ///
+    /// A group is often three rows, not two — the real case has the two
+    /// scanned halves of the season plus the row the download created before
+    /// any file existed — and folding them one at a time would rescan the
+    /// library between each, which takes seconds per root and re-asks the
+    /// providers nothing.
+    func mergeDuplicateGroup(_ group: DuplicateWorkDetector.Group) async {
+        guard let database else { return }
+        let targetID = group.primary.id
+        guard let target = try? await database.anime(id: targetID) ?? nil else { return }
+        var moved = 0
+        var absorbed = 0
+        for duplicate in group.duplicates {
+            do {
+                let summary = try await database.mergeWork(duplicate.id, into: targetID)
+                moved += summary.episodesMoved
+                absorbed += summary.episodesAbsorbed
+            } catch {
+                errorMessage = String(localized: "Could not merge “\(duplicate.title)”: \(error.localizedDescription)")
+            }
+        }
+        duplicateGroups.removeAll { $0.id == group.id }
+        await downloads.reloadRecords()
+        await subscriptions.reload()
+        await rescanAfterMerge()
+        mergeReport = String(
+            localized: "\(group.duplicates.count) card(s) merged into “\(target.title)”: \(moved) episode(s) moved and \(absorbed) joined episodes already there."
+        )
+    }
+
+    /// The scan that confirms a merge, with the spinner on while it runs.
+    ///
+    /// Not strictly needed — the rows are already right — but it is the pass
+    /// that proves the merge survived, and this is the moment it can be
+    /// checked: the dissolved row's name is now an alias, so every file it
+    /// held comes back to the surviving work instead of recreating the card.
+    private func rescanAfterMerge() async {
+        isScanning = true
+        for root in roots { await scan(root, managesScanningState: false) }
+        isScanning = false
+        await reloadLibrary()
+        await reloadMetadata()
+    }
+
+    /// Library rows a metadata provider matched to the same subject.
+    ///
+    /// Only ever offered, never acted on. Two cards collapsing into one moves
+    /// watch history and dissolves episodes, and the evidence — a subject id
+    /// landing twice — is strong enough to raise the question and not strong
+    /// enough to answer it: a provider can be wrong about one of the two, and
+    /// the viewer is the one who can see that.
+    func refreshDuplicateWorks() async {
+        guard let database else { return }
+        let groups = (try? await database.duplicateWorkGroups()) ?? []
+        duplicateGroups = groups.filter { !dismissedDuplicates.contains($0.id) }
+    }
+
+    /// Stops offering this one. Two seasons a provider files under one subject
+    /// are a real thing, and being asked about them at every launch is the
+    /// fault this already learned once from the match review.
+    func dismissDuplicateGroup(_ group: DuplicateWorkDetector.Group) {
+        dismissedDuplicates.insert(group.id)
+        duplicateGroups.removeAll { $0.id == group.id }
     }
 
     /// Fills in the metadata sources the library is missing.
@@ -923,6 +1054,11 @@ final class AppModel: ObservableObject {
             askedMatches.formUnion(pendingMatches.map(\.id))
             wantsMatchReview = true
         }
+        // A subject that landed on two works is only visible once the links
+        // exist, which is here: the pass that just made them is the one place
+        // that knows two cards are one show. Names never say so — the two
+        // halves of a season split between fansubs carry the teams' own tags.
+        await refreshDuplicateWorks()
 
         // Only worth reporting when a provider was actually given up on: a
         // handful of titles it has never heard of is not a failure of the run,
