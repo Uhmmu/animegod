@@ -205,6 +205,72 @@ struct LibraryDatabaseTests {
         #expect(anime.unwatchedCount == 2)
     }
 
+    /// The real library's `FX Senshi Kurumi-chan`: episode one arrived from one
+    /// team and episode two from another, their subtitle tags were in the
+    /// titles, and the show was three rows — the empty one the download made,
+    /// plus one per team. Correcting the parser is what regroups them, and a
+    /// regroup has to leave **one** card holding everything, the subscription
+    /// included: its column is `ON DELETE SET NULL`, so a row that dissolves
+    /// without handing it over unfollows the season in silence.
+    @Test func foldsTwoFansubsOfOneShowIntoTheRowTheSubscriptionFollows() async throws {
+        let database = try LibraryDatabase(inMemory: true)
+        let root = LibraryRoot(displayName: "Anime", lastKnownPath: "/Anime")
+        try await database.save(root: root)
+
+        func file(_ path: String, _ title: String, episode: Double) -> ScannedMediaFile {
+            ScannedMediaFile(
+                relativePath: path, fileSize: 1, modifiedAt: .now,
+                parsed: ParsedAnimeFilename(
+                    title: title, episode: episode, episodeText: String(Int(episode)), confidence: 0.9
+                )
+            )
+        }
+        let teamA = "Kurumi/[UHA-WINGS][Kurumi][01][CHS_JP&CHT_JP].mkv"
+        let teamB = "Kurumi/[Studio GreenTea] Kurumi [02][JPSC].mp4"
+        try await database.importScan(.init(root: root, files: [
+            file(teamA, "Kurumi CHS_JP&CHT_JP", episode: 1),
+            file(teamB, "Kurumi JPSC", episode: 2)
+        ], skippedUnreadableCount: 0))
+
+        let split = try await database.library()
+        #expect(split.count == 2)
+        let tagged = try #require(split.first { $0.anime.title == "Kurumi CHS_JP&CHT_JP" }?.anime)
+        let other = try #require(split.first { $0.anime.title == "Kurumi JPSC" }?.anime)
+        // The subscription was made from the download, which is bound to the
+        // row one of the teams happened to create.
+        var subscription = TorrentSubscription(
+            title: "Kurumi", queries: ["Kurumi"], createdAt: Date(timeIntervalSince1970: 1_780_000_000)
+        )
+        subscription.animeID = tagged.id
+        try await database.saveTorrentSubscription(subscription)
+        try await database.save(metadata: AnimeMetadata(
+            animeID: tagged.id, provider: .bangumi, externalID: "622288", title: "FX战士久留美",
+            originalTitle: "FX戦士くるみちゃん", summary: "", posterURL: nil, airDate: nil,
+            platform: nil, score: 7.0, rank: nil, ratingCount: 100
+        ), communityPosts: [], matchConfidence: 1, isManualMatch: true)
+        // The other team's row carries the viewer's own score — a blank on the
+        // row that survives, so it has to be read across rather than dropped.
+        try await database.save(profile: AnimeProfile(animeID: other.id, status: .watching, score: 8.0))
+
+        // The parser stops reading the subtitle tag as part of the name.
+        try await database.importScan(.init(root: root, files: [
+            file(teamA, "Kurumi", episode: 1),
+            file(teamB, "Kurumi", episode: 2)
+        ], skippedUnreadableCount: 0))
+
+        let healed = try await database.library()
+        #expect(healed.count == 1)
+        let work = try #require(healed.first)
+        #expect(work.anime.title == "Kurumi")
+        #expect(work.episodeCount == 2)
+        #expect(try await database.externalReferences(animeID: work.anime.id)
+            == [.init(provider: .bangumi, externalID: "622288")])
+        #expect(try await database.profile(animeID: work.anime.id)?.score == 8.0)
+        let subscriptions = try await database.torrentSubscriptions()
+        #expect(subscriptions.count == 1)
+        #expect(subscriptions.first?.animeID == work.anime.id)
+    }
+
     @Test func carriesBindingsAndHistoryAcrossTitleRegrouping() async throws {
         let database = try LibraryDatabase(inMemory: true)
         let root = LibraryRoot(displayName: "Anime", lastKnownPath: "/Anime")

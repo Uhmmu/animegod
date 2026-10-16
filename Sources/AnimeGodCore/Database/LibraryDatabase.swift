@@ -207,6 +207,26 @@ public actor LibraryDatabase {
     }
 
     private static func migrateIdentity(from oldID: String, to newID: String, in db: Database) throws {
+        // This strips the old row of everything it holds, so it may only ever
+        // be handed a work that has already dissolved. All three callers do —
+        // regrouping tests it, a parked row has no files by definition, and a
+        // merge has moved the episodes before it gets here — and it is checked
+        // rather than trusted, because the cost of being wrong is a live work
+        // losing its bindings.
+        let stillHasFiles = try Bool.fetchOne(
+            db,
+            sql: """
+            SELECT EXISTS(
+                SELECT 1 FROM mediaFile
+                JOIN episode ON episode.id = mediaFile.episodeID
+                WHERE episode.animeID = ?
+            )
+            """,
+            arguments: [oldID]
+        ) ?? false
+        guard !stillHasFiles else {
+            throw DatabaseError(message: "cannot migrate identity: the work still holds files")
+        }
         let providers = try String.fetchAll(
             db,
             sql: """
@@ -243,10 +263,54 @@ public actor LibraryDatabase {
             FROM animeProfile WHERE animeID = ?
             ON CONFLICT(animeID) DO NOTHING
             """, arguments: [newID, oldID])
+        // Both works having an entry is the ordinary case rather than the
+        // exception — playing an episode creates one — so the insert above
+        // does nothing most of the time and the old entry's own fields have to
+        // be read across. Blanks only: the successor's score and review are
+        // the viewer's latest word on the work, and what it says nothing about
+        // is where the dissolved work still can.
+        try db.execute(sql: """
+            UPDATE animeProfile AS p SET
+                score = COALESCE(p.score, o.score),
+                notes = COALESCE(NULLIF(p.notes, ''), o.notes),
+                review = COALESCE(NULLIF(p.review, ''), o.review),
+                tags = COALESCE(NULLIF(NULLIF(p.tags, ''), '[]'), o.tags),
+                ranking = COALESCE(p.ranking, o.ranking),
+                completedAt = COALESCE(p.completedAt, o.completedAt),
+                isFavorite = MAX(p.isFavorite, o.isFavorite),
+                rewatchCount = MAX(p.rewatchCount, o.rewatchCount),
+                firstWatchedAt = MIN(p.firstWatchedAt, o.firstWatchedAt)
+            FROM animeProfile AS o
+            WHERE p.animeID = ? AND o.animeID = ?
+            """, arguments: [newID, oldID])
         try db.execute(
             sql: "UPDATE watchEvent SET animeID = ? WHERE animeID = ?",
             arguments: [newID, oldID]
         )
+        // What the successor already had of its own is still on the dissolved
+        // row, and a work with a provider binding or an entry is not deleted
+        // at the end of a scan — so leaving the duplicates behind leaves the
+        // card behind: the real library healed its three `FX Senshi
+        // Kurumi-chan` rows into one holding every file and **still showed
+        // three**, two of them empty. Everything worth keeping has just been
+        // read across, and this row has no files (every caller dissolves the
+        // work first), so what is left is a duplicate of the successor's.
+        try db.execute(sql: "DELETE FROM animeProfile WHERE animeID = ?", arguments: [oldID])
+        // Cascades to the old animeMetadata and communityPost rows.
+        try db.execute(sql: "DELETE FROM externalAnimeID WHERE animeID = ?", arguments: [oldID])
+        // The rows that only point at a work. A dissolved work is deleted at
+        // the end of the scan and all three columns are `ON DELETE SET NULL`,
+        // so without this a rescan that regroups two fansubs' episodes into one
+        // card silently unfollows the season: the subscription survives with no
+        // anime, downloading into a card that is not there. Measured on the
+        // real library, where the subscription for `FX Senshi Kurumi-chan` was
+        // bound to the row whose title carried `CHS_JP&CHT_JP`.
+        for table in ["torrentDownload", "torrentSubscription", "subtitleDownload"] {
+            try db.execute(
+                sql: "UPDATE \(table) SET animeID = ? WHERE animeID = ?",
+                arguments: [newID, oldID]
+            )
+        }
     }
 
     /// Folds one work into another and dissolves it: the same show, filed
@@ -357,33 +421,22 @@ public actor LibraryDatabase {
                 summary.episodesAbsorbed += 1
             }
 
-            try Self.migrateIdentity(from: source, to: target, in: db)
-
             // The rows that only point at a work. A download still running
             // keeps its files and its folder — it is bound to a card, and
             // deleting the card it is bound to is what made a subscription
-            // lose the season it was following.
+            // lose the season it was following. `migrateIdentity` moves them,
+            // so they are counted before it does.
             summary.downloadsMoved = try Int.fetchOne(
                 db, sql: "SELECT COUNT(*) FROM torrentDownload WHERE animeID = ?", arguments: [source]
             ) ?? 0
-            try db.execute(
-                sql: "UPDATE torrentDownload SET animeID = ? WHERE animeID = ?",
-                arguments: [target, source]
-            )
             summary.subscriptionsMoved = try Int.fetchOne(
                 db, sql: "SELECT COUNT(*) FROM torrentSubscription WHERE animeID = ?", arguments: [source]
             ) ?? 0
-            try db.execute(
-                sql: "UPDATE torrentSubscription SET animeID = ? WHERE animeID = ?",
-                arguments: [target, source]
-            )
             summary.subtitlesMoved = try Int.fetchOne(
                 db, sql: "SELECT COUNT(*) FROM subtitleDownload WHERE animeID = ?", arguments: [source]
             ) ?? 0
-            try db.execute(
-                sql: "UPDATE subtitleDownload SET animeID = ? WHERE animeID = ?",
-                arguments: [target, source]
-            )
+
+            try Self.migrateIdentity(from: source, to: target, in: db)
 
             // A concert record is one per work and holds a setlist somebody
             // may have pasted in by hand, so it is taken only into a work
