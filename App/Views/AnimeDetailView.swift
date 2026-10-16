@@ -469,12 +469,25 @@ struct AnimeDetailView: View {
                 HStack(spacing: 4) {
                     Button { Task { await model.play(item) } } label: {
                         HStack(spacing: 14) {
-                            Image(systemName: item.progress?.isWatched == true ? "checkmark.circle.fill" : "play.circle.fill")
-                                .font(.title2)
-                                .foregroundStyle(item.progress?.isWatched == true ? Color.green : Color.accentColor)
+                            if model.resolvingOnlineEpisode == item.id {
+                                // Resolving runs the site's own player in a
+                                // headless browser: seconds, not
+                                // milliseconds, so the row says so.
+                                ProgressView()
+                                    .controlSize(.small)
+                                    .frame(width: 22)
+                            } else {
+                                Image(systemName: item.progress?.isWatched == true ? "checkmark.circle.fill" : "play.circle.fill")
+                                    .font(.title2)
+                                    .foregroundStyle(item.progress?.isWatched == true ? Color.green : Color.accentColor)
+                            }
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(episodeLabel(item.episode)).font(.headline)
-                                Text(item.mediaFile.relativePath)
+                                // An online episode has no path to show; what
+                                // says something about it is the line it came
+                                // from and the site that carries it.
+                                Text(item.online.map { "\($0.ruleName) · \($0.roadName)" }
+                                     ?? item.mediaFile.relativePath)
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                                     .lineLimit(1)
@@ -494,8 +507,12 @@ struct AnimeDetailView: View {
                     }
                     .buttonStyle(.plain)
                     // Sibling (not nested) so both controls stay clickable.
-                    EpisodeCacheControl(item: item)
-                        .padding(.trailing, 10)
+                    // There is nothing to copy for a stream: the bytes are
+                    // not on this Mac and will not be after it finishes.
+                    if item.online == nil {
+                        EpisodeCacheControl(item: item)
+                            .padding(.trailing, 10)
+                    }
                 }
                 // Watched is sticky by design, so there has to be a way to fix
                 // it from outside the player — otherwise an episode marked by

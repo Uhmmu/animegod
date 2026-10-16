@@ -279,6 +279,14 @@ final class AppModel: ObservableObject {
 
     func play(_ episode: EpisodeMedia, startingAt startPosition: Double? = nil) async {
         guard let database else { return }
+        // A followed line's episode is a page, not a file: there is no URL
+        // until a browser has run the site's own player. Everything after
+        // that is the same — the episode has rows, so it resumes and it
+        // reaches the diary.
+        if let origin = episode.online {
+            await playOnlineEpisode(episode, origin: origin)
+            return
+        }
         guard roots.first(where: { $0.id == episode.mediaFile.libraryRootID }) != nil else {
             errorMessage = "The library folder for this episode is unavailable."
             return
@@ -342,19 +350,57 @@ final class AppModel: ObservableObject {
             fileSize: 0,
             modifiedAt: .now
         )
+        playOnline(
+            EpisodeMedia(episode: record.episode, mediaFile: file, progress: record.progress),
+            workTitle: record.workName,
+            streamURL: streamURL,
+            headers: headers
+        )
+    }
+
+    func playOnline(
+        _ episode: EpisodeMedia,
+        workTitle: String,
+        streamURL: URL,
+        headers: [String: String]
+    ) {
         playerRequest = PlayerRequest(
-            episodes: [EpisodeMedia(episode: record.episode, mediaFile: file, progress: record.progress)],
+            episodes: [episode],
             startIndex: 0,
             roots: roots,
             cache: nil,
             directPlayback: PlayerRequest.DirectPlayback(
                 url: streamURL,
-                title: record.workName,
+                title: workTitle,
                 infoHash: nil,
                 headers: headers,
                 writesHistory: true
             )
         )
+    }
+
+    /// Which online episode is being resolved, so the row that was clicked
+    /// can say so. Resolution is a browser loading a page — seconds, not
+    /// milliseconds — and an anime page that simply sat there for eight of
+    /// them would read as broken.
+    @Published private(set) var resolvingOnlineEpisode: UUID?
+
+    private func playOnlineEpisode(_ episode: EpisodeMedia, origin: OnlineEpisodeOrigin) async {
+        guard let online else { return }
+        guard resolvingOnlineEpisode == nil else { return }
+        resolvingOnlineEpisode = episode.id
+        defer { resolvingOnlineEpisode = nil }
+        do {
+            let stream = try await online.resolve(origin)
+            let title = metadataByAnimeID[episode.episode.animeID]?.title
+                ?? library.first(where: { $0.id == episode.episode.animeID })?.anime.title
+                ?? origin.roadName
+            playOnline(episode, workTitle: title, streamURL: stream.url, headers: stream.headers)
+        } catch is CancellationError {
+            return
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     /// Reads what a work's own release folder says about itself.
@@ -1569,7 +1615,17 @@ final class AppModel: ObservableObject {
             self.database = database
             let online = OnlineCoordinator(supportDirectory: applicationSupport, database: database)
             self.online = online
+            online.onLibraryChanged = { [weak self] in
+                Task { @MainActor in await self?.reloadLibraryAfterOnlineChange() }
+            }
             await online.load()
+            // Followed lines are re-read on their own, detached: each one is
+            // a page load against a site that may be slow or gone, and the
+            // library must not wait on any of them to open.
+            Task { [weak online] in
+                guard let online else { return }
+                _ = await online.refreshSubscriptions()
+            }
             roots = try await database.libraryRoots()
             downloads.folders.updateLibraryRoots(roots)
             await episodeCache.prepare(database: database)
@@ -1638,6 +1694,12 @@ final class AppModel: ObservableObject {
 
     /// Every watch-state write ends here: the library is reloaded, and marked
     /// for one more publish when a window comes back to the front.
+    /// Following or dropping a line changes what the grid holds.
+    func reloadLibraryAfterOnlineChange() async {
+        await reloadLibrary()
+        await reloadPersonalLibrary()
+    }
+
     private func watchStateDidChange() async {
         republishesLibrary = true
         await reloadLibrary()

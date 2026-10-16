@@ -136,6 +136,11 @@ public extension LibraryDatabase {
     /// provider heard of this at all", not "is this a disc".
     func worksWithNoMetadata() throws -> [(animeID: UUID, title: String)] {
         try database.read { db in
+            // Files only. This is the concert pass's way in, and a concert is
+            // a disc somebody owns — a work that is a streaming site's line
+            // has no disc to identify and must not be moved into that
+            // section. Ordinary metadata matching reaches online works
+            // through `library()` instead, which now lists them.
             let rows = try Row.fetchAll(db, sql: """
                 SELECT anime.id AS animeID, anime.title AS title
                 FROM anime

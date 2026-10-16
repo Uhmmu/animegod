@@ -17642,6 +17642,118 @@
           }
         }
       }
+    },
+    "Add this line and the work joins the grid, gets its cover and description, and keeps up with new episodes.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この再生ラインを追加すると、作品がライブラリに並び、表紙とあらすじが付き、新しい話数も追いかけます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "加入这条线路，这部番就会出现在资料库里，自动配上封面和简介，并跟进新剧集。"
+          }
+        }
+      }
+    },
+    "Add to Library": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ライブラリに追加"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "加入资料库"
+          }
+        }
+      }
+    },
+    "In your library": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ライブラリにあります"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已在资料库"
+          }
+        }
+      }
+    },
+    "New episodes of this line turn up on their own.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このラインに新しい話数が出れば自動で現れます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这条线路有了新剧集会自己出现。"
+          }
+        }
+      }
+    },
+    "Not in your library": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ライブラリにありません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不在资料库"
+          }
+        }
+      }
+    },
+    "Online source": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "オンラインソース"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在线源"
+          }
+        }
+      }
+    },
+    "Watched from an online source": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "オンラインソースから視聴"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从在线源观看"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

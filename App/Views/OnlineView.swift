@@ -213,8 +213,10 @@ struct OnlineView: View {
                         }
                     }
                     .pickerStyle(.segmented)
-                    .padding(12)
+                    .padding(.horizontal, 12)
+                    .padding(.top, 12)
                 }
+                if let road = currentRoad { followBar(road) }
                 episodeGrid
             }
         }
@@ -240,6 +242,41 @@ struct OnlineView: View {
                 .padding(.bottom, 12)
             }
         }
+    }
+
+    /// Following this line, which is what puts the work in the library.
+    ///
+    /// Per line rather than per work because that is the unit worth choosing:
+    /// the lines are different uploads and one of them can be down or short
+    /// the newest episode. Following a second line of the same work adds a
+    /// feed to the same card, not a second card.
+    @ViewBuilder
+    private func followBar(_ road: OnlineRoad) -> some View {
+        let followed = online.isFollowing(road)
+        HStack(spacing: 8) {
+            Image(systemName: followed ? "checkmark.circle.fill" : "globe")
+                .foregroundStyle(followed ? Color.green : Color.secondary)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(followed ? "In your library" : "Not in your library")
+                    .font(.subheadline.weight(.medium))
+                Text(followed
+                     ? "New episodes of this line turn up on their own."
+                     : "Add this line and the work joins the grid, gets its cover and description, and keeps up with new episodes.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            if online.isFollowing {
+                ProgressView().controlSize(.small)
+            } else if followed {
+                Button("Remove") { Task { await online.unfollow(road) } }
+            } else {
+                Button("Add to Library") { Task { await online.follow(road) } }
+                    .buttonStyle(.borderedProminent)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
     }
 
     /// One episode, saying whether it has been seen.

@@ -252,6 +252,10 @@ public struct PlaybackProgress: Codable, Hashable, Sendable {
 
 public struct LibraryAnime: Identifiable, Hashable, Sendable {
     public let anime: Anime
+    /// Whether this work is in the grid because a site's line is followed
+    /// rather than because files were scanned. It is what the card's globe
+    /// says, and the two never mix: an online work has no files at all.
+    public let isOnline: Bool
     public let episodeCount: Int
     public let unwatchedCount: Int
     /// Episodes counted the way `episodeCount` counts them that have been
@@ -276,14 +280,39 @@ public struct LibraryAnime: Identifiable, Hashable, Sendable {
         unwatchedCount: Int,
         watchedCount: Int = 0,
         lastWatchedAt: Date? = nil,
-        lastPlayedAt: Date? = nil
+        lastPlayedAt: Date? = nil,
+        isOnline: Bool = false
     ) {
         self.anime = anime
+        self.isOnline = isOnline
         self.episodeCount = episodeCount
         self.unwatchedCount = unwatchedCount
         self.watchedCount = watchedCount
         self.lastWatchedAt = lastWatchedAt
         self.lastPlayedAt = lastPlayedAt
+    }
+}
+
+/// Where an episode's bytes come from, when they do not come from a file.
+///
+/// An episode of a followed online line has no `mediaFile` to play — it has a
+/// page that a browser has to be run against before there is a URL at all.
+/// Carried beside the stand-in file rather than replacing it, because every
+/// other reader of `EpisodeMedia` wants a file and would otherwise have to
+/// learn about streams to keep working.
+public struct OnlineEpisodeOrigin: Hashable, Sendable {
+    public let ruleName: String
+    public let workPageURL: String
+    public let roadName: String
+    public let label: String
+    public let pageURL: String
+
+    public init(ruleName: String, workPageURL: String, roadName: String, label: String, pageURL: String) {
+        self.ruleName = ruleName
+        self.workPageURL = workPageURL
+        self.roadName = roadName
+        self.label = label
+        self.pageURL = pageURL
     }
 }
 
@@ -293,13 +322,22 @@ public struct EpisodeMedia: Identifiable, Hashable, Sendable {
     public let progress: PlaybackProgress?
     /// Every encode of this episode; `mediaFile` is the preferred one.
     public let versions: [MediaFile]
+    /// Set when this episode is a page on a site rather than a file on disk.
+    public let online: OnlineEpisodeOrigin?
     public var id: UUID { episode.id }
 
-    public init(episode: Episode, mediaFile: MediaFile, progress: PlaybackProgress?, versions: [MediaFile]? = nil) {
+    public init(
+        episode: Episode,
+        mediaFile: MediaFile,
+        progress: PlaybackProgress?,
+        versions: [MediaFile]? = nil,
+        online: OnlineEpisodeOrigin? = nil
+    ) {
         self.episode = episode
         self.mediaFile = mediaFile
         self.progress = progress
         self.versions = versions ?? [mediaFile]
+        self.online = online
     }
 }
 

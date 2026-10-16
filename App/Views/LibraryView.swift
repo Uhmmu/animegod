@@ -372,6 +372,20 @@ struct LibraryView: View {
     }
 }
 
+/// The globe on a card whose episodes come from a streaming site.
+private struct OnlineWorkBadge: View {
+    var body: some View {
+        Image(systemName: "globe")
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(.white)
+            .padding(6)
+            .background(.black.opacity(0.55), in: Circle())
+            .overlay(Circle().strokeBorder(.white.opacity(0.25)))
+            .help("Watched from an online source")
+            .accessibilityLabel("Online source")
+    }
+}
+
 private struct AnimeCard: View {
     let item: LibraryAnime
     let title: String?
@@ -395,6 +409,13 @@ private struct AnimeCard: View {
                     if let downloadProgress {
                         DownloadRing(progress: downloadProgress)
                             .frame(width: 30, height: 30)
+                            .padding(8)
+                    } else if item.isOnline {
+                        // This work is a site's line, not files on this Mac.
+                        // Worth saying on the card: it is the difference
+                        // between an episode that plays with the drive
+                        // unplugged and one that needs the site to be up.
+                        OnlineWorkBadge()
                             .padding(8)
                     }
                 }

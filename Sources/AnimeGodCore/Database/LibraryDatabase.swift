@@ -590,12 +590,20 @@ public actor LibraryDatabase {
                        COUNT(DISTINCT CASE WHEN episode.kind = ? AND playbackProgress.isWatched = 1 THEN episode.id END) AS watchedRegular,
                        COUNT(DISTINCT CASE WHEN playbackProgress.isWatched = 1 THEN episode.id END) AS watchedTotal,
                        MAX(CASE WHEN playbackProgress.isWatched = 1 THEN playbackProgress.updatedAt END) AS lastWatchedAt,
-                       MAX(playbackProgress.updatedAt) AS lastPlayedAt
+                       MAX(playbackProgress.updatedAt) AS lastPlayedAt,
+                       (followed.animeID IS NOT NULL) AS isOnline
                 FROM anime
                 JOIN episode ON episode.animeID = anime.id
-                JOIN mediaFile ON mediaFile.episodeID = episode.id
+                LEFT JOIN mediaFile ON mediaFile.episodeID = episode.id
                 LEFT JOIN playbackProgress ON playbackProgress.episodeID = episode.id
+                -- A followed online line puts its work in the grid although
+                -- it has no files. Everything else here still needs one, so
+                -- the join became outer and the condition moved into WHERE:
+                -- an online work nobody follows is as invisible as it was.
+                LEFT JOIN (SELECT DISTINCT animeID FROM onlineSubscription WHERE isEnabled = 1) AS followed
+                       ON followed.animeID = anime.id
                 WHERE anime.kind <> ?
+                      AND (mediaFile.id IS NOT NULL OR followed.animeID IS NOT NULL)
                 GROUP BY anime.id
                 ORDER BY anime.sortTitle COLLATE NOCASE
                 """, arguments: [
@@ -621,7 +629,8 @@ public actor LibraryDatabase {
                     unwatchedCount: row["unwatchedCount"],
                     watchedCount: countsRegulars ? row["watchedRegular"] : row["watchedTotal"],
                     lastWatchedAt: row["lastWatchedAt"],
-                    lastPlayedAt: row["lastPlayedAt"]
+                    lastPlayedAt: row["lastPlayedAt"],
+                    isOnline: row["isOnline"]
                 )
             }
         }
@@ -641,8 +650,79 @@ public actor LibraryDatabase {
                 WHERE episode.animeID = ?
                 ORDER BY episode.sortIndex, mediaFile.relativePath COLLATE NOCASE
                 """, arguments: [animeID.uuidString])
-            return Self.deduplicateVersions(rows.map(Self.decodeEpisodeMedia))
+            let local = Self.deduplicateVersions(rows.map(Self.decodeEpisodeMedia))
+            return local.isEmpty ? try Self.onlineEpisodes(animeID: animeID, in: db) : local
         }
+    }
+
+    /// The episodes of a work that is a site's line rather than a folder.
+    ///
+    /// Asked only when the work has no files at all, because the two never
+    /// mix: an online work is its own row by construction, so a work with
+    /// files cannot also have pages and this can never shadow a scan.
+    ///
+    /// One row per episode even when several lines carry it — the lines are
+    /// uploads of the same thing and share the episode row — with the line
+    /// the viewer is most likely to want first: a followed one, then
+    /// whichever the site listed first.
+    static func onlineEpisodes(animeID: UUID, in db: Database) throws -> [EpisodeMedia] {
+        let rows = try Row.fetchAll(db, sql: """
+            SELECT episode.*,
+                   onlineEpisode.ruleName AS ruleName, onlineEpisode.pageURL AS pageURL,
+                   onlineEpisode.workPageURL AS workPageURL, onlineEpisode.roadName AS roadName,
+                   onlineEpisode.label AS label,
+                   (SELECT COUNT(*) FROM onlineSubscription s
+                     WHERE s.ruleName = onlineEpisode.ruleName
+                       AND s.pageURL = onlineEpisode.workPageURL
+                       AND s.roadName = onlineEpisode.roadName
+                       AND s.isEnabled = 1) AS followed,
+                   playbackProgress.position, playbackProgress.duration,
+                   playbackProgress.updatedAt AS progressUpdatedAt, playbackProgress.isWatched
+            FROM episode
+            JOIN onlineEpisode ON onlineEpisode.episodeID = episode.id
+            LEFT JOIN playbackProgress ON playbackProgress.episodeID = episode.id
+            WHERE episode.animeID = ?
+            ORDER BY episode.sortIndex, followed DESC, onlineEpisode.roadName COLLATE NOCASE
+            """, arguments: [animeID.uuidString])
+        var seen = Set<String>()
+        var episodes: [EpisodeMedia] = []
+        for row in rows {
+            let episodeID = row["id"] as String
+            guard seen.insert(episodeID).inserted, let id = UUID(uuidString: episodeID) else { continue }
+            let episode = Episode(
+                id: id,
+                animeID: animeID,
+                number: row["number"],
+                numberText: row["numberText"],
+                title: row["title"],
+                kind: EpisodeKind(rawValue: row["kind"] as String) ?? .regular,
+                sortIndex: row["sortIndex"]
+            )
+            let position: Double? = row["position"]
+            episodes.append(EpisodeMedia(
+                episode: episode,
+                // A stand-in, never stored: the readers of `EpisodeMedia` all
+                // want a file, and the one that matters reads `online` first.
+                mediaFile: MediaFile(
+                    libraryRootID: UUID(), episodeID: id,
+                    relativePath: row["label"], fileSize: 0, modifiedAt: .now
+                ),
+                progress: position.map {
+                    PlaybackProgress(
+                        episodeID: id, position: $0, duration: row["duration"],
+                        updatedAt: row["progressUpdatedAt"], isWatched: row["isWatched"]
+                    )
+                },
+                online: OnlineEpisodeOrigin(
+                    ruleName: row["ruleName"],
+                    workPageURL: row["workPageURL"],
+                    roadName: row["roadName"],
+                    label: row["label"],
+                    pageURL: row["pageURL"]
+                )
+            ))
+        }
+        return episodes
     }
 
     public func continueWatching(limit: Int = 12) throws -> [EpisodeMedia] {
@@ -662,7 +742,35 @@ public actor LibraryDatabase {
                 ORDER BY playbackProgress.updatedAt DESC
                 LIMIT ?
                 """, arguments: [AnimeKind.live.rawValue, limit])
-            return Self.deduplicateVersions(rows.map(Self.decodeEpisodeMedia))
+            let local = Self.deduplicateVersions(rows.map(Self.decodeEpisodeMedia))
+
+            // Half-watched episodes of followed online lines belong on the
+            // same shelf: the viewer put the work in the library and left off
+            // partway through it, which is the whole question this answers.
+            let onlineRows = try Row.fetchAll(db, sql: """
+                SELECT DISTINCT episode.animeID AS animeID, playbackProgress.updatedAt AS updatedAt,
+                                playbackProgress.episodeID AS episodeID
+                FROM playbackProgress
+                JOIN episode ON episode.id = playbackProgress.episodeID
+                JOIN onlineEpisode ON onlineEpisode.episodeID = episode.id
+                JOIN onlineSubscription ON onlineSubscription.animeID = episode.animeID
+                                       AND onlineSubscription.isEnabled = 1
+                WHERE playbackProgress.position > 0 AND playbackProgress.isWatched = 0
+                ORDER BY playbackProgress.updatedAt DESC
+                LIMIT ?
+                """, arguments: [limit])
+            guard !onlineRows.isEmpty else { return local }
+            var online: [(Date, EpisodeMedia)] = []
+            for row in onlineRows {
+                guard let animeID = UUID(uuidString: row["animeID"] as String),
+                      let episodeID = UUID(uuidString: row["episodeID"] as String)
+                else { continue }
+                let all = try Self.onlineEpisodes(animeID: animeID, in: db)
+                guard let match = all.first(where: { $0.episode.id == episodeID }) else { continue }
+                online.append((row["updatedAt"], match))
+            }
+            let merged = local.map { ($0.progress?.updatedAt ?? .distantPast, $0) } + online
+            return merged.sorted { $0.0 > $1.0 }.prefix(limit).map(\.1)
         }
     }
 
@@ -2642,6 +2750,36 @@ public actor LibraryDatabase {
             }
             try db.create(index: "onlineEpisode_episode", on: "onlineEpisode", columns: ["episodeID"])
             try db.create(index: "onlineEpisode_work", on: "onlineEpisode", columns: ["ruleName", "workPageURL"])
+        }
+        migrator.registerMigration("v20_online_subscriptions") { db in
+            // A playback line somebody is following.
+            //
+            // Watching an episode from a site files it (v19); following a line
+            // is the viewer saying the whole work belongs in the library —
+            // which is what puts it in the grid, hands it to the metadata
+            // pass, and makes new episodes turn up on their own. Until then
+            // an online work stays out of everything, as it did before.
+            //
+            // Per line rather than per work, because that is the unit the
+            // viewer picks: the lines are different uploads and one of them
+            // can be down or short the newest episode. Several lines of one
+            // work share the work's `anime` row and its episodes, so
+            // following two is two feeds into one list, not two cards.
+            try db.create(table: "onlineSubscription") { table in
+                table.column("ruleName", .text).notNull()
+                table.column("pageURL", .text).notNull()
+                table.column("roadName", .text).notNull()
+                table.column("animeID", .text).notNull().references("anime", onDelete: .cascade)
+                table.column("workName", .text).notNull()
+                table.column("isEnabled", .boolean).notNull().defaults(to: true)
+                table.column("addedAt", .datetime).notNull()
+                table.column("lastCheckedAt", .datetime)
+                // What the last check saw, so "3 new episodes" can be said
+                // without re-reading the list to count.
+                table.column("episodeCount", .integer).notNull().defaults(to: 0)
+                table.primaryKey(["ruleName", "pageURL", "roadName"])
+            }
+            try db.create(index: "onlineSubscription_anime", on: "onlineSubscription", columns: ["animeID"])
         }
         return migrator
     }

@@ -130,6 +130,7 @@ final class OnlineCoordinator: ObservableObject {
                 guard !Task.isCancelled, openWork?.id == item.id else { return }
                 roads = result.roads
                 await refreshWatchStates()
+                await refreshFollowedRoads()
             } catch {
                 guard !Task.isCancelled, openWork?.id == item.id else { return }
                 errorMessage = OnlineSourceCoordinator.describe(error)
@@ -144,6 +145,7 @@ final class OnlineCoordinator: ObservableObject {
         roads = []
         selectedRoad = 0
         watchStates = [:]
+        followedRoads = []
     }
 
     // MARK: - Watch records
@@ -197,7 +199,118 @@ final class OnlineCoordinator: ObservableObject {
         )
     }
 
+    // MARK: - Following a line
+
+    /// Which of the open work's lines are followed, so each line's button
+    /// knows what it says.
+    @Published private(set) var followedRoads: Set<String> = []
+    @Published private(set) var isFollowing = false
+
+    /// Puts this line's work in the library.
+    ///
+    /// The whole line is written at once rather than an episode at a time:
+    /// the work is in the grid from this moment and a card reading
+    /// "0 episodes" would be a card that lies.
+    func follow(_ road: OnlineRoad) async {
+        guard let database, let work = openWork else { return }
+        isFollowing = true
+        defer { isFollowing = false }
+        do {
+            _ = try await database.followOnlineRoad(
+                ruleName: work.ruleName,
+                workPageURL: work.pageURL,
+                workName: work.name,
+                roadName: road.name,
+                episodes: road.episodes.map { ($0.label, $0.pageURL, $0.index) }
+            )
+            await refreshFollowedRoads()
+            onLibraryChanged?()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func unfollow(_ road: OnlineRoad) async {
+        guard let database, let work = openWork else { return }
+        do {
+            try await database.unfollowOnlineRoad(
+                ruleName: work.ruleName, workPageURL: work.pageURL, roadName: road.name
+            )
+            await refreshFollowedRoads()
+            onLibraryChanged?()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func isFollowing(_ road: OnlineRoad) -> Bool { followedRoads.contains(road.name) }
+
+    private func refreshFollowedRoads() async {
+        guard let database, let work = openWork else {
+            followedRoads = []
+            return
+        }
+        followedRoads = (try? await database.followedRoadNames(
+            ruleName: work.ruleName, workPageURL: work.pageURL
+        )) ?? []
+    }
+
+    /// Re-reads every followed line, so a season that gained an episode this
+    /// week has it without anybody pressing anything.
+    ///
+    /// Quiet about failures by design: a site that is down, has moved or has
+    /// changed its markup is the ordinary state of this feature, and a launch
+    /// that opened on an error sheet about a show the viewer was not even
+    /// looking at would be worse than a list one episode short.
+    @discardableResult
+    func refreshSubscriptions() async -> (checked: Int, newEpisodes: Int) {
+        guard let database else { return (0, 0) }
+        if rules.isEmpty { await load() }
+        guard let subscriptions = try? await database.onlineSubscriptions() else { return (0, 0) }
+        var checked = 0
+        var added = 0
+        for subscription in subscriptions where subscription.isEnabled {
+            guard let rule = rules.first(where: { $0.id == OnlineSourceRule.identityKey(subscription.ruleName) })
+            else { continue }
+            guard let result = try? await coordinator.chapters(pageURL: subscription.pageURL, rule: rule),
+                  let road = result.roads.first(where: { $0.name == subscription.roadName })
+                      ?? (result.roads.count == 1 ? result.roads.first : nil)
+            else { continue }
+            checked += 1
+            // The line is matched by name, and a site that renames its lines
+            // would otherwise silently stop delivering. One line left is
+            // unambiguous, so that is taken; anything else is left alone
+            // rather than guessed at.
+            added += (try? await database.refreshOnlineRoad(
+                ruleName: subscription.ruleName,
+                workPageURL: subscription.pageURL,
+                workName: subscription.workName,
+                roadName: subscription.roadName,
+                episodes: road.episodes.map { ($0.label, $0.pageURL, $0.index) }
+            )) ?? 0
+        }
+        if added > 0 { onLibraryChanged?() }
+        return (checked, added)
+    }
+
+    /// Called when something here changed what the library holds, so the grid
+    /// and the shelves are reloaded. Set by `AppModel`.
+    var onLibraryChanged: (() -> Void)?
+
     // MARK: - Playing
+
+    /// Runs the site's own player until it gives up a video URL.
+    ///
+    /// Public because the anime page plays online episodes too, and the
+    /// browser and the rules live here.
+    func resolve(_ origin: OnlineEpisodeOrigin) async throws -> ResolvedStream {
+        guard let rule = rules.first(where: { $0.id == OnlineSourceRule.identityKey(origin.ruleName) }) else {
+            throw OnlineSourceError.ruleIncomplete(field: origin.ruleName)
+        }
+        let stream = try await resolver.resolve(episodePageURL: origin.pageURL, rule: rule)
+        lastResolutionLog = resolver.log
+        return stream
+    }
 
     /// Resolves an episode's stream and hands it to the player.
     ///

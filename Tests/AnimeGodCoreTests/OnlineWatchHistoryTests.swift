@@ -236,3 +236,174 @@ struct OnlineWatchHistoryTests {
         #expect(local.id != online.animeID)
     }
 }
+
+/// Following a site's playback line.
+///
+/// The claim is that a followed work is an ordinary library work in every way
+/// the viewer can see — it is in the grid, it has an episode list, the
+/// metadata pass reaches it — while still being a page on somebody's site:
+/// no files, no concert pass, and gone from the grid the moment nobody
+/// follows it.
+struct OnlineSubscriptionTests {
+    private let rule = "樱花动漫"
+    private let work = "https://yhdm.example/show/1234"
+
+    private func line(_ road: String, count: Int) -> [(label: String, pageURL: String, index: Int)] {
+        (1...count).map { ("第\($0)集", "https://yhdm.example/play/1234/\(road)/\($0)", $0 - 1) }
+    }
+
+    private func follow(
+        _ database: LibraryDatabase, road: String = "1", count: Int = 12
+    ) async throws -> UUID {
+        try await database.followOnlineRoad(
+            ruleName: rule, workPageURL: work, workName: "药师少女的独语",
+            roadName: road, episodes: line(road, count: count)
+        )
+    }
+
+    @Test func followingALinePutsTheWorkInTheGrid() async throws {
+        let database = try LibraryDatabase(inMemory: true)
+        let before = try await database.library()
+        #expect(before.isEmpty)
+
+        let animeID = try await follow(database)
+        let grid = try await database.library()
+        #expect(grid.count == 1)
+        let card = try #require(grid.first)
+        #expect(card.id == animeID)
+        #expect(card.anime.title == "药师少女的独语")
+        // What the card's globe is drawn from.
+        #expect(card.isOnline)
+        #expect(card.episodeCount == 12)
+        #expect(card.watchedCount == 0)
+    }
+
+    /// The whole line up front, not one row per click: the work is in the
+    /// grid now, and a card reading "0 episodes" would be a card that lies.
+    @Test func theWholeLineIsMaterializedAtOnce() async throws {
+        let database = try LibraryDatabase(inMemory: true)
+        let animeID = try await follow(database)
+        let episodes = try await database.episodes(animeID: animeID)
+        #expect(episodes.count == 12)
+        #expect(episodes.first?.online?.roadName == "1")
+        #expect(episodes.first?.online?.label == "第1集")
+        #expect(episodes.map(\.episode.numberText) == (1...12).map(String.init))
+    }
+
+    @Test func aRefreshBringsInOnlyTheNewEpisodes() async throws {
+        let database = try LibraryDatabase(inMemory: true)
+        let animeID = try await follow(database, count: 12)
+        let added = try await database.refreshOnlineRoad(
+            ruleName: rule, workPageURL: work, workName: "药师少女的独语",
+            roadName: "1", episodes: line("1", count: 14)
+        )
+        #expect(added == 2)
+        let episodes = try await database.episodes(animeID: animeID)
+        #expect(episodes.count == 14)
+        let unchanged = try await database.refreshOnlineRoad(
+            ruleName: rule, workPageURL: work, workName: "药师少女的独语",
+            roadName: "1", episodes: line("1", count: 14)
+        )
+        #expect(unchanged == 0)
+    }
+
+    /// Two lines of one work are two feeds into one list, not two cards: the
+    /// lines are different uploads of the same episodes.
+    @Test func twoLinesOfOneWorkAreOneCard() async throws {
+        let database = try LibraryDatabase(inMemory: true)
+        let first = try await follow(database, road: "1", count: 12)
+        let second = try await follow(database, road: "2", count: 12)
+        #expect(first == second)
+        let grid = try await database.library()
+        #expect(grid.count == 1)
+        #expect(grid.first?.episodeCount == 12)
+        let followed = try await database.followedRoadNames(ruleName: rule, workPageURL: work)
+        #expect(followed == ["1", "2"])
+    }
+
+    @Test func unfollowingTakesItOutOfTheGridButKeepsWhatWasWatched() async throws {
+        let database = try LibraryDatabase(inMemory: true)
+        let animeID = try await follow(database)
+        let episodes = try await database.episodes(animeID: animeID)
+        let fifth = try #require(episodes.first { $0.episode.numberText == "5" })
+        try await database.save(progress: PlaybackProgress(
+            episodeID: fifth.episode.id, position: 1_430, duration: 1_440, isWatched: true
+        ))
+
+        try await database.unfollowOnlineRoad(ruleName: rule, workPageURL: work, roadName: "1")
+        let grid = try await database.library()
+        #expect(grid.isEmpty)
+        // A line dropped is not a season unwatched.
+        let states = try await database.onlineWatchStates(
+            ruleName: rule, pageURLs: [fifth.online?.pageURL ?? ""]
+        )
+        #expect(states.values.first?.isWatched == true)
+    }
+
+    @Test func aFollowedWorkCountsWhatHasBeenWatched() async throws {
+        let database = try LibraryDatabase(inMemory: true)
+        let animeID = try await follow(database)
+        let episodes = try await database.episodes(animeID: animeID)
+        for episode in episodes.prefix(3) {
+            try await database.save(progress: PlaybackProgress(
+                episodeID: episode.episode.id, position: 1_430, duration: 1_440, isWatched: true
+            ))
+        }
+        let card = try #require(try await database.library().first)
+        #expect(card.watchedCount == 3)
+        #expect(card.episodeCount == 12)
+        #expect(!card.isFinished)
+    }
+
+    /// Half-watched online episodes belong on the continue shelf for the same
+    /// reason local ones do.
+    @Test func aHalfWatchedOnlineEpisodeIsOnTheContinueShelf() async throws {
+        let database = try LibraryDatabase(inMemory: true)
+        let animeID = try await follow(database)
+        let episodes = try await database.episodes(animeID: animeID)
+        let second = try #require(episodes.first { $0.episode.numberText == "2" })
+        try await database.save(progress: PlaybackProgress(
+            episodeID: second.episode.id, position: 400, duration: 1_440, isWatched: false
+        ))
+        let shelf = try await database.continueWatching()
+        #expect(shelf.count == 1)
+        #expect(shelf.first?.episode.id == second.episode.id)
+        #expect(shelf.first?.online?.pageURL == second.online?.pageURL)
+    }
+
+    /// A followed work is matched like any other — the pass reads `library()`
+    /// — but it must never reach the concert pass, which is about discs.
+    @Test func aFollowedWorkIsMatchedButIsNeverAConcert() async throws {
+        let database = try LibraryDatabase(inMemory: true)
+        _ = try await follow(database)
+        let grid = try await database.library()
+        #expect(grid.count == 1)
+        let unmatched = try await database.worksWithNoMetadata()
+        let notConcerts = try await database.worksThatAreNotConcerts()
+        let discs = try await database.discWorks()
+        #expect(unmatched.isEmpty)
+        #expect(notConcerts.isEmpty)
+        #expect(discs.isEmpty)
+    }
+
+    /// A site's copy and the files on disk are two cards, which is what was
+    /// asked for — and the scan must not disturb the online one.
+    @Test func aFollowedWorkAndTheLocalOneAreTwoCards() async throws {
+        let database = try LibraryDatabase(inMemory: true)
+        _ = try await follow(database)
+        let root = LibraryRoot(displayName: "T7", lastKnownPath: "/Volumes/T7/video")
+        try await database.save(root: root)
+        try await database.importScan(LibraryScanResult(root: root, files: [
+            ScannedMediaFile(
+                relativePath: "药师少女的独语/EP01.mkv", fileSize: 1_400_000_000, modifiedAt: .now,
+                parsed: ParsedAnimeFilename(title: "药师少女的独语", episode: 1, confidence: 0.9)
+            )
+        ], skippedUnreadableCount: 0))
+
+        let grid = try await database.library()
+        #expect(grid.count == 2)
+        #expect(grid.filter(\.isOnline).count == 1)
+        #expect(grid.filter { !$0.isOnline }.count == 1)
+        #expect(grid.first(where: \.isOnline)?.episodeCount == 12)
+    }
+}
