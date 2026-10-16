@@ -72,6 +72,31 @@ Distribution must preserve the applicable notices and LGPL relinking/replacement
 - Usage: searches run for the episode being played; downloaded subtitles are
   cached locally per episode and are not redistributed.
 
+## Kazumi (online source rule format)
+
+- Source: https://github.com/Predidit/Kazumi
+- License: GPL-3.0
+- Usage: **no Kazumi code is used.** AnimeGod's online source engine is an
+  independent Swift implementation that reads Kazumi's *rule schema* field for
+  field — the JSON key names and the XPath/JSONPath selector semantics — so
+  that a rule written for that app loads here unchanged. Fields AnimeGod has
+  no use for are still read and written back so a rule round-trips intact.
+  Interoperating with a data format is not a derivative work of the program
+  that defined it, so the GPL-3.0 of the Kazumi application does not extend to
+  AnimeGod.
+
+## KazumiRules (the shared rule catalog)
+
+- Source: https://github.com/Predidit/KazumiRules
+- License: MIT
+- Usage: the default catalog AnimeGod installs rules from, fetched at runtime
+  (two GETs: an `index.json` and the chosen rule files) on the user's explicit
+  action. **No rules are bundled with the app.** A mirror
+  (`raw.gitcode.com/gh_mirrors/ka/KazumiRules`) is offered where
+  `raw.githubusercontent.com` is unreachable, and the catalog address is
+  user-settable so anyone may point it at their own. Rules are the work of
+  their individual authors.
+
 ## Fribb anime-lists
 
 - Source: https://github.com/Fribb/anime-lists (`anime-list-mini.json`)
