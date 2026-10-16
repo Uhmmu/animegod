@@ -300,10 +300,25 @@ struct RootView: View {
             // AG_SMOKE_FILE=<path> plays that file instead of the library's
             // first episode — how a disc image, or any other one-off file,
             // is checked without adding it to the library first.
-            if let path = ProcessInfo.processInfo.environment["AG_SMOKE_FILE"] {
-                let url = URL(fileURLWithPath: path)
-                FileHandle.standardError.write(Data("SMOKE playing file \(url.path)\n".utf8))
-                model.playFile(at: url, title: url.lastPathComponent)
+            //
+            // An `http(s)` value plays a stream instead, with the headers
+            // `AG_SMOKE_HEADERS=Referer=https://…;Origin=…` supplies. That is
+            // how a resolved online source is checked on the real player path
+            // rather than with a range request: a URL that serves bytes to
+            // `curl` and a URL mpv can play are not the same claim.
+            if let value = ProcessInfo.processInfo.environment["AG_SMOKE_FILE"] {
+                let remote = value.hasPrefix("http://") || value.hasPrefix("https://")
+                guard let url = remote ? URL(string: value) : URL(fileURLWithPath: value) else { return }
+                var headers: [String: String] = [:]
+                for pair in (ProcessInfo.processInfo.environment["AG_SMOKE_HEADERS"] ?? "")
+                    .split(separator: ";") where pair.contains("=") {
+                    let parts = pair.split(separator: "=", maxSplits: 1)
+                    headers[String(parts[0]).trimmingCharacters(in: .whitespaces)] = String(parts[1])
+                }
+                FileHandle.standardError.write(
+                    Data("SMOKE playing \(remote ? "stream" : "file") \(url.absoluteString) headers=\(headers.keys.sorted())\n".utf8)
+                )
+                model.playFile(at: url, title: url.lastPathComponent, headers: headers)
                 return
             }
             var waited = 0

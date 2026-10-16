@@ -15,6 +15,14 @@ struct MPVPlayerView: NSViewControllerRepresentable {
         if state.playbackAvailable {
             controller.initialURL = state.mediaURL
             controller.initialPosition = state.position
+            // The first load is the one an online episode lives or dies by,
+            // and it was the one going out bare: the headers were set in
+            // `loadCurrentEpisode` and `switchEpisode`, neither of which runs
+            // for the file the window opens on. A site behind a hotlink check
+            // answers that request 401 and the window reports a playback
+            // error — for a URL that serves video perfectly well with the
+            // referer the resolver already captured.
+            controller.httpHeaders = state.directPlayback?.headers ?? [:]
         }
         state.controller = controller
         return controller
@@ -1965,6 +1973,7 @@ struct PlayerScreen: View {
         let fullscreen = controller?.view.window?.styleMask.contains(.fullScreen) ?? false
         FileHandle.standardError.write(Data("SMOKE \(label) mpv-osd: \(controller?.osdDimensions ?? "nil")\n".utf8))
         FileHandle.standardError.write(Data("SMOKE \(label): window=\(Int(windowFrame.width))x\(Int(windowFrame.height)) fs=\(fullscreen) view=\(Int(viewBounds.width))x\(Int(viewBounds.height)) \(surfaceText) surface=\(renderedText) pos=\(Int(state.position))/\(Int(state.duration)) buffered=\(state.bufferedEnd.map { String(Int($0)) } ?? "nil") chapters=\(state.chapters.count) controls=\(controlsVisible) cursorHidden=\(cursorHiddenByPlayer)\n".utf8))
+        FileHandle.standardError.write(Data("SMOKE \(label) http: headers=\(controller?.httpHeaderDiagnostics ?? "nil")\n".utf8))
         let subtitleTracks = state.subtitleTracks.map { "\($0.id):\($0.title)\($0.isExternal ? ":ext" : "")" }
         let onScreen = (controller?.currentSubtitleText ?? "").replacingOccurrences(of: "\n", with: " | ")
         FileHandle.standardError.write(Data("SMOKE \(label) subtitles: sid=\(state.subtitleID.map(String.init) ?? "no") tracks=\(subtitleTracks) text=\"\(onScreen)\" online=\(SubtitleStatusBadge.statusText(state.subtitles.phase))\n".utf8))

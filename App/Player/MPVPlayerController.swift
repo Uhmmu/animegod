@@ -461,6 +461,12 @@ final class MPVPlayerController: NSViewController {
     /// — smoke-test evidence that a loaded track decodes, overlaps included.
     var currentSubtitleText: String? { mpv == nil ? nil : getString("sub-text") }
 
+    /// What mpv is actually sending, as opposed to what was handed to the
+    /// controller. The two came apart once already — the window's first load
+    /// went out before anything set them — so the smoke dump reads them back
+    /// off mpv rather than echoing the dictionary.
+    var httpHeaderDiagnostics: String { mpv == nil ? "nil" : (getString("http-header-fields") ?? "") }
+
     /// True while video is shown by mpv (and therefore libass); the native
     /// Dolby Vision path renders no subtitles.
     var rendersSubtitles: Bool { avPlayer == nil }
@@ -503,6 +509,32 @@ final class MPVPlayerController: NSViewController {
         delegate?.playerLoadingStateDidChange(isLoading: true)
         let extensionName = url.pathExtension.lowercased()
         let canUseNativeDolbyVision = ["mp4", "m4v", "mov"].contains(extensionName)
+
+        // A stream goes straight to mpv, and nothing here may look at it
+        // first.
+        //
+        // Everything below reads the file: the disc probe and the Dolby
+        // Vision probe both open a `FileHandle`, which cannot be had for a
+        // remote URL at all, and `inspectNativeDolbyVision` builds an
+        // `AVURLAsset` — a second HTTP client, with none of the headers the
+        // stream was resolved with, against a CDN that may well refuse it.
+        // Measured on a resolved online episode: a remote `.mp4` produced
+        // **no mpv log at all**, because it sat in that inspection and mpv
+        // was never handed the file, while the same build played a local
+        // `.mkv` (which skips the branch) immediately. That is the
+        // "player says nothing / spins forever" report.
+        //
+        // Nothing is lost by skipping it: Dolby Vision arrives on a disc or a
+        // remux, not from a streaming site, and the one thing the probe is
+        // for — choosing the AVFoundation path — is a path that cannot send
+        // a referer and so cannot play these streams anyway.
+        guard url.isFileURL else {
+            stopNativePlayback()
+            currentDiscImageKind = nil
+            currentContainerProbe = nil
+            loadWithMPV(url: url, position: position)
+            return
+        }
 
         // A disc image is a filesystem, not a container: nothing here can
         // demux it, and only libbluray can read it without mounting. Which
