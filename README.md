@@ -32,12 +32,14 @@ Mac. Nothing is uploaded, nothing is renamed, nothing is moved.
 > The app is ad-hoc signed, not notarized. On first launch macOS may need you
 > to right-click it and choose **Open**.
 
-**Current release: 0.6.1** — four things that were quietly wrong. A live Blu-ray
-that **only Discogs** has now files itself as a concert instead of sitting in the
-grid; a disc image that spells its folder names in **UTF-16** plays instead of
-reporting that it holds no video; a work named `[BDMV][220824] …` is called by
-its name rather than by the date in front of it; and the match review asks a
-question **once** instead of at every launch.
+**Current release: 0.7.0** — the episode you want is not always on your disk.
+**Online sources** are a whole new section: a streaming site becomes a source by
+writing five XPath selectors, every installed rule answers one search at once,
+and the stream is found by loading the episode and watching what its own player
+plays — because a URL merely read out of the page is as likely to answer `401`
+as to serve video. Rules use the **Kazumi** format unchanged, so one written for
+that app works here as it is, and an episode watched from a site resumes, marks
+seen and lands in the diary exactly like a file.
 
 ## At a glance
 

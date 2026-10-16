@@ -1,98 +1,122 @@
-# AnimeGod 0.6.1
+# AnimeGod 0.7.0
 
-**Four things that were quietly wrong.**
+**The episode you want is not always on your disk.**
 
-0.6.0 gave concerts their own section. This release is what a week of actually
-using it turned up: a live Blu-ray that no catalogue would vouch for, a 37 GB
-disc image that reported itself empty, a work filed under a date, and a
-question that would not stop asking itself.
+This release adds a whole section for watching straight from a streaming site —
+and it does it the way [Kazumi](https://github.com/Predidit/Kazumi) does, with
+rules people write and share rather than code nobody can fix. A site that
+renames its buttons is a rule update, not an app update.
+
+Rules use Kazumi's own format unchanged, so **a rule written for that app works
+here as it is**.
 
 ---
 
-## 🎤 A disc only Discogs holds is still a concert
+## 🌐 A streaming site becomes a source by writing five selectors
 
-A concert moves itself into the section when a source says `Live` — and only
-**two** sources ever say it: MusicBrainz's `Live` secondary type and Bangumi's
-演出 subject. Discogs says nothing of the sort. Measured across four catalogue
-numbers, not one carries a `Live` descriptor:
-
-| catalogue number | Discogs says | MusicBrainz has it |
-|---|---|---|
-| `UPXH-29056` | Blu-ray × 2, 46 songs | ❌ not at all |
-| `ANZX-10294` | Blu-ray, Limited Edition | ✅ |
-| `BRMM-10876` | CD + Blu-ray Audio | ✅ |
-| `BRMM-10679` | CD + Blu-ray | ✅ |
-
-So a Japanese live Blu-ray that **only** Discogs holds could never move itself
-in, however exactly its number answered. One was already identified, sitting in
-the database with all 46 of its songs, while the work itself stayed in the anime
-grid.
-
-What Discogs does say, without meaning to, is that the release is something you
-**watch** — and a music catalogue indexes music, so a video medium in one is a
-concert or a music video, never an episode of a series. That now moves a disc
-in, with one guard: only when no anime provider has matched the work. A
-catalogue number alone still moves nothing — `ANZX` is Aniplex's anime label
-as well.
-
-Three things had to follow:
+That is the whole of it: a search URL and at most five XPath selectors saying
+how one site lists its shows.
 
 | | |
 |---|---|
-| 💿 **Which disc of a box is the video** | `formats` lists the media in box order with a count each (`2 × CD`, then `1 × Blu-ray`) and the track list numbers its discs the same way — so a 2CD+BD album's **third** disc is recognised as the live, and its 26 songs are the setlist instead of the album's 13 |
-| 🔢 **A barcode from the release's own text file** | No cue sheet, no catalogue number in any name, and a saved shop page carrying `EAN ‏ : ‎ 4988031567562` — the only exact key in the folder, and both catalogues answer it with one release |
-| ✅ **A finished record over a work still in the grid** | Decided from the record already on disk, rather than by asking every service again |
+| 🔍 **One search, every source** | Every installed rule answers at once, results grouped per site — which source has this week's episode is not knowable in advance |
+| 🧩 **Rules, not code** | Install from the shared catalog, or paste one in as JSON, a list, or the base64 blob they get shared as |
+| 🛣 **Every playback line** | A site's second and third upload are right there when the first is down |
+| 🎞 **The same player** | libmpv, with danmaku and subtitles as usual |
+| 📔 **The same watch record** | Resume, mark seen, the diary, the statistics |
 
-## 💽 A Blu-ray image that names its folders in UTF-16
+**Each source says what it did.** "Nothing found" is its own answer and not a
+failure — a site that has never carried a show is not a site you need to go and
+fix. A rule whose selectors have gone stale says *that* instead, which is the
+one case where there is something to do.
 
-A UDF file identifier is OSTA compressed Unicode, and its first byte says which
-of two encodings follows. AnimeGod only ever looked for one of them.
+Settings → **Online Sources** lists what is installed, installs from the shared
+catalog, and updates the rules the catalog is ahead of. The catalog is a file on
+GitHub, which not every network can reach, so it offers a **mirror** when it
+cannot.
 
-| image | `BDMV` written as | result |
-|---|---|---|
-| `SENNEN_JYOYU.iso` | `42 44 4D 56` | ✅ played |
-| `ROAD GAME『テクノプア』…iso` | `00 42 00 44 00 4D 00 56` | ❌ "no playable Blu-ray video" |
+## 🎬 The page's own player says where the video is
 
-Neither image carries an ISO 9660 side to fall back on, so the identifier as the
-disc spells it is all there is to go on. Both spellings are read now — and the
-second image plays: 1920×1080, 2:22:15, 33 chapters, seeking fine. libbluray
-never had a problem with it; only the probe did.
+A streaming site does not put its video URL in the page. It assembles it in its
+own JavaScript, usually two iframes deep, so the only honest way to find it is
+to load the episode and watch what the player does. That takes a few seconds and
+the episode says so while it happens.
 
-## 🏷 A work's name is what is outside the brackets
+**A parser that skips the browser looks like it works and does not play.** This
+is not a design preference — it was measured on a real episode page:
 
-The title is not only what the card shows — it is what every metadata provider
-is asked for. Two works in a real library were filed under something that is
-not a title at all:
+| what offered it | when | the URL | what it serves |
+|---|---|---|---|
+| an iframe's query string | **2.21 s** | `play.xfvod.pro:8088/…/01.mp4` | ❌ `401`, with or without a referer |
+| the `<video>` element | **9.96 s** | the same path, **no port** | ✅ `206 video/mp4` |
 
-| folder | before | after |
-|---|---|---|
-| `[BDMV][220824] ずっと真夜中でいいのに。 - 鷹は飢えても踊り忘れず` | `220824` | the name |
-| `[Sakurato][20190112] Domestic na Kanojo [TV01-12+SP Fin]…` | `TV01-12+SP Fin` | `Domestic na Kanojo` |
+First-past-the-post gives you a resolution that is instant, plausible and dead.
+So candidates are **ranked, not raced**: a `<video>` element's source or a
+playlist the page actually fetched beats a URL merely handed to a player, and the
+quick guess is kept only as the fallback if nothing better arrives.
 
-The second is why that work had no metadata: it was searching for a description
-of the folder's contents. A folder that is *nothing but* brackets still reads a
-bracket — that part was right and is unchanged.
+Two more things that had to be true:
 
-## 🔁 A metadata question is asked once
+- **Scripts go into every frame.** The player on one real site is
+  `player.moedot.net/player/index.php` → `ec.php` — two iframes down.
+- **Ad frames are blocked.** An ad's `<video>` element is indistinguishable from
+  the episode's to anything watching the page, and whichever showed up first
+  would be what played.
 
-Closing the match review answers nothing — **Done is not Skip** — so every entry
-was still pending when the next automatic pass ran, and the sheet opened again.
-At every launch. In the library this was found in, the only unanswerable
-questions were two concert discs no anime index lists, and the stored skip-list
-had exactly **one** entry in it after months.
+Hotlink-protected streams are fetched with the referer the site expects, and the
+player is given the same headers — the stream is handed to mpv directly, with
+nothing in between opening it first.
 
-The queue itself is right. Opening a window over whatever you are doing, a
-second and a third time, to ask the same thing, is not. A question now offers
-itself once; after that it waits in the toolbar, where asking is your move.
+## 📔 An episode watched from a site is in the diary like any other
+
+Watching from a site writes **the rows watching a file writes** — the work, its
+episodes, their progress, a watch event — because that is what the diary, the
+statistics and the resume point are read out of. No parallel history, no second
+kind of "watched".
+
+The map onto them is keyed on **the rule's name and the episode's page URL**,
+never the resolved stream: a stream comes back signed or cache-busted every
+time it is resolved, and a page URL does not change.
+
+| | |
+|---|---|
+| ▶️ **Resume** | Where you left it, on whichever line you were watching |
+| ✅ **Mark seen** | By hand, as everywhere else |
+| 🧾 **Several lines, one episode** | A site offering the same episode on three lines has three URLs — finishing it on whichever one was up is finishing it |
+| 🚫 **Out of the grid** | An online work has no files, so it stays out of the library grid and the Continue Watching shelf |
+
+**Following a playback line puts the work in the library section**, so a show
+you are watching from a site is somewhere you can get back to rather than a
+search you have to repeat.
+
+## 🔧 Three things that were wrong on a stream
+
+| | |
+|---|---|
+| ▶️ **The player said nothing at all** | Every local file is probed before it is played — a disc image probe and a Dolby Vision probe, both of which open a file handle a remote URL simply does not have. A resolved `.mp4` sat in that inspection and **mpv was never handed the file**. A stream now goes straight to mpv. Nothing is lost: Dolby Vision arrives on a disc, and the path that probe selects cannot send a referer anyway |
+| 💬 **Danmaku stopped guessing** | dandanplay identifies a file by the MD5 of its first 16 MB, which a stream has none of — so every automatic pass fell back to guessing from a title and bound whatever it guessed. Loading danmaku for an online episode is now your own move: the menu's **Refresh**, or picking the episode yourself |
+| 🈳 **Subtitles stopped asking** | Same reason, same answer — an online episode is no longer nagged about a match that cannot be made automatically |
 
 ---
 
-## 📦 Install
+## Under the hood, for the curious
 
-Download `AnimeGod-0.6.1.dmg`, drag it to Applications. Universal (Apple
-Silicon + Intel), macOS 14+. Ad-hoc signed and **not notarized** — on first
-launch, right-click the app and choose **Open**.
+- **libxml2, not `XMLDocument`.** `XMLDocument` is this library underneath, and
+  it **does not exist on the iOS SDK** — so the rule engine would have had to
+  live behind a platform check, in a core that builds for both. libxml2 ships
+  headers *and* library in every SDK.
+- **A rule's inner selectors start with `//` and mean "inside this row".** XPath
+  anchors that at the document, so taken literally every row returns row 0's
+  answer. Measured on a real page: `//div[3]/div[2]/a[1]` inside a result row
+  matched **2 unscoped vs 1 scoped**, and `//li/a` inside one playback line
+  matched **62 vs 24** — collapsing two lines into one wrong list.
+- **JSONPath is a deliberate subset.** Every expression in the live catalog was
+  collected — **eleven**, all `$` plus dot keys plus `[*]`. Filters, slices and
+  recursive descent are used by no rule, and return nothing rather than
+  something wrong. **7 of 17 rules** need API mode, so it is not optional.
+- **Not every site resolves.** One of the seventeen chains its player URL
+  through *another site's* play page, which nothing here follows yet. It is the
+  site, not the configuration — a bare probe fails on it too.
 
-Upgrading from 0.6.0 needs nothing: the library, the concert records and every
-setlist you pasted are kept. Works whose names were wrong are renamed on the
-next scan, and what was bound to them comes along.
+**774 tests in 120 suites**, 1045 + 129 + 173 strings with nothing missing in
+简体中文 or 日本語.
