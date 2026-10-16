@@ -48,12 +48,13 @@ public actor LibraryDatabase {
     public func removeLibraryRoot(id: UUID) throws {
         try database.write { db in
             try db.execute(sql: "DELETE FROM libraryRoot WHERE id = ?", arguments: [id.uuidString])
-            try db.execute(sql: "DELETE FROM episode WHERE id NOT IN (SELECT episodeID FROM mediaFile)")
+            try Self.sweepOrphanedEpisodes(in: db)
             try db.execute(sql: """
                 DELETE FROM anime
                 WHERE id NOT IN (SELECT animeID FROM episode)
                   AND id NOT IN (SELECT animeID FROM animeProfile)
                   AND id NOT IN (SELECT animeID FROM watchEvent)
+                  AND id NOT IN (SELECT animeID FROM onlineWork)
                 """)
         }
     }
@@ -136,7 +137,7 @@ public actor LibraryDatabase {
                     arguments: [root.id.uuidString, path]
                 )
             }
-            try db.execute(sql: "DELETE FROM episode WHERE id NOT IN (SELECT episodeID FROM mediaFile)")
+            try Self.sweepOrphanedEpisodes(in: db)
             try db.execute(sql: "DELETE FROM danmakuMatch WHERE mediaFileID NOT IN (SELECT id FROM mediaFile)")
             try Self.migrateIdentityOnRegroup(successors: successors, in: db)
             // Folder renames on disk change relative paths, so regrouping was
@@ -148,6 +149,7 @@ public actor LibraryDatabase {
                   AND id NOT IN (SELECT animeID FROM animeProfile)
                   AND id NOT IN (SELECT animeID FROM watchEvent)
                   AND id NOT IN (SELECT animeID FROM externalAnimeID)
+                  AND id NOT IN (SELECT animeID FROM onlineWork)
                 """)
         }
     }
@@ -524,6 +526,11 @@ public actor LibraryDatabase {
                         JOIN episode ON episode.id = mediaFile.episodeID
                         WHERE episode.animeID = anime.id) AS fileCount
                 FROM anime
+                -- An online work is a page on somebody's site. It shares a
+                -- name with the local copy as often as not, and merging the
+                -- two would hand the site's episodes to a work that has
+                -- files — which is the one thing the viewer said not to do.
+                WHERE anime.id NOT IN (SELECT animeID FROM onlineWork)
                 """).compactMap { row -> DuplicateWorkDetector.Work? in
                     guard let id = UUID(uuidString: row["id"]),
                           let kind = AnimeKind(rawValue: row["kind"] as String)
@@ -1929,6 +1936,21 @@ public actor LibraryDatabase {
         return digest.map { String(format: "%02x", $0) }.joined()
     }
 
+    /// Drops episode rows nothing on disk stands behind any more.
+    ///
+    /// An online episode is the exception and has to be named here, because
+    /// it never had a file: its rows exist so the stream it stands for can
+    /// resume, be marked seen and reach the diary. Everything else about it
+    /// — the grid, the continue shelf, every concert and metadata pass —
+    /// leaves it alone for free, since all of those join `mediaFile`.
+    private static func sweepOrphanedEpisodes(in db: Database) throws {
+        try db.execute(sql: """
+            DELETE FROM episode
+            WHERE id NOT IN (SELECT episodeID FROM mediaFile)
+              AND id NOT IN (SELECT episodeID FROM onlineEpisode)
+            """)
+    }
+
     private static func findOrCreateAnime(title: String, in db: Database) throws -> String {
         let normalized = normalize(title)
         if let id = try String.fetchOne(db, sql: "SELECT id FROM anime WHERE normalizedTitle = ?", arguments: [normalized]) {
@@ -2580,6 +2602,46 @@ public actor LibraryDatabase {
                 table.column("mergedAt", .datetime).notNull()
             }
             try db.create(index: "animeTitleAlias_anime", on: "animeTitleAlias", columns: ["animeID"])
+        }
+        migrator.registerMigration("v19_online_watch_history") { db in
+            // What a site's page is, in the library's own terms.
+            //
+            // Watching from an online source writes the same rows watching a
+            // file does — an `anime`, its `episode`s, their `playbackProgress`,
+            // and a `watchEvent` — because that is what the diary, the
+            // statistics and the resume point are read out of, and the viewer
+            // asked for an independent section that still shares the record.
+            // These two tables are the whole of what is new: the map from a
+            // site's own identity onto those rows.
+            //
+            // Identity is the rule's name plus the page's URL, never the
+            // resolved stream: that one is re-resolved on every play and comes
+            // back signed, cache-busted or simply different. `pageURL` is
+            // whatever `OnlineEpisodeURL.absolute` produced, which is
+            // idempotent, so the same episode is the same string every time.
+            try db.create(table: "onlineWork") { table in
+                table.column("ruleName", .text).notNull()
+                table.column("pageURL", .text).notNull()
+                table.column("animeID", .text).notNull().references("anime", onDelete: .cascade)
+                table.column("name", .text).notNull()
+                table.column("lastOpenedAt", .datetime).notNull()
+                table.primaryKey(["ruleName", "pageURL"])
+            }
+            // Several rows may point at one episode: a site offers the same
+            // episode on several playback lines, under a different URL each
+            // time, and finishing it on whichever line was up is finishing it.
+            try db.create(table: "onlineEpisode") { table in
+                table.column("ruleName", .text).notNull()
+                table.column("pageURL", .text).notNull()
+                table.column("episodeID", .text).notNull().references("episode", onDelete: .cascade)
+                table.column("workPageURL", .text).notNull()
+                table.column("roadName", .text).notNull()
+                table.column("label", .text).notNull()
+                table.column("position", .integer).notNull()
+                table.primaryKey(["ruleName", "pageURL"])
+            }
+            try db.create(index: "onlineEpisode_episode", on: "onlineEpisode", columns: ["episodeID"])
+            try db.create(index: "onlineEpisode_work", on: "onlineEpisode", columns: ["ruleName", "workPageURL"])
         }
         return migrator
     }

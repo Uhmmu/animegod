@@ -319,6 +319,44 @@ final class AppModel: ObservableObject {
         )
     }
 
+    /// Plays an episode from an online source.
+    ///
+    /// Like `playFile` in that the bytes come from a resolved URL rather than
+    /// a library folder, and unlike it in that there is something to write to:
+    /// the episode has rows of its own, keyed on the rule's name and the page
+    /// URL, so it resumes where it was left and the session reaches the diary
+    /// and the statistics. The stream's own address is never the identity —
+    /// it is re-resolved on every play and comes back signed or cache-busted.
+    func playOnline(
+        _ record: LibraryDatabase.OnlineEpisodeRecord,
+        streamURL: URL,
+        headers: [String: String]
+    ) {
+        // A stand-in for the player's own plumbing, never stored: an online
+        // episode has no file, and everything that would read one (the local
+        // copy, the auto-cache, the danmaku hash) is off for this playback.
+        let file = MediaFile(
+            libraryRootID: UUID(),
+            episodeID: record.episode.id,
+            relativePath: streamURL.lastPathComponent,
+            fileSize: 0,
+            modifiedAt: .now
+        )
+        playerRequest = PlayerRequest(
+            episodes: [EpisodeMedia(episode: record.episode, mediaFile: file, progress: record.progress)],
+            startIndex: 0,
+            roots: roots,
+            cache: nil,
+            directPlayback: PlayerRequest.DirectPlayback(
+                url: streamURL,
+                title: record.workName,
+                infoHash: nil,
+                headers: headers,
+                writesHistory: true
+            )
+        )
+    }
+
     /// Reads what a work's own release folder says about itself.
     ///
     /// The read happens here rather than in the coordinator because the folder
@@ -1492,14 +1530,20 @@ final class AppModel: ObservableObject {
             isWatched: session.isWatched,
             overridesWatched: session.overridesWatched
         )
-        let animeTitle = metadataByAnimeID[episode.episode.animeID]?.title
+        // An online work is in neither: it is deliberately not in the grid,
+        // and no provider has ever been asked about it. Its name is on its
+        // own row, so the diary says what was watched rather than "Unknown".
+        var animeTitle = metadataByAnimeID[episode.episode.animeID]?.title
             ?? library.first(where: { $0.id == episode.episode.animeID })?.anime.title
-            ?? String(localized: "Unknown Anime")
+        if animeTitle == nil {
+            animeTitle = try? await database.anime(id: episode.episode.animeID)?.title
+        }
+        let title = animeTitle ?? String(localized: "Unknown Anime")
         do {
             try await database.record(event: WatchEvent(
                 animeID: episode.episode.animeID,
                 episodeID: episode.id,
-                animeTitle: animeTitle,
+                animeTitle: title,
                 episodeLabel: Self.episodeLabel(episode.episode),
                 startedAt: session.startedAt,
                 watchedDuration: session.watchedDuration,
@@ -1523,7 +1567,7 @@ final class AppModel: ObservableObject {
             try FileManager.default.createDirectory(at: applicationSupport, withIntermediateDirectories: true)
             let database = try LibraryDatabase(url: applicationSupport.appending(path: "library.sqlite"))
             self.database = database
-            let online = OnlineCoordinator(supportDirectory: applicationSupport)
+            let online = OnlineCoordinator(supportDirectory: applicationSupport, database: database)
             self.online = online
             await online.load()
             roots = try await database.libraryRoots()
@@ -1702,10 +1746,10 @@ final class AppModel: ObservableObject {
 }
 
 struct PlayerRequest: Identifiable {
-    /// Playing a file that is not in the library — a download still in
-    /// progress. It has no episode row, so nothing about it is written to
-    /// the database: no watch progress, no auto-cache, no danmaku match
-    /// (an unfinished file has no stable identity to match on).
+    /// Playing bytes that come from a URL rather than a library folder — a
+    /// download still in progress, or a stream resolved from an online
+    /// source. Neither has a file to auto-cache or to hash for a danmaku
+    /// match; `writesHistory` is what separates the two on everything else.
     struct DirectPlayback {
         let url: URL
         let title: String
@@ -1713,6 +1757,16 @@ struct PlayerRequest: Identifiable {
         /// Headers the bytes have to be fetched with. Empty for a local
         /// file; a scraped stream is usually behind a hotlink check.
         var headers: [String: String] = [:]
+        /// Whether this stream stands for an episode the database knows.
+        ///
+        /// A download in progress does not: it has no stable identity, so
+        /// resuming it, marking it seen and writing it into the diary are all
+        /// claims about a file that may not end up being that file. An online
+        /// episode does — its rows are keyed on the rule and the page URL,
+        /// neither of which changes — so it resumes and it reaches the
+        /// history, while still taking its bytes from a URL rather than from
+        /// a library folder.
+        var writesHistory: Bool = false
     }
 
     let id = UUID()

@@ -33,21 +33,32 @@ final class OnlineCoordinator: ObservableObject {
 
     /// The episode currently being resolved, so its row can say so.
     @Published private(set) var resolvingEpisode: String?
+    /// What has been watched of the open work, keyed by episode page URL.
+    ///
+    /// Only episodes that have actually been played have an entry: opening a
+    /// search result to look at it writes nothing, and an episode nobody has
+    /// opened needs no row to be drawn as unwatched.
+    @Published private(set) var watchStates: [String: OnlineWatchState] = [:]
     @Published var errorMessage: String?
     /// The last resolution's log, for when a source stops working.
     @Published private(set) var lastResolutionLog: [String] = []
 
     private let store: OnlineSourceStore
     private let coordinator = OnlineSourceCoordinator()
+    /// Where watch records go. An online episode is filed in the library's
+    /// own tables — see `LibraryDatabase+Online` — so what is watched here
+    /// reaches the resume point, the diary and the statistics.
+    private let database: LibraryDatabase?
     private var catalog = OnlineSourceCatalog()
     private let resolver = OnlineStreamResolver()
     private var searchTask: Task<Void, Never>?
     private var episodesTask: Task<Void, Never>?
 
-    init(supportDirectory: URL) {
+    init(supportDirectory: URL, database: LibraryDatabase?) {
         store = OnlineSourceStore(
             fileURL: OnlineSourceStore.defaultFileURL(supportDirectory: supportDirectory)
         )
+        self.database = database
     }
 
     func load() async {
@@ -118,6 +129,7 @@ final class OnlineCoordinator: ObservableObject {
                 let result = try await coordinator.chapters(pageURL: item.pageURL, rule: rule)
                 guard !Task.isCancelled, openWork?.id == item.id else { return }
                 roads = result.roads
+                await refreshWatchStates()
             } catch {
                 guard !Task.isCancelled, openWork?.id == item.id else { return }
                 errorMessage = OnlineSourceCoordinator.describe(error)
@@ -131,6 +143,58 @@ final class OnlineCoordinator: ObservableObject {
         openWork = nil
         roads = []
         selectedRoad = 0
+        watchStates = [:]
+    }
+
+    // MARK: - Watch records
+
+    /// Re-reads what has been watched of the open work.
+    ///
+    /// Every page of every line at once rather than per row: the grid is
+    /// redrawn whenever a resolution starts or ends, and the lines share
+    /// episodes, so one read keeps them all honest.
+    func refreshWatchStates() async {
+        guard let database, let work = openWork, !roads.isEmpty else { return }
+        let pages = roads.flatMap { $0.episodes.map(\.pageURL) }
+        guard let states = try? await database.onlineWatchStates(
+            ruleName: work.ruleName, pageURLs: pages
+        ) else { return }
+        guard openWork?.id == work.id else { return }
+        watchStates = states
+    }
+
+    func watchState(of episode: OnlineEpisode) -> OnlineWatchState? {
+        watchStates[episode.pageURL]
+    }
+
+    /// The viewer saying outright whether they have seen this one.
+    ///
+    /// Worth having for the same reason the episode list has it: the flag is
+    /// sticky, so an episode marked by a stream that ran on while nobody
+    /// watched stays marked until somebody can say otherwise.
+    func setWatched(_ isWatched: Bool, for episode: OnlineEpisode) {
+        guard let database, let ref = reference(for: episode) else { return }
+        Task { [weak self] in
+            try? await database.setOnlineWatched(isWatched, for: ref)
+            await self?.refreshWatchStates()
+        }
+    }
+
+    /// What identifies this episode to the library: the rule that found it
+    /// and the page it lives on, never the stream resolved out of that page
+    /// — that one is signed, cache-busted, and different every time.
+    private func reference(for episode: OnlineEpisode) -> OnlineEpisodeRef? {
+        guard let work = openWork else { return nil }
+        let road = roads.indices.contains(selectedRoad) ? roads[selectedRoad] : roads.first
+        return OnlineEpisodeRef(
+            ruleName: work.ruleName,
+            workPageURL: work.pageURL,
+            workName: work.name,
+            roadName: road?.name ?? "",
+            label: episode.label,
+            index: episode.index,
+            pageURL: episode.pageURL
+        )
     }
 
     // MARK: - Playing
@@ -153,11 +217,22 @@ final class OnlineCoordinator: ObservableObject {
             do {
                 let stream = try await resolver.resolve(episodePageURL: episode.pageURL, rule: rule)
                 lastResolutionLog = resolver.log
-                model.playFile(
-                    at: stream.url,
-                    title: "\(work.name) · \(episode.label)",
-                    headers: stream.headers
-                )
+                // The rows this episode is filed under, created on the first
+                // play. They are what carries the resume point and what the
+                // diary and the statistics are later read out of; without a
+                // database there is simply nothing to remember, and the
+                // stream still plays.
+                if let database, let ref = reference(for: episode),
+                   let record = try? await database.onlineEpisode(for: ref) {
+                    model.playOnline(record, streamURL: stream.url, headers: stream.headers)
+                } else {
+                    model.playFile(
+                        at: stream.url,
+                        title: "\(work.name) · \(episode.label)",
+                        headers: stream.headers
+                    )
+                }
+                await refreshWatchStates()
             } catch is CancellationError {
                 return
             } catch {

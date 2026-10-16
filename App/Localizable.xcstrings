@@ -17604,6 +17604,44 @@
           }
         }
       }
+    },
+    "%@ · watched": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · 視聴済み"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · 已看完"
+          }
+        }
+      }
+    },
+    "%@ · %lld%% watched": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@ · %2$lld%% watched"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · %2$lld%% 視聴済み"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · 已看 %2$lld%%"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

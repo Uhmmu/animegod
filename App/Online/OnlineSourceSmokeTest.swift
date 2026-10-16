@@ -19,6 +19,13 @@ import Foundation
 /// resolution that is merely *plausible* is indistinguishable from one that
 /// works until playback fails. Checking the bytes is the only honest check.
 ///
+/// The chain does not stop at the bytes, because watching from a site is
+/// still watching: the last step files the episode under the library's own
+/// tables, records the session the player would record, and reads it back
+/// out of the diary. It writes to a **copy** of the library in the
+/// container's `tmp/`, never the real one — a probe must not put a work in
+/// anybody's history.
+///
 /// Options: `AG_ONLINE_RULES=name,name` picks which rules to use (default:
 /// the first three the catalog lists), `AG_ONLINE_MIRROR=1` uses the mirror
 /// catalog.
@@ -145,9 +152,108 @@ enum OnlineSourceSmokeTest {
         }
         resolver.dispose()
 
+        // 7. The watch record. An online episode has no file, so its identity
+        //    is the rule's name plus the page URL — never the stream, which is
+        //    re-resolved every time and comes back signed or cache-busted.
+        await checkWatchRecord(
+            work: picked.item, road: road, episode: episode, failures: &failures
+        )
+
         for failure in failures { say("FAIL \(failure)") }
         say("ok=\(failures.isEmpty)")
         exit(failures.isEmpty ? 0 : 1)
+    }
+
+    /// Plays the episode through the library's books without playing it:
+    /// the rows a first play creates, the progress the player autosaves, the
+    /// event its window writes on the way out — then asks the diary.
+    private static func checkWatchRecord(
+        work: OnlineSearchItem,
+        road: OnlineRoad,
+        episode: OnlineEpisode,
+        failures: inout [String]
+    ) async {
+        guard let database = scratchDatabase() else {
+            failures.append("could not open a scratch library")
+            return
+        }
+        let reference = OnlineEpisodeRef(
+            ruleName: work.ruleName,
+            workPageURL: work.pageURL,
+            workName: work.name,
+            roadName: road.name,
+            label: episode.label,
+            index: episode.index,
+            pageURL: episode.pageURL
+        )
+        do {
+            let record = try await database.onlineEpisode(for: reference)
+            say("filed \(episode.label) as episode \(record.episode.id) of work \(record.animeID)")
+
+            // Where the player's tail rule says a 24-minute episode is done.
+            let duration = 1_440.0
+            let position = 1_430.0
+            let watched = WatchedWorkKind.isWatched(position: position, duration: duration, kind: .series)
+            try await database.save(progress: PlaybackProgress(
+                episodeID: record.episode.id, position: position, duration: duration, isWatched: watched
+            ))
+            let ended = Date.now
+            try await database.record(event: WatchEvent(
+                animeID: record.animeID,
+                episodeID: record.episode.id,
+                animeTitle: record.workName,
+                episodeLabel: record.episode.displayLabel,
+                startedAt: ended.addingTimeInterval(-position),
+                endedAt: ended,
+                watchedDuration: position,
+                completion: position / duration,
+                completedEpisode: watched
+            ))
+
+            // And now the three things the viewer asked for.
+            let states = try await database.onlineWatchStates(
+                ruleName: work.ruleName, pageURLs: road.episodes.map(\.pageURL)
+            )
+            let resumed = try await database.onlineEpisode(for: reference)
+            let diary = try await database.watchEvents(limit: 5)
+            let summary = try await database.diarySummary()
+            let grid = try await database.library()
+            let shelf = try await database.continueWatching()
+
+            say("grid: \(states.filter(\.value.isWatched).count)/\(road.episodes.count) watched on this line")
+            say("resume: \(Int(resumed.progress?.position ?? -1))s of \(Int(resumed.progress?.duration ?? 0))s, watched=\(resumed.progress?.isWatched == true)")
+            say("diary: “\(diary.first?.animeTitle ?? "—")” \(diary.first?.episodeLabel ?? "—"), \(Int(summary.totalWatchTime))s over \(summary.sessionCount) session(s)")
+            say("library untouched: grid=\(grid.count) works, continue shelf=\(shelf.count) — neither lists the online work")
+
+            if states[episode.pageURL]?.isWatched != true { failures.append("the grid does not show it as watched") }
+            if resumed.progress?.isWatched != true { failures.append("it does not resume as watched") }
+            if diary.first?.episodeID != record.episode.id { failures.append("it did not reach the diary") }
+            if grid.contains(where: { $0.id == record.animeID }) { failures.append("an online work reached the library grid") }
+            if shelf.contains(where: { $0.episode.animeID == record.animeID }) { failures.append("an online work reached the continue shelf") }
+        } catch {
+            failures.append("watch record: \(error.localizedDescription)")
+        }
+    }
+
+    /// A copy of the real library in the container's `tmp/`, so the migration
+    /// runs over real rows and the probe's own history is thrown away with it.
+    private static func scratchDatabase() -> LibraryDatabase? {
+        let manager = FileManager.default
+        guard let support = try? manager.url(
+            for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true
+        ).appending(path: "AnimeGod", directoryHint: .isDirectory) else { return nil }
+        let scratch = manager.temporaryDirectory.appending(path: "online-watch-probe.sqlite")
+        try? manager.removeItem(at: scratch)
+        let live = support.appending(path: "library.sqlite")
+        if manager.fileExists(atPath: live.path) {
+            // `.backup` would be the careful way; a probe only needs rows to
+            // migrate over, and a copy that misses the WAL still has those.
+            try? manager.copyItem(at: live, to: scratch)
+            say("scratch library: a copy of the real one at \(scratch.lastPathComponent)")
+        } else {
+            say("scratch library: new, the real one is not there")
+        }
+        return try? LibraryDatabase(url: scratch)
     }
 
     private static func describe(_ status: OnlineSourceStatus) -> String {

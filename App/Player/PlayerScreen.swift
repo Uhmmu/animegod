@@ -106,10 +106,17 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
     private var access: ScopedLibraryAccess?
     private let roots: [LibraryRoot]
     private let cache: EpisodeCacheStore?
-    /// Set when playing a file that has no library entry (a download in
-    /// progress). Nothing about such a file is written to the database.
+    /// Set when the bytes come from a URL rather than a library folder: a
+    /// download in progress, or an episode resolved from an online source.
+    /// Whether anything is written to the database is a separate question,
+    /// answered by `writesHistory`.
     let directPlayback: PlayerRequest.DirectPlayback?
     var isDirectPlayback: Bool { directPlayback != nil }
+    /// Whether what is playing has rows to write to. True for everything in
+    /// the library, and for an online episode — which has no file but does
+    /// have a stable identity, so it resumes, can be marked seen, and ends
+    /// up in the diary. False only for a download still in progress.
+    var writesHistory: Bool { directPlayback.map(\.writesHistory) ?? true }
     let startedAt = Date.now
     private var lastPosition: Double?
     /// Holds off display sleep while a video is actually running.
@@ -1399,8 +1406,8 @@ struct PlayerScreen: View {
             state.endHold()
             showCursor()
             guard let session = state.endSession() else { return }
-            // A file outside the library has no episode to write history for.
-            guard !state.isDirectPlayback else { return }
+            // A download in progress has no episode to write history for.
+            guard state.writesHistory else { return }
             Task { await model.finishPlaybackSession(session) }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { notification in
@@ -1437,8 +1444,9 @@ struct PlayerScreen: View {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(10))
                 guard !Task.isCancelled else { break }
-                // A direct file has no episode row to attach progress to.
-                guard !state.isDirectPlayback else { continue }
+                // A download in progress has no episode row to attach
+                // progress to; an online episode does.
+                guard state.writesHistory else { continue }
                 await model.saveProgress(
                     for: state.currentEpisode,
                     position: state.position,
@@ -1460,8 +1468,13 @@ struct PlayerScreen: View {
     private var header: some View {
         HStack(alignment: .center, spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
+                // An online work is in neither — it is deliberately not in
+                // the grid and no provider has been asked about it — and a
+                // download in progress is in neither either. Both carry the
+                // name they were opened under.
                 Text(model.metadataByAnimeID[state.currentEpisode.episode.animeID]?.title
                      ?? model.library.first(where: { $0.id == state.currentEpisode.episode.animeID })?.anime.title
+                     ?? state.directPlayback?.title
                      ?? "AnimeGod")
                     .font(.headline)
                     .lineLimit(1)
@@ -1490,9 +1503,9 @@ struct PlayerScreen: View {
             // Sometimes the file is on only for the ED. The tail rule cannot
             // tell that apart from watching it, so this is how you say so —
             // and saying it also stops the rule marking it again a moment
-            // later. A file outside the library has nothing to mark, and a
+            // later. A download in progress has nothing to mark, and a
             // concert has nothing to mark it as: there is no finishing one.
-            if !state.isDirectPlayback, tracksWatchedState {
+            if state.writesHistory, tracksWatchedState {
                 Button { toggleWatched() } label: {
                     Image(systemName: state.isWatched ? "checkmark.circle.fill" : "checkmark.circle")
                         .contentTransition(.symbolEffect(.replace))

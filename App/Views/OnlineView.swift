@@ -45,6 +45,11 @@ struct OnlineView: View {
             Text(online.errorMessage ?? "")
         }
         .task { await online.load() }
+        // The player writes progress every ten seconds and once more when
+        // it closes, and each write bumps the revision. Watching the counter
+        // rather than the window means the grid is right the moment the
+        // episode is finished, not only after the window goes away.
+        .task(id: model.libraryRevision) { await online.refreshWatchStates() }
     }
 
     // MARK: - No sources yet
@@ -219,22 +224,7 @@ struct OnlineView: View {
         ScrollView {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 110), spacing: 8)], spacing: 8) {
                 ForEach(currentRoad?.episodes ?? []) { episode in
-                    Button { online.play(episode, in: model) } label: {
-                        HStack(spacing: 4) {
-                            if online.resolvingEpisode == episode.id {
-                                ProgressView().controlSize(.mini)
-                            }
-                            Text(episode.label)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                    }
-                    .buttonStyle(.bordered)
-                    // One resolution at a time: there is one browser, and
-                    // loading a second page cancels the first.
-                    .disabled(online.resolvingEpisode != nil)
+                    episodeCell(episode)
                 }
             }
             .padding(12)
@@ -250,6 +240,66 @@ struct OnlineView: View {
                 .padding(.bottom, 12)
             }
         }
+    }
+
+    /// One episode, saying whether it has been seen.
+    ///
+    /// The same three states the library's own episode list shows, for the
+    /// same reason: watching from a site is still watching, and a grid that
+    /// forgot would leave the viewer counting episodes themselves.
+    @ViewBuilder
+    private func episodeCell(_ episode: OnlineEpisode) -> some View {
+        let state = online.watchState(of: episode)
+        let watched = state?.isWatched == true
+        Button { online.play(episode, in: model) } label: {
+            VStack(spacing: 4) {
+                HStack(spacing: 4) {
+                    if online.resolvingEpisode == episode.id {
+                        ProgressView().controlSize(.mini)
+                    } else if watched {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.green)
+                    }
+                    Text(episode.label)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .foregroundStyle(watched ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
+                }
+                // Started and not finished. A bare bar rather than a
+                // percentage: what it answers is "did I get partway into
+                // this one", and it has to fit in a cell.
+                if let state, state.isPartial {
+                    ProgressView(value: state.completion)
+                        .controlSize(.small)
+                        .accessibilityLabel("Playback progress")
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+        }
+        .buttonStyle(.bordered)
+        // One resolution at a time: there is one browser, and loading a
+        // second page cancels the first.
+        .disabled(online.resolvingEpisode != nil)
+        .help(watchHelp(for: state, label: episode.label))
+        // Marking is sticky by design, so there has to be a way to undo it
+        // from outside the player — a stream that ran on to the end while
+        // nobody was watching is marked all the same.
+        .contextMenu {
+            Button(watched ? "Mark as Unwatched" : "Mark as Watched") {
+                online.setWatched(!watched, for: episode)
+            }
+        }
+    }
+
+    private func watchHelp(for state: OnlineWatchState?, label: String) -> String {
+        guard let state else { return label }
+        if state.isWatched { return String(localized: "\(label) · watched") }
+        if state.isPartial {
+            return String(localized: "\(label) · \(Int(state.completion * 100))% watched")
+        }
+        return label
     }
 
     private var currentRoad: OnlineRoad? {
