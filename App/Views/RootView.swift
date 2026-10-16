@@ -318,6 +318,21 @@ struct RootView: View {
                 FileHandle.standardError.write(
                     Data("SMOKE playing \(remote ? "stream" : "file") \(url.absoluteString) headers=\(headers.keys.sorted())\n".utf8)
                 )
+                // AG_SMOKE_ONLINE=<rule>|<work page>|<line>|<label>|<episode
+                // page> plays it as an episode of a followed line instead of
+                // a loose file: the rows are real, so this is how the online
+                // half of the player — resume, the watched mark, danmaku left
+                // for the viewer to load, and the two prompts staying away —
+                // is checked without clicking through the section by hand.
+                if let spec = ProcessInfo.processInfo.environment["AG_SMOKE_ONLINE"] {
+                    let parts = spec.components(separatedBy: "|")
+                    guard parts.count == 5 else { return }
+                    await model.playOnlineForSmokeTest(
+                        ruleName: parts[0], workPageURL: parts[1], roadName: parts[2],
+                        label: parts[3], pageURL: parts[4], streamURL: url, headers: headers
+                    )
+                    return
+                }
                 model.playFile(at: url, title: url.lastPathComponent, headers: headers)
                 return
             }

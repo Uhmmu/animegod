@@ -317,6 +317,27 @@ final class PlayerState: ObservableObject, MPVPlayerControllerDelegate {
 
     private func loadDanmaku(for file: MediaFile, url: URL) {
         guard danmaku.isAttached else { return }
+        // An episode from a site can be matched, but never on its own: there
+        // is no file to hash, so an automatic pass would be guessing from a
+        // title and would bind whatever it guessed. The request is readied
+        // and left alone — the danmaku menu loads it if the viewer wants it.
+        //
+        // Its identity is the **episode** row, not the stand-in file: that id
+        // is made fresh on every play, so a binding filed under it would be
+        // lost the moment the window closed.
+        if let origin = currentEpisode.online {
+            danmaku.prepare(DanmakuSession.EpisodeRequest(
+                fileURL: url,
+                mediaFileID: currentEpisode.episode.id,
+                fileName: origin.label,
+                fileSize: 0,
+                duration: duration,
+                titleCandidates: danmakuAnimeTitleCandidates,
+                episodeNumber: currentEpisode.episode.number,
+                episodeKind: currentEpisode.episode.kind
+            ), database: danmakuDatabase)
+            return
+        }
         // An unfinished download has no stable hash or size to match on, and
         // matching it would write a binding for a file the library has never
         // seen.
@@ -1193,17 +1214,26 @@ struct PlayerScreen: View {
                 onDoubleClick: { toggleFullscreen() },
                 onScroll: { adjustVolume(by: $0) }
             )
-            DanmakuStatusBadge(
-                session: state.danmaku,
-                preferences: danmakuPreferences,
-                controlsVisible: controlsVisible,
-                openMatch: { showDanmakuMatch = true }
-            )
-            SubtitleStatusBadge(
-                session: state.subtitles,
-                controlsVisible: controlsVisible,
-                openSearch: { showSubtitleSearch = true }
-            )
+            // Both of these are prompts to go and find something, and for an
+            // episode from a site neither can be answered the way it asks:
+            // there is no file to hash for danmaku and no release name to
+            // score subtitles against, so what they would report at every
+            // play is that they found nothing. Hidden rather than silenced,
+            // because the menus in the control bar still do both jobs on
+            // demand — the capability stays, the nagging goes.
+            if state.currentEpisode.online == nil {
+                DanmakuStatusBadge(
+                    session: state.danmaku,
+                    preferences: danmakuPreferences,
+                    controlsVisible: controlsVisible,
+                    openMatch: { showDanmakuMatch = true }
+                )
+                SubtitleStatusBadge(
+                    session: state.subtitles,
+                    controlsVisible: controlsVisible,
+                    openSearch: { showSubtitleSearch = true }
+                )
+            }
             if state.isLoading {
                 HStack(spacing: 10) {
                     ProgressView().controlSize(.small)
@@ -1974,6 +2004,8 @@ struct PlayerScreen: View {
         FileHandle.standardError.write(Data("SMOKE \(label) mpv-osd: \(controller?.osdDimensions ?? "nil")\n".utf8))
         FileHandle.standardError.write(Data("SMOKE \(label): window=\(Int(windowFrame.width))x\(Int(windowFrame.height)) fs=\(fullscreen) view=\(Int(viewBounds.width))x\(Int(viewBounds.height)) \(surfaceText) surface=\(renderedText) pos=\(Int(state.position))/\(Int(state.duration)) buffered=\(state.bufferedEnd.map { String(Int($0)) } ?? "nil") chapters=\(state.chapters.count) controls=\(controlsVisible) cursorHidden=\(cursorHiddenByPlayer)\n".utf8))
         FileHandle.standardError.write(Data("SMOKE \(label) http: headers=\(controller?.httpHeaderDiagnostics ?? "nil")\n".utf8))
+        let origin = state.currentEpisode.online
+        FileHandle.standardError.write(Data("SMOKE \(label) online: origin=\(origin.map { "\($0.ruleName)/\($0.roadName)/\($0.label)" } ?? "nil") prompts=\(origin == nil ? "shown" : "hidden") danmaku=\(state.danmaku.phase) writesHistory=\(state.writesHistory)\n".utf8))
         let subtitleTracks = state.subtitleTracks.map { "\($0.id):\($0.title)\($0.isExternal ? ":ext" : "")" }
         let onScreen = (controller?.currentSubtitleText ?? "").replacingOccurrences(of: "\n", with: " | ")
         FileHandle.standardError.write(Data("SMOKE \(label) subtitles: sid=\(state.subtitleID.map(String.init) ?? "no") tracks=\(subtitleTracks) text=\"\(onScreen)\" online=\(SubtitleStatusBadge.statusText(state.subtitles.phase))\n".utf8))

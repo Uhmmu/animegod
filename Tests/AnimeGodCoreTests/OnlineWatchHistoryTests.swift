@@ -407,3 +407,40 @@ struct OnlineSubscriptionTests {
         #expect(grid.first(where: \.isOnline)?.episodeCount == 12)
     }
 }
+
+/// A danmaku binding somebody made by hand for an online episode.
+///
+/// There is no file to hash, so the binding is filed under the episode row —
+/// and the scan sweep that clears bindings whose media file is gone has to
+/// know that, or a match made by hand lasts until the next scan.
+struct OnlineDanmakuBindingTests {
+    @Test func aScanKeepsAnOnlineEpisodesDanmakuBinding() async throws {
+        let database = try LibraryDatabase(inMemory: true)
+        let record = try await database.onlineEpisode(for: OnlineEpisodeRef(
+            ruleName: "樱花动漫", workPageURL: "https://yhdm.example/show/1",
+            workName: "药师少女的独语", roadName: "线路1",
+            label: "第1集", index: 0, pageURL: "https://yhdm.example/play/1/1/1"
+        ))
+        try await database.saveDanmakuMatch(DanmakuMatchBinding(
+            mediaFileID: record.episode.id,
+            providerID: "dandanplay",
+            episodeID: 186_650_001,
+            animeTitle: "药师少女的独语",
+            episodeTitle: "第1话",
+            isManual: true
+        ))
+
+        let root = LibraryRoot(displayName: "T7", lastKnownPath: "/Volumes/T7/video")
+        try await database.save(root: root)
+        try await database.importScan(LibraryScanResult(root: root, files: [
+            ScannedMediaFile(
+                relativePath: "Something Else/EP01.mkv", fileSize: 1_000, modifiedAt: .now,
+                parsed: ParsedAnimeFilename(title: "Something Else", episode: 1, confidence: 0.9)
+            )
+        ], skippedUnreadableCount: 0))
+
+        let kept = try await database.danmakuMatch(mediaFileID: record.episode.id)
+        #expect(kept?.episodeID == 186_650_001)
+        #expect(kept?.isManual == true)
+    }
+}

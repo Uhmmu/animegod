@@ -337,7 +337,15 @@ final class OnlineCoordinator: ObservableObject {
                 // stream still plays.
                 if let database, let ref = reference(for: episode),
                    let record = try? await database.onlineEpisode(for: ref) {
-                    model.playOnline(record, streamURL: stream.url, headers: stream.headers)
+                    model.playOnline(
+                        record,
+                        origin: OnlineEpisodeOrigin(
+                            ruleName: ref.ruleName, workPageURL: ref.workPageURL,
+                            roadName: ref.roadName, label: ref.label, pageURL: ref.pageURL
+                        ),
+                        streamURL: stream.url,
+                        headers: stream.headers
+                    )
                 } else {
                     model.playFile(
                         at: stream.url,

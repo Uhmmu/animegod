@@ -138,7 +138,16 @@ public actor LibraryDatabase {
                 )
             }
             try Self.sweepOrphanedEpisodes(in: db)
-            try db.execute(sql: "DELETE FROM danmakuMatch WHERE mediaFileID NOT IN (SELECT id FROM mediaFile)")
+            // A binding made by hand for an online episode is filed under the
+            // episode row, not a media file — a stream has no file to hash,
+            // so the episode is the only stable thing to key on. It has to be
+            // spared here or the next scan throws away a match somebody made
+            // themselves.
+            try db.execute(sql: """
+                DELETE FROM danmakuMatch
+                WHERE mediaFileID NOT IN (SELECT id FROM mediaFile)
+                  AND mediaFileID NOT IN (SELECT episodeID FROM onlineEpisode)
+                """)
             try Self.migrateIdentityOnRegroup(successors: successors, in: db)
             // Folder renames on disk change relative paths, so regrouping was
             // never observed; reconcile parked bindings by title instead.

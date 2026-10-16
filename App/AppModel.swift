@@ -337,6 +337,7 @@ final class AppModel: ObservableObject {
     /// it is re-resolved on every play and comes back signed or cache-busted.
     func playOnline(
         _ record: LibraryDatabase.OnlineEpisodeRecord,
+        origin: OnlineEpisodeOrigin,
         streamURL: URL,
         headers: [String: String]
     ) {
@@ -351,7 +352,14 @@ final class AppModel: ObservableObject {
             modifiedAt: .now
         )
         playOnline(
-            EpisodeMedia(episode: record.episode, mediaFile: file, progress: record.progress),
+            // The origin rides along so the player knows this is a stream —
+            // it is what keeps the two "go and search" prompts off a file
+            // neither of them can identify, and what points danmaku at the
+            // episode row instead of this throwaway media id.
+            EpisodeMedia(
+                episode: record.episode, mediaFile: file,
+                progress: record.progress, online: origin
+            ),
             workTitle: record.workName,
             streamURL: streamURL,
             headers: headers
@@ -376,6 +384,46 @@ final class AppModel: ObservableObject {
                 headers: headers,
                 writesHistory: true
             )
+        )
+    }
+
+    /// `-smokePlayerTest` with `AG_SMOKE_ONLINE`: files the episode for real
+    /// and plays the stream as that episode, which is the path the section
+    /// and the anime page both take.
+    func playOnlineForSmokeTest(
+        ruleName: String, workPageURL: String, roadName: String,
+        label: String, pageURL: String, streamURL: URL, headers: [String: String]
+    ) async {
+        // `prepare()` opens the database on its own task, and this hook can
+        // win the race against it.
+        var waited = 0
+        while database == nil, waited < 40 {
+            try? await Task.sleep(for: .milliseconds(250))
+            waited += 1
+        }
+        guard let database else {
+            FileHandle.standardError.write(Data("SMOKE online: no database\n".utf8))
+            exit(1)
+        }
+        let ref = OnlineEpisodeRef(
+            ruleName: ruleName, workPageURL: workPageURL, workName: "Smoke Online Work",
+            roadName: roadName, label: label, index: 0, pageURL: pageURL
+        )
+        guard let record = try? await database.onlineEpisode(for: ref) else {
+            FileHandle.standardError.write(Data("SMOKE online: could not file the episode\n".utf8))
+            exit(1)
+        }
+        FileHandle.standardError.write(
+            Data("SMOKE online: filed episode \(record.episode.id) progress=\(record.progress.map { "\(Int($0.position))/\(Int($0.duration))" } ?? "none")\n".utf8)
+        )
+        playOnline(
+            record,
+            origin: OnlineEpisodeOrigin(
+                ruleName: ruleName, workPageURL: workPageURL,
+                roadName: roadName, label: label, pageURL: pageURL
+            ),
+            streamURL: streamURL,
+            headers: headers
         )
     }
 

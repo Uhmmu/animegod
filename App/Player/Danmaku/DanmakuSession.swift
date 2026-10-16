@@ -141,6 +141,22 @@ final class DanmakuSession: ObservableObject {
         run(request: request, forceRefresh: false)
     }
 
+    /// Readies the pipeline without running it.
+    ///
+    /// For an episode from a streaming site. Matching there cannot be
+    /// automatic and should not be: dandanplay identifies a file by the MD5
+    /// of its first 16 MB, which a stream does not have, so every automatic
+    /// pass would fall back to guessing from a title and bind whatever it
+    /// guessed. Loading danmaku is therefore the viewer's own move — the
+    /// menu's Refresh, or picking an episode in the match sheet — and both
+    /// need the request to exist, which is all this does.
+    func prepare(_ request: EpisodeRequest, database: LibraryDatabase? = nil) {
+        if let database { self.database = database }
+        if currentRequest?.mediaFileID == request.mediaFileID { return }
+        currentRequest = request
+        phase = .idle
+    }
+
     /// The real media duration arrives after loading has begun; recorded
     /// for any match request that has not run yet.
     func updateDuration(_ duration: Double) {
